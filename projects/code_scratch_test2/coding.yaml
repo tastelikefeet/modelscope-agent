@@ -1,0 +1,47 @@
+llm:
+  service: openai
+  model: claude-3-7-sonnet-20250219
+  openai_api_key:
+  openai_base_url: https://dashscope.aliyuncs.com/compatible-mode/v1
+
+generation_config:
+  top_p: 0.6
+  temperature: 0.2
+  top_k: 20
+  stream: true
+  stop: "```\n"
+  extra_body:
+    dashscope_extend_params:
+      provider: idealab
+    enable_thinking: false
+
+
+prompt:
+  system: |
+    You are a senior software programmer, your task is to implement the code files scheduled by the architect.
+    
+    You need to follow these instructions:
+    
+    1. Implement files from backend to frontend, from lower levels to higher levels.
+    2. You may update existing files if necessary.
+    3. Your class names, function names, and parameter names need to clearly express their meaning.
+    3. Output your code with this format:
+    
+    ```js:js/index.js
+    ... code ...
+    ```
+    The `js/index.js` will be used to saving.
+    
+    Now Begin:
+
+handler: config_handler
+
+callbacks:
+  - callbacks/coding_callback
+  - callbacks/artifact_callback
+
+max_chat_round: 300
+
+output_dir: output
+
+help: |

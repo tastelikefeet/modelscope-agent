@@ -9,6 +9,8 @@ from ms_agent.tools.filesystem_tool import FileSystemTool
 from ms_agent.utils import get_logger
 from omegaconf import DictConfig
 
+from projects.code_scratch.callbacks.file_parser import extract_code_blocks
+
 logger = get_logger()
 
 
@@ -84,9 +86,6 @@ class CodingCallback(Callback):
 The architectural design is:
 {arch_design}
 
-The coding instruction of frontend:
-{self._frontend_prompt}
-
 The files existing on the filesystem is:
 {files}
 
@@ -97,6 +96,36 @@ The files existing on the filesystem is:
 ```
 The `index.js` will be used to saving.
 
+MANDATORY: You must generate a summary for all code files, in which:
+
+* The imports of this file
+* The class definition
+* Function names, arguments and types, returns, descriptions
+* The information and usage of this file
+
+An example of `summary.txt`:
+
+```txt:summary.txt
+Code file: index.js
+use imports:
+SomeType1 from a.js
+SomeType2 from b.js
+SomeType3 from c.js
+
+//This class definite ..., is used to ...
+Class B:
+    function a(SomeType1 b, SomeType2 c); //This function is used to, the arguments and return types are...
+    function b(SomeType3 d); //This function is used to, the arguments and return types are...
+
+//This class definite ..., is used to ...
+Class C:
+    function c(); //This function is used to, the arguments and return types are...
+
+Code file: package.json
+This file definite the dependencies and the css formats and types ...
+The information in the file is mainly ...
+```
+
 * If your task is checking code files or show code piece examples, use normal format:
 
 ```js
@@ -105,9 +134,8 @@ The `index.js` will be used to saving.
 
 * Always read the code file then its dependencies listed in existed files and the PRD&design to align interfaces before writing.
 * Pay attention all arguments and imports related to the error line, do not miss any details.
-* You only need to generate/fix/analyze the files listed in the query, other modules will be handled in other tasks.
 * Do not leave a blank image placeholder, you should use image links from unsplash.
-* If the PRD&Design contains a backend, fetch data from modules of actual API, DO NOT mock data at the frontend.
+* Do not generate fake data in the frontend if there is a backend.
 
 Now Begin:
 """ # noqa
@@ -127,3 +155,7 @@ Now Begin:
             task['system'] = task['_system']
             task.pop('_system')
         messages[-2].tool_calls[0]['arguments'] = json.dumps({'tasks': tasks})
+
+        all_files, _ = extract_code_blocks(messages[-1].content, target_filename='summary.txt')
+        content = '\n\n'.join([file['code'] for file in all_files])
+        messages[2].content += content

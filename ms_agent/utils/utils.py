@@ -40,28 +40,25 @@ def escape_yaml_string(text: str) -> str:
     return text
 
 
-def save_history(query: str, task: str, config: DictConfig,
+def save_history(output_dir: str, query: str, task: str, config: DictConfig,
                  messages: List['Message']):
-    cache_dir = os.path.join(get_cache_dir(), 'workflow_cache')
+    cache_dir = os.path.join(output_dir, 'memory')
     os.makedirs(cache_dir, exist_ok=True)
-    folder = str_to_md5(query)
-    os.makedirs(os.path.join(cache_dir, folder), exist_ok=True)
-    config_file = os.path.join(cache_dir, folder, f'{task}.yaml')
-    message_file = os.path.join(cache_dir, folder, f'{task}.json')
+    config_file = os.path.join(cache_dir, f'{task}.yaml')
+    message_file = os.path.join(cache_dir, f'{task}.json')
     with open(config_file, 'w') as f:
         OmegaConf.save(config, f)
     with open(message_file, 'w') as f:
         json.dump([message.to_dict() for message in messages], f)
 
 
-def read_history(query: str, task: str):
+def read_history(output_dir: str, query: str, task: str):
     from ms_agent.llm import Message
     from ms_agent.config import Config
-    cache_dir = os.path.join(get_cache_dir(), 'workflow_cache')
+    cache_dir = os.path.join(output_dir, 'memory')
     os.makedirs(cache_dir, exist_ok=True)
-    folder = str_to_md5(query)
-    config_file = os.path.join(cache_dir, folder, f'{task}.yaml')
-    message_file = os.path.join(cache_dir, folder, f'{task}.json')
+    config_file = os.path.join(cache_dir, f'{task}.yaml')
+    message_file = os.path.join(cache_dir, f'{task}.json')
     config = None
     messages = None
     if os.path.exists(config_file):

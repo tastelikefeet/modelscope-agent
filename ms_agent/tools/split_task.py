@@ -6,6 +6,8 @@ from ms_agent.tools.base import ToolBase
 from ms_agent.utils.utils import escape_yaml_string
 from omegaconf import DictConfig
 
+from projects.code_scratch.callbacks.file_parser import extract_code_blocks
+
 
 class SplitTask(ToolBase):
     """A tool special for task splitting"""
@@ -62,30 +64,27 @@ class SplitTask(ToolBase):
         """
         from ms_agent.agent import LLMAgent
         tasks = tool_args.get('tasks')
-        sub_tasks = []
+        results = []
+        all_contents = []
         for i, task in enumerate(tasks):
             system = task['system']
             query = task['query']
             config = DictConfig(self.config)
             config.prompt.system = escape_yaml_string(system)
+            # config.prompt.system += '\n\n'.join(all_contents)
             trust_remote_code = getattr(config, 'trust_remote_code', False)
             agent = LLMAgent(
                 config=config,
                 trust_remote_code=trust_remote_code,
                 tag=f'{self.config.tag}-r{self.round}-{self.tag_prefix}{i}',
                 task='subtask')
-            sub_tasks.append(agent.run(query))
+            messages = await agent.run(query)
+            results.append(messages[-1].content)
+            # all_files, _ = extract_code_blocks(messages[-1].content, target_filename='summary.txt')
+            # all_contents.extend([file['code'] for file in all_files])
 
-        result = []
-        for t in sub_tasks:
-            r = await t
-            result.append(r)
-        # result = await asyncio.gather(*sub_tasks)
-        res = []
-        for messages in result:
-            res.append(messages[-1].content)
         self.round += 1
         result = ''
-        for i in range(len(res)):
-            result += f'SplitTask{i}:{res[i]}\n'
+        for i in range(len(results)):
+            result += f'SplitTask{i}:{results[i]}\n'
         return result

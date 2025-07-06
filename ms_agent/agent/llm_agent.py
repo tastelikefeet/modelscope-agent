@@ -57,6 +57,10 @@ class LLMAgent(Agent):
         self.runtime: Optional[Runtime] = None
         self.max_chat_round: int = 0
         self.task = kwargs.get('task', 'default')
+        self.stop = None
+        if hasattr(self.config.generation_config, 'stop'):
+            self.stop = self.config.generation_config.stop
+            delattr(self.config.generation_config, 'stop')
         self.load_cache = kwargs.get('load_cache', True)
         self.mcp_server_file = kwargs.get('mcp_server_file', None)
         self.mcp_config: Dict[str, Any] = self._parse_mcp_servers(
@@ -143,6 +147,9 @@ class LLMAgent(Agent):
     async def _prepare_messages(
             self, inputs: Union[List[Message], str]) -> List[Message]:
         if isinstance(inputs, list):
+            inputs[0].content = self.config.prompt.system
+            if getattr(self.config.prompt, 'query', None) is not None:
+                inputs.append(Message(role='user', content=self.config.prompt.query))
             return inputs
         assert isinstance(
             inputs, str
@@ -227,6 +234,11 @@ class LLMAgent(Agent):
                 sys.stdout.write(new_content)
                 sys.stdout.flush()
                 _content = _response_message.content
+                if self.stop and self.stop in _response_message.content:
+                    _response_message.content = _response_message.content.replace('```\n```', '```\n')
+                    _response_message.content = _response_message.content[_response_message.content.find('```'):]
+                    _response_message.content = _response_message.content[:_response_message.content.rfind('```')]
+                    break
         else:
             _response_message = self.llm.generate(messages, tools=tools)
             if _response_message.content:
@@ -269,15 +281,12 @@ class LLMAgent(Agent):
         if not query or not self.load_cache or not self.task:
             return self.config, self.runtime, messages  # noqa
 
-        config, _messages = read_history(task=self.task, query=query)
+        config, _messages = read_history(self.config.output_dir, task=self.task, query=query)
         if config is not None and _messages is not None:
             if hasattr(config, 'runtime'):
                 runtime = Runtime(llm=self.llm)
                 runtime.from_dict(config.runtime)
                 delattr(config, 'runtime')
-                if runtime.round >= self.max_chat_round:
-                    runtime.should_stop = False
-                    runtime.round = 1
             else:
                 runtime = self.runtime
             return config, runtime, _messages
@@ -290,7 +299,7 @@ class LLMAgent(Agent):
             return
         config: DictConfig = deepcopy(self.config)  # noqa
         config.runtime = self.runtime.to_dict()
-        save_history(
+        save_history(self.config.output_dir,
             query=query, task=self.task, config=config, messages=messages)
 
     async def run(self, messages: Union[List[Message], str],

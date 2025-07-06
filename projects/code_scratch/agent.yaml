@@ -2,7 +2,7 @@ llm:
   service: openai
   model: claude-3-7-sonnet-20250219
   openai_api_key:
-  openai_base_url:
+  openai_base_url: https://dashscope.aliyuncs.com/compatible-mode/v1
 
 generation_config:
   top_p: 0.6
@@ -11,6 +11,8 @@ generation_config:
   max_completion_tokens: 120000
   stream: true
   extra_body:
+    dashscope_extend_params:
+      provider: idealab
     enable_thinking: false
 
 
@@ -25,12 +27,11 @@ prompt:
       * Pay special attention to the user's special request, like `a carousel on the top` or `a dark theme`, do not miss them!
       * Don't ask anything, finish the job as best as you can
     2. MANDATORY: You must design clearly:
-      * The data flow
+      * The project data flow
       * Module/Class definition
-      * Functions, interfaces and imports between modules to make them work together
       * The http interfaces and detailed data structures(arguments, responses) between frontend and backend
       * Put your all frontend code in the frontend folder, put your all backend code in the backend folder, use node.js as your backend language
-      * Consider: If your design is split and implemented with separate tasks, will there be issues with coordination between the code modules, such as how different modules call each other, the timing of calls, and the parameters for calls?
+      * The code file list
     3. Resources
       * Beauty and Functionality is the most important thing
       * Use valid links as possible as you can, e.g., images from unsplash-like websites
@@ -39,13 +40,10 @@ prompt:
       * Retry the failed tasks
       * The preference language of the frontend is react
       * Use `split_to_sub_task` to distribute tasks:
-        - Low level modules written first, which means if backend is in your plan, write them first
-        - Modules of one functionality(e.g. the user management of frontend and backend) should be together, each task 3~4 files
-        - Tell subtask their dependencies
-        Example:
-          UserDB -> UserService -> UserController -> http api -> UserRoute -> UserUIComponent
-          The first task: UserDB/UserService/UserController
-          The second task: UserRoute/UserUIComponent, read the UserController file first to align the calling interfaces
+        - Always start from low level modules
+        - From backend to frontend
+        - Closely related modules should be grouped into the same task, especially modules with strong dependencies.
+        - Each task 3~4 files
 
     5. Project requirements
       * Use vite.js to build your frontend code
@@ -53,6 +51,7 @@ prompt:
       * Do not let your backend silent crash, make sure the error messages can be printed in the terminal when running `npm run dev`
       * Do not use a conflict port of frontend and backend, use obscure ports
       * Do not use mock data in your frontend if a backend is in your plan
+      * Do not forget create the project files of the backend/frontend
 
     Now, I will call the `split_to_sub_task` tool with corrected and detailed subtasks.
 
@@ -79,6 +78,7 @@ prompt:
     * If the task need to fix code files, describe the problems to fix, remind the task to keep the good parts
     * If the task need to check or analyze code implementations, describe the detailed check list clearly
     * You must generate all files in separate frontend/backend folders
+    * Make sure the tasks of `split_to_sub_task` matches with your file list!
 
     Now Begin:
 
