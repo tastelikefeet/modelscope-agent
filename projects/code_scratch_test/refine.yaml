@@ -45,7 +45,10 @@ prompt:
     ```js:js/index.js
     ... code ...
     ```
-    `js/index.js` will be used as the filename. If you are fixing a file, you need to read the original file first, consider how to fit the data structures and imports, then output the complete fixed code of the file.
+    `js/index.js` will be used as the filename. If you are fixing a file, you need to:
+      * Read the target file
+      * Follow the original data structures and file imports, do not break it(you may read more files depends on)
+      * Then output the complete fixed code of the file.
     
     If you only output code snippets to demonstrate your conclusions, you can use standard code blocks:
     
