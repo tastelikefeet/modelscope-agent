@@ -9,9 +9,4 @@ class ConfigHandler(ConfigLifecycleHandler):
         if 'worker' in tag:
             config.callbacks = ['callbacks/artifact_callback']
             delattr(config.tools, 'split_task')
-            config.tools.file_system = DictConfig({
-                'mcp':
-                False,
-                'exclude': ['create_directory', 'write_file', 'list_files']
-            })
         return config

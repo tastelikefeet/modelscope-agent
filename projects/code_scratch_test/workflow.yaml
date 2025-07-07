@@ -17,8 +17,10 @@ coding:
     kwargs:
       tag: Coding
 
+
 refine:
+  agent_config: refine.yaml
   agent:
     name: LLMAgent
     kwargs:
-      tag: Refiner
+      tag: Refine

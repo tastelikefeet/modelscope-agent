@@ -33,7 +33,7 @@ class ArtifactCallback(Callback):
         results = []
         for f in all_files:
             if not f['filename'].startswith(
-                    'frontend') and not f['filename'].startswith('backend') and f['filename'] not in ('files.json'):
+                    'frontend') and not f['filename'].startswith('backend') and f['filename'] != 'files.json':
                 results.append(
                     f'Error: You should generate files in frontend or backend, '
                     f'but now is: {f["filename"]}')

@@ -5,9 +5,9 @@ llm:
   openai_base_url: https://dashscope.aliyuncs.com/compatible-mode/v1
 
 generation_config:
-  top_p: 0.6
-  temperature: 0.2
-  top_k: 20
+  top_p: 0.7
+  temperature: 0.3
+  top_k: 50
   stream: true
   extra_body:
     dashscope_extend_params:
@@ -25,11 +25,11 @@ prompt:
       * Determine the programming language.
       * Design all modules, making sure not to miss any functionality.
       * The http interfaces and detailed data structures(arguments, responses)
+      * IP and port
     
     2. Code language preferences:
       * Frontend: React + vite.js, do not use ts check in package.json
       * Backend: Node.js
-      * Algorithm: Python
     
     3. Think carefully, list the file structure from backend to frontend, lower modules to higher modules, especially do not miss project files like `package.json` and so on.
     
