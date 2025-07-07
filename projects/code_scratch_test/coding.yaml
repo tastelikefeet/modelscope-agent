@@ -22,7 +22,7 @@ prompt:
       * Do not miss any file in `files.json`
       * Do not modify the `files.json` file
     2. Group the code files by:
-      * 4 to 5 files in one group.
+      * 8~10 files in one group.
       * Group closely related modules, especially modules with strong dependencies, minimize the dependencies between groups.
       * List groups from backend to frontend, from low level to high levels.
       * All files should start from the frontend or backend folder

@@ -43,46 +43,22 @@ The PRD of this project:
 
 {messages[2].content}
 
-MANDATORY: Follow the steps:
+Strictly follow the steps:
 
-1. Read files first:
-    * The `files.json` file, to understand all files of this project
-    * The package.json file, to understand the basic config
-    * The target code file itself
+1. Before writing each file, list the imports you think of and read the implementations first, to compatible with other code files.
 
-2. Before writing each file, make a schedule to describe the functionalities and the imports, then read the files to ensure compatibility, DO NOT IMPORT ANY PROJECT FILES NOT IN `files.json`
+```
+The A file depends on the B and C file, and D on the css format, I should read them:
+```
 
-3. Output your code with this format:
+If any dependencies do not exist, create them.
+
+2. Output your code with this format:
 
 ```js:js/index.js
 ... code ...
 ```
 The `js/index.js` will be used to saving.
-
-An example:
-
-```
-I need to read the files.json to understand the project.
-...
-I need to read the package.json to understand the requirements.
-...
-
-# a.js
-I need to read the a.js to know create or update it.
-...
-I need to first answer the question: which files I need to import for a.js?
-...
-The xxx file I need to import does not exist, let me create it first:
-...
-Let me write a.js:
-...
-
-# b.js
-I need to read the b.js to know create or update it.
-...
-I need to first answer the question: which files I need to import for b.js?
-...
-```
 
 Now Begin:
 """ # noqa
