@@ -32,16 +32,17 @@ class ArtifactCallback(Callback):
         all_files, _ = extract_code_blocks(content)
         results = []
         for f in all_files:
-            if f['filename'] == 'summary.txt':
-                results.append('\n```txt:summary.txt\n' + f['code'] + '\n```\n')
-            elif not f['filename'].startswith(
-                    'frontend') and not f['filename'].startswith('backend'):
+            if not f['filename'].startswith(
+                    'frontend') and not f['filename'].startswith(
+                        'backend') and f['filename'] != 'files.json':
                 results.append(
                     f'Error: You should generate files in frontend or backend, '
                     f'but now is: {f["filename"]}')
             else:
-                result = await self.file_system.write_file(f['filename'], f['code'])
+                result = await self.file_system.write_file(
+                    f['filename'], f['code'])
                 results.append(result)
 
-        if len(all_files) > 0:
-            messages.append(Message(role='user', content='\n'.join(results)))
+        r = '\n'.join(results)
+        if len(r) > 0:
+            messages.append(Message(role='user', content=r))

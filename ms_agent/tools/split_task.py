@@ -5,7 +5,6 @@ from ms_agent.llm.utils import Tool
 from ms_agent.tools.base import ToolBase
 from ms_agent.utils.utils import escape_yaml_string
 from omegaconf import DictConfig
-
 from projects.code_scratch.callbacks.file_parser import extract_code_blocks
 
 
@@ -65,7 +64,6 @@ class SplitTask(ToolBase):
         from ms_agent.agent import LLMAgent
         tasks = tool_args.get('tasks')
         results = []
-        all_contents = []
         for i, task in enumerate(tasks):
             system = task['system']
             query = task['query']
@@ -80,8 +78,6 @@ class SplitTask(ToolBase):
                 task='subtask')
             messages = await agent.run(query)
             results.append(messages[-1].content)
-            # all_files, _ = extract_code_blocks(messages[-1].content, target_filename='summary.txt')
-            # all_contents.extend([file['code'] for file in all_files])
 
         self.round += 1
         result = ''

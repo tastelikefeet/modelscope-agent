@@ -149,7 +149,8 @@ class LLMAgent(Agent):
         if isinstance(inputs, list):
             inputs[0].content = self.config.prompt.system
             if getattr(self.config.prompt, 'query', None) is not None:
-                inputs.append(Message(role='user', content=self.config.prompt.query))
+                inputs.append(
+                    Message(role='user', content=self.config.prompt.query))
             return inputs
         assert isinstance(
             inputs, str
@@ -235,9 +236,18 @@ class LLMAgent(Agent):
                 sys.stdout.flush()
                 _content = _response_message.content
                 if self.stop and self.stop in _response_message.content:
-                    _response_message.content = _response_message.content.replace('```\n```', '```\n')
-                    _response_message.content = _response_message.content[_response_message.content.find('```'):]
-                    _response_message.content = _response_message.content[:_response_message.content.rfind('```')]
+                    _response_message.content = _response_message.content.replace(
+                        '```\n```', '```\n')
+                    _response_message.content = _response_message.content[
+                        _response_message.content.find('```'):]
+                    _response_message.content = _response_message.content[:
+                                                                          _response_message
+                                                                          .
+                                                                          content
+                                                                          .
+                                                                          rfind(
+                                                                              '```'
+                                                                          )]
                     break
         else:
             _response_message = self.llm.generate(messages, tools=tools)
@@ -281,7 +291,8 @@ class LLMAgent(Agent):
         if not query or not self.load_cache or not self.task:
             return self.config, self.runtime, messages  # noqa
 
-        config, _messages = read_history(self.config.output_dir, task=self.task, query=query)
+        config, _messages = read_history(
+            self.config.output_dir, task=self.task, query=query)
         if config is not None and _messages is not None:
             if hasattr(config, 'runtime'):
                 runtime = Runtime(llm=self.llm)
@@ -299,8 +310,12 @@ class LLMAgent(Agent):
             return
         config: DictConfig = deepcopy(self.config)  # noqa
         config.runtime = self.runtime.to_dict()
-        save_history(self.config.output_dir,
-            query=query, task=self.task, config=config, messages=messages)
+        save_history(
+            self.config.output_dir,
+            query=query,
+            task=self.task,
+            config=config,
+            messages=messages)
 
     async def run(self, messages: Union[List[Message], str],
                   **kwargs) -> List[Message]:

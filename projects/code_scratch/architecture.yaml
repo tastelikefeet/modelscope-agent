@@ -26,13 +26,13 @@ prompt:
       * Design all modules, making sure not to miss any functionality.
       * The http interfaces and detailed data structures(arguments, responses)
       * IP and port
-    
+
     2. Code language preferences:
       * Frontend: React + vite.js, do not use ts check in package.json
       * Backend: Node.js
-    
+
     3. Think carefully, list the file structure from backend to frontend, lower modules to higher modules, especially do not miss project files like `package.json` and so on.
-    
+
         An example of file structure:
         ```json: files.json
         [
@@ -42,9 +42,9 @@ prompt:
           "frontend/package.json"
         ]
         ```
-        
+
         The format is different(```json: files.json is fixed), then `files.json` will be saved on the file system automatically.
-    
+
     4. Additional instructions:
       * Do not use conflict ports for different projects, use obscure port for each of them
       * Present all information in a concise yet comprehensive manner

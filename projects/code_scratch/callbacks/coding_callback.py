@@ -8,7 +8,6 @@ from ms_agent.llm.utils import Message
 from ms_agent.tools.filesystem_tool import FileSystemTool
 from ms_agent.utils import get_logger
 from omegaconf import DictConfig
-
 from projects.code_scratch.callbacks.file_parser import extract_code_blocks
 
 logger = get_logger()
@@ -18,7 +17,60 @@ class CodingCallback(Callback):
     """Add more prompts when coding
     """
 
-    _frontend_prompt = """* **Overall Style:** Consider magazine-style, publication-style, or other modern web design styles you deem appropriate. The goal is to create a page that is both informative and visually appealing, like a well-designed digital magazine or in-depth feature article.
+    def __init__(self, config: DictConfig):
+        super().__init__(config)
+        self.file_system = FileSystemTool(config)
+
+    async def on_task_begin(self, runtime: Runtime, messages: List[Message]):
+        await self.file_system.connect()
+
+    async def on_tool_call(self, runtime: Runtime, messages: List[Message]):
+        if not messages[-1].tool_calls or messages[-1].tool_calls[0][
+                'tool_name'] != 'split_to_sub_task':
+            return
+        assert messages[0].role == 'system'
+        arguments = messages[-1].tool_calls[0]['arguments']
+        arguments = json.loads(arguments)
+        tasks = arguments['tasks']
+        if isinstance(tasks, str):
+            tasks = json.loads(tasks)
+        for task in tasks:
+            task['_system'] = task['system']
+            task['system'] = f"""{task["system"]}
+
+The PRD of this project:
+
+{messages[2].content}
+
+Strictly follow the steps:
+
+1. Before writing each file, list the imports of all code files under your responsibility and read the implementations first, to compatible with other code files.
+
+```
+The A file depends on the B and C file, and D on the css format, I should read them:
+```
+
+If any dependencies do not exist, create them.
+
+2. Read the target code file itself to prevent a break change to the existing files.
+
+You may read several files in step1 and step2, this is good to understand the project,
+you may read other files if necessary, like config files or package files to enhance your understanding.
+
+3. Output your code with this format:
+
+```js:js/index.js
+... code ...
+```
+The `js/index.js` will be used to saving.
+
+4. Do not let your code silent crash, make the logs shown in the running terminal, later the compiling process can feedback these issues to you.
+
+5. Do not leave the images blank, you don't have any local assets(neither images nor logos), use image links from unsplash
+
+6. Here is an extra instruction of making your website beautiful:
+
+    * **Overall Style:** Consider magazine-style, publication-style, or other modern web design styles you deem appropriate. The goal is to create a page that is both informative and visually appealing, like a well-designed digital magazine or in-depth feature article.
 
     * **Hero Section (Optional but Strongly Recommended):** If you think it's appropriate, design an eye-catching Hero section. It can include a main headline, subtitle, an engaging introductory paragraph, and a high-quality background image or illustration.
 
@@ -58,84 +110,6 @@ class CodingCallback(Callback):
     * Implement a complete dark/light mode toggle functionality that follows system settings by default and allows users to manually switch.
     * Code structure should be clear and semantic, including appropriate comments.
     * Implement complete responsiveness that must display perfectly on all devices (mobile, tablet, desktop).
-    """  # noqa
-
-    def __init__(self, config: DictConfig):
-        super().__init__(config)
-        self.file_system = FileSystemTool(config)
-
-    async def on_task_begin(self, runtime: Runtime, messages: List[Message]):
-        await self.file_system.connect()
-
-    async def on_tool_call(self, runtime: Runtime, messages: List[Message]):
-        if not messages[-1].tool_calls or messages[-1].tool_calls[0][
-                'tool_name'] != 'split_to_sub_task':
-            return
-        assert messages[0].role == 'system'
-        arch_design = messages[2].content
-        files = await self.file_system.list_files()
-        arguments = messages[-1].tool_calls[0]['arguments']
-        arguments = json.loads(arguments)
-        tasks = arguments['tasks']
-        if isinstance(tasks, str):
-            tasks = json.loads(tasks)
-        for task in tasks:
-            task['_system'] = task['system']
-            task['system'] = f"""{task["system"]}
-
-The architectural design is:
-{arch_design}
-
-The files existing on the filesystem is:
-{files}
-
-* If your task is coding, output your code with this format:
-
-```js:index.js
-... code ...
-```
-The `index.js` will be used to saving.
-
-MANDATORY: You must generate a summary for all code files, in which:
-
-* The imports of this file
-* The class definition
-* Function names, arguments and types, returns, descriptions
-* The information and usage of this file
-
-An example of `summary.txt`:
-
-```txt:summary.txt
-Code file: index.js
-use imports:
-SomeType1 from a.js
-SomeType2 from b.js
-SomeType3 from c.js
-
-//This class definite ..., is used to ...
-Class B:
-    function a(SomeType1 b, SomeType2 c); //This function is used to, the arguments and return types are...
-    function b(SomeType3 d); //This function is used to, the arguments and return types are...
-
-//This class definite ..., is used to ...
-Class C:
-    function c(); //This function is used to, the arguments and return types are...
-
-Code file: package.json
-This file definite the dependencies and the css formats and types ...
-The information in the file is mainly ...
-```
-
-* If your task is checking code files or show code piece examples, use normal format:
-
-```js
-... code ...
-```
-
-* Always read the code file then its dependencies listed in existed files and the PRD&design to align interfaces before writing.
-* Pay attention all arguments and imports related to the error line, do not miss any details.
-* Do not leave a blank image placeholder, you should use image links from unsplash.
-* Do not generate fake data in the frontend if there is a backend.
 
 Now Begin:
 """ # noqa
@@ -155,7 +129,3 @@ Now Begin:
             task['system'] = task['_system']
             task.pop('_system')
         messages[-2].tool_calls[0]['arguments'] = json.dumps({'tasks': tasks})
-
-        all_files, _ = extract_code_blocks(messages[-1].content, target_filename='summary.txt')
-        content = '\n\n'.join([file['code'] for file in all_files])
-        messages[2].content += content
