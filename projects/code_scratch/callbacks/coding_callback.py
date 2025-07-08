@@ -8,7 +8,6 @@ from ms_agent.llm.utils import Message
 from ms_agent.tools.filesystem_tool import FileSystemTool
 from ms_agent.utils import get_logger
 from omegaconf import DictConfig
-from projects.code_scratch.callbacks.file_parser import extract_code_blocks
 
 logger = get_logger()
 

@@ -57,10 +57,6 @@ class LLMAgent(Agent):
         self.runtime: Optional[Runtime] = None
         self.max_chat_round: int = 0
         self.task = kwargs.get('task', 'default')
-        self.stop = None
-        if hasattr(self.config.generation_config, 'stop'):
-            self.stop = self.config.generation_config.stop
-            delattr(self.config.generation_config, 'stop')
         self.load_cache = kwargs.get('load_cache', True)
         self.mcp_server_file = kwargs.get('mcp_server_file', None)
         self.mcp_config: Dict[str, Any] = self._parse_mcp_servers(
@@ -235,20 +231,6 @@ class LLMAgent(Agent):
                 sys.stdout.write(new_content)
                 sys.stdout.flush()
                 _content = _response_message.content
-                if self.stop and self.stop in _response_message.content:
-                    _response_message.content = _response_message.content.replace(
-                        '```\n```', '```\n')
-                    _response_message.content = _response_message.content[
-                        _response_message.content.find('```'):]
-                    _response_message.content = _response_message.content[:
-                                                                          _response_message
-                                                                          .
-                                                                          content
-                                                                          .
-                                                                          rfind(
-                                                                              '```'
-                                                                          )]
-                    break
         else:
             _response_message = self.llm.generate(messages, tools=tools)
             if _response_message.content:
@@ -292,7 +274,9 @@ class LLMAgent(Agent):
             return self.config, self.runtime, messages  # noqa
 
         config, _messages = read_history(
-            self.config.output_dir, task=self.task, query=query)
+            getattr(self.config, 'output_dir', 'output'),
+            task=self.task,
+            query=query)
         if config is not None and _messages is not None:
             if hasattr(config, 'runtime'):
                 runtime = Runtime(llm=self.llm)
@@ -311,7 +295,7 @@ class LLMAgent(Agent):
         config: DictConfig = deepcopy(self.config)  # noqa
         config.runtime = self.runtime.to_dict()
         save_history(
-            self.config.output_dir,
+            getattr(config, 'output_dir', 'output'),
             query=query,
             task=self.task,
             config=config,

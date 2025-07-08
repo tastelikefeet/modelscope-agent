@@ -1,7 +1,6 @@
 # Copyright (c) Alibaba, Inc. and its affiliates.
 import os
 import subprocess
-import sys
 from contextlib import contextmanager
 from typing import List, Optional
 
