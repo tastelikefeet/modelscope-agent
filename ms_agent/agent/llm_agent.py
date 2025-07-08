@@ -143,10 +143,10 @@ class LLMAgent(Agent):
     async def _prepare_messages(
             self, inputs: Union[List[Message], str]) -> List[Message]:
         if isinstance(inputs, list):
-            inputs[0].content = self.config.prompt.system
-            if getattr(self.config.prompt, 'query', None) is not None:
-                inputs.append(
-                    Message(role='user', content=self.config.prompt.query))
+            system = getattr(
+                getattr(self.config, 'prompt', DictConfig({})), 'system', None)
+            if system is not None and system != inputs[0].content:
+                inputs[0].content = system
             return inputs
         assert isinstance(
             inputs, str
