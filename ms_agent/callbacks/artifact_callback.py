@@ -1,7 +1,5 @@
 # Copyright (c) Alibaba, Inc. and its affiliates.
 from typing import List
-
-from file_parser import extract_code_blocks
 from ms_agent.agent.runtime import Runtime
 from ms_agent.callbacks import Callback
 from ms_agent.llm.utils import Message
@@ -9,11 +7,13 @@ from ms_agent.tools.filesystem_tool import FileSystemTool
 from ms_agent.utils import get_logger
 from omegaconf import DictConfig
 
+from ms_agent.utils.utils import extract_blocks
+
 logger = get_logger()
 
 
 class ArtifactCallback(Callback):
-    """Save the output code to local disk.
+    """Save the artifacts to disk.
     """
 
     def __init__(self, config: DictConfig):
@@ -23,25 +23,21 @@ class ArtifactCallback(Callback):
     async def on_task_begin(self, runtime: Runtime, messages: List[Message]):
         await self.file_system.connect()
 
+    async def on_task_end(self, runtime: Runtime, messages: List[Message]):
+        await self.file_system.cleanup()
+
     async def after_generate_response(self, runtime: Runtime,
                                       messages: List[Message]):
-        if messages[-1].tool_calls or messages[-1].role == 'tool':
+        if messages[-1].role != 'assistant':
             return
         await self.file_system.create_directory()
-        content = '\n'.join([m.content for m in messages[2:]])
-        all_files, _ = extract_code_blocks(content)
+        content =messages[-1].content
+        all_files, _ = extract_blocks(content)
         results = []
         for f in all_files:
-            if not f['filename'].startswith(
-                    'frontend') and not f['filename'].startswith(
-                        'backend') and f['filename'] != 'files.json':
-                results.append(
-                    f'Error: You should generate files in frontend or backend, '
-                    f'but now is: {f["filename"]}')
-            else:
-                result = await self.file_system.write_file(
-                    f['filename'], f['code'])
-                results.append(result)
+            result = await self.file_system.write_file(
+                f['filename'], f['code'])
+            results.append(result)
 
         r = '\n'.join(results)
         if len(r) > 0:

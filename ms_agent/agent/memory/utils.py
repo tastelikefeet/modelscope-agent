@@ -1,2 +1,6 @@
 # Copyright (c) Alibaba, Inc. and its affiliates.
-memory_mapping = {}
+from ms_agent.agent.memory.llm_code import LLMCodeSummary
+
+memory_mapping = {
+    'llm_code': LLMCodeSummary
+}

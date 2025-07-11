@@ -40,9 +40,6 @@ callbacks:
   - callbacks/coding_callback
 
 tools:
-  split_task:
-    mcp: false
-    tag_prefix: worker-
 
   file_system:
     mcp: false

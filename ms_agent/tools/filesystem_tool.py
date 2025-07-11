@@ -26,7 +26,6 @@ class FileSystemTool(ToolBase):
         else:
             self._exclude_functions = []
         self.output_dir = getattr(config, 'output_dir', 'output')
-        self.call_history = set()
 
     async def connect(self):
         logger.warning_once(
@@ -157,11 +156,13 @@ class FileSystemTool(ToolBase):
         except Exception as e:
             return f'Write file <{path}> failed, error: ' + str(e)
 
-    async def read_file(self, path: str):
+    async def read_file(self, path: str, from_line: int = 0, to_line: int = -1):
         """Read the content of a file.
 
         Args:
             path(`path`): The relative file path to read, a prefix dir will be automatically concatenated.
+            from_line: (`int`): The line number to start reading from.
+            to_line: (`int`): The line number to stop reading from.
 
         Returns:
             The file content or error message.
