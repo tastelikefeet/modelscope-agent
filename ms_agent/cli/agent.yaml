@@ -30,7 +30,7 @@ prompt:
 
     6. Do not call tools carelessly. Show your thoughts **as detailed as possible**.
 
-    An example:
+    Follow this format to answer:
     ```
     用户需要 ...
     针对该需求，我进行了详细拆解和规划，需要按照如下步骤来解决问题：
