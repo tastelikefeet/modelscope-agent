@@ -474,8 +474,8 @@ class LLMAgent(Agent):
 
             for message in messages:
                 if message.role != 'system':
-                self._log_output('[' + message.role + ']:', tag=self.tag)
-                self._log_output(message.content, tag=self.tag)
+                    self._log_output('[' + message.role + ']:', tag=self.tag)
+                    self._log_output(message.content, tag=self.tag)
             while not self.runtime.should_stop:
                 messages = await self._step(messages, self.tag)
                 self.runtime.round += 1
