@@ -8,7 +8,8 @@ from ms_agent.config import Config
 path = os.path.dirname(os.path.abspath(__file__))
 # ms_agent/agent/agent.yaml
 # The system of the config will help LLM to make a better analysis and plan
-agent_config = os.path.join(path, '..', '..', 'ms_agent', 'agent', 'agent.yaml')
+agent_config = os.path.join(path, '..', '..', 'ms_agent', 'agent',
+                            'agent.yaml')
 # TODO change the mcp.json to a real path:
 # https://www.modelscope.cn/mcp/servers/@amap/amap-maps
 mcp_config = os.path.join(path, 'mcp.json')
@@ -18,9 +19,7 @@ async def run_query(query: str):
     config = Config.from_task(agent_config)
     # TODO change to your real api key
     config.llm.modelscope_api_key = '<your-modelscope-api-here>'
-    engine = LLMAgent(
-        config=config,
-        mcp_server_file=mcp_config)
+    engine = LLMAgent(config=config, mcp_server_file=mcp_config)
 
     _content = ''
     generator = await engine.run(query, stream=True)
