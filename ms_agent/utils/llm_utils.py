@@ -58,7 +58,7 @@ def async_retry(max_attempts: int = 3,
     def decorator(func: Callable[..., T]) -> Callable[..., T]:
 
         @functools.wraps(func)
-        async def wrapper(*args, **kwargs) -> AsyncGenerator[Any, Any]:
+        async def wrapper(*args, **kwargs) -> AsyncGenerator[T, Any]:
             current_delay = delay
             last_exception = None
 

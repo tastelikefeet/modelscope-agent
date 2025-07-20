@@ -92,11 +92,12 @@ class LLMAgent(Agent):
         Returns:
             Dict[str, Any]: Merged configuration including file-based overrides.
         """
+        mcp_config = mcp_config or {}
         if self.mcp_server_file is not None and os.path.isfile(
                 self.mcp_server_file):
             with open(self.mcp_server_file, 'r') as f:
                 config = json.load(f)
-                config.update(mcp_config or {})
+                config.update(mcp_config)
                 return config
         return mcp_config
 
@@ -516,8 +517,8 @@ class LLMAgent(Agent):
             raise e
 
     async def run(
-            self, messages: Union[List[Message], str],
-            **kwargs) -> Union[List[Message], AsyncGenerator[Message, Any]]:
+            self, messages: Union[List[Message], str], **kwargs
+    ) -> Union[List[Message], AsyncGenerator[List[Message], Any]]:
         stream = kwargs.get('stream', False)
         if stream:
             OmegaConf.update(
