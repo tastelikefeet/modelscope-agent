@@ -220,7 +220,7 @@ class LLMAgent(Agent):
             Message(role='user', content=inputs or query),
         ]
         if self.rag is not None:
-            messages = await self.rag.run(messages)
+            messages = await self.rag.query(messages[1].content)
         return messages
 
     async def _prepare_memory(self):

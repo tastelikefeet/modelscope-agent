@@ -271,7 +271,7 @@ class LlamaIndexRAG(RAG):
         except Exception as e:
             return []
 
-    def query(self, question: str) -> str:
+    def query(self, query: str) -> str:
         if self.query_engine is None:
             if self.retrieve_only:
                 raise ValueError("Current mode is retrieve only, question answering not supported")
@@ -279,7 +279,7 @@ class LlamaIndexRAG(RAG):
                 raise ValueError("Query engine not initialized, please add documents and set LLM first")
 
         try:
-            response = self.query_engine.query(question)
+            response = self.query_engine.query(query)
             return str(response)
         except Exception as e:
             return f"Query failed: {e}"

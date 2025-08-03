@@ -53,9 +53,9 @@ class ToolManager:
                 # Subtract 1 for the ':' character
                 max_server_len = MAX_TOOL_NAME_LEN - len(tool['tool_name']) - 1
                 if len(server_name) > max_server_len:
-                    key = f"{server_name[:max(0, max_server_len)]}:{tool['tool_name']}"
+                    key = f"{server_name[:max(0, max_server_len)]}{self.TOOL_SPLITER}{tool['tool_name']}"
                 else:
-                    key = f"{server_name}:{tool['tool_name']}"
+                    key = f"{server_name}{self.TOOL_SPLITER}{tool['tool_name']}"
                 assert key not in self._tool_index, f'Tool name duplicated {tool["tool_name"]}'
                 tool = copy(tool)
                 tool['tool_name'] = key
