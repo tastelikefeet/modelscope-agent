@@ -15,6 +15,8 @@ class ToolManager:
     """Interacting with Agent class, hold all tools
     """
 
+    TOOL_SPLITER = '---'
+
     def __init__(self, config, mcp_config: Optional[Dict[str, Any]] = None):
         self.config = config
         self.servers = MCPClient(config, mcp_config)
@@ -45,7 +47,7 @@ class ToolManager:
         def extend_tool(tool_ins: ToolBase, server_name: str,
                         tool_list: List[Tool]):
             for tool in tool_list:
-                key = server_name + ':' + tool['tool_name']
+                key = server_name + self.TOOL_SPLITER + tool['tool_name']
                 assert key not in self._tool_index, f'Tool name duplicated {tool["tool_name"]}'
                 tool = copy(tool)
                 tool['tool_name'] = key
@@ -72,7 +74,7 @@ class ToolManager:
             tool_ins, server_name, _ = self._tool_index[tool_name]
             return await tool_ins.call_tool(
                 server_name,
-                tool_name=tool_name.split(':')[1],
+                tool_name=tool_name.split(self.TOOL_SPLITER)[1],
                 tool_args=tool_args)
         except Exception as e:
             return f'Tool calling failed: {str(e)}'
