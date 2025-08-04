@@ -290,37 +290,6 @@ class LlamaIndexRAG(RAG):
             shutil.rmtree(self.storage_dir, ignore_errors=True)
             os.makedirs(self.storage_dir, exist_ok=True)
 
-    async def remove_documents_by_ids(self, node_ids: List[str]) -> bool:
-        """Remove specific documents by their node IDs"""
-        if self.index is None:
-            raise ValueError('No index exists, please add documents first')
-
-        if not node_ids:
-            raise ValueError('Node IDs list cannot be empty')
-
-        from llama_index.core import VectorStoreIndex
-        # Get current documents
-        docstore = self.index.docstore
-
-        # Remove specified nodes
-        for node_id in node_ids:
-            if node_id in docstore.docs:
-                docstore.delete_document(node_id)
-
-        # Rebuild index with remaining documents
-        remaining_docs = list(docstore.docs.values())
-
-        if not remaining_docs:
-            # If no documents remain, clear everything
-            await self.remove_all_documents()
-        else:
-            # Rebuild index with remaining documents
-            self.index = VectorStoreIndex.from_documents(remaining_docs)
-
-            # Re-setup query engine if not in retrieve-only mode
-            if not self.retrieve_only:
-                await self._setup_query_engine()
-
     async def clear_storage(self, persist_dir: Optional[str] = None):
         """Clear the persistent storage directory"""
         clear_dir = persist_dir or self.storage_dir

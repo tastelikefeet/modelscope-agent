@@ -69,7 +69,7 @@ class FileSystemTool(ToolBase):
                                 'description': 'The content of the file',
                             },
                         },
-                        'required': ['path'],
+                        'required': ['path', 'content'],
                         'additionalProperties': False
                     }),
                 Tool(

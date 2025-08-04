@@ -50,8 +50,9 @@ class ToolManager:
         def extend_tool(tool_ins: ToolBase, server_name: str,
                         tool_list: List[Tool]):
             for tool in tool_list:
-                # Subtract 1 for the ':' character
-                max_server_len = MAX_TOOL_NAME_LEN - len(tool['tool_name']) - 1
+                # Subtract the length of the tool name splitter
+                max_server_len = MAX_TOOL_NAME_LEN - len(
+                    tool['tool_name']) - len(self.TOOL_SPLITER)
                 if len(server_name) > max_server_len:
                     key = f"{server_name[:max(0, max_server_len)]}{self.TOOL_SPLITER}{tool['tool_name']}"
                 else:
