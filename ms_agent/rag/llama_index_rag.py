@@ -1,21 +1,38 @@
 import os
 import shutil
-from typing import List, Optional
+from typing import Any, List, Optional
 
+from llama_index.core.base.llms.types import CompletionResponseGen
 from ms_agent.utils import assert_package_exist
 from omegaconf import DictConfig
+from pydantic import Field
 
 from modelscope import snapshot_download
+from ..llm import LLM, Message
 from .base import RAG
 
 
 class LlamaIndexRAG(RAG):
+    """LlamaIndexRAG class to implement the RAG of llama-index
+
+    The configuration needed in the config yaml:
+        - name: LlamaIndexRAG
+        - embedding: An embedding model, required, default `Qwen/Qwen3-Embedding-0.6B`
+        - chunk_size: The chunk_size of splitting, default `512`
+        - chunk_overlap: The overlap of each chunk, default `50`
+        - retrieve_only: retrieve only will stop using the llm, only use embedding model,
+            thus, query methods will not be available. Default `False`
+        - storage_dir: The directory to store and load index files, default `./llama_index`
+        If not retrieve_only, the llm model will be the same with the model configured in the `llm` fields.
+    """
 
     def __init__(self, config: DictConfig):
         super().__init__(config)
 
         self._validate_config(config)
-        self.embedding_model = config.rag.embedding
+        self.embedding_model = getattr(config.rag, 'embedding',
+                                       'Qwen/Qwen3-Embedding-0.6B')
+        self.llm_model = getattr(config.rag, 'llm', None)
         self.chunk_size = getattr(config.rag, 'chunk_size', 512)
         self.chunk_overlap = getattr(config.rag, 'chunk_overlap', 50)
         self.retrieve_only = getattr(config.rag, 'retrieve_only', False)
@@ -24,7 +41,7 @@ class LlamaIndexRAG(RAG):
 
         self._setup_embedding_model(config)
 
-        from llama_index.core import (Settings)
+        from llama_index.core import Settings
         from llama_index.core.node_parser import SentenceSplitter
         # Set node parser
         Settings.node_parser = SentenceSplitter(
@@ -33,6 +50,44 @@ class LlamaIndexRAG(RAG):
         # If retrieve only, don't set LLM
         if self.retrieve_only:
             Settings.llm = None
+        else:
+            from llama_index.core.llms import CustomLLM
+            from llama_index.core.base.llms.types import LLMMetadata
+            from llama_index.core.llms.callbacks import llm_completion_callback
+            from llama_index.core.base.llms.types import CompletionResponse
+            self._llm_instance = LLM.from_config(self.config)
+
+            class MSCustomLLM(CustomLLM):
+
+                @property
+                def metadata(_self) -> LLMMetadata:
+                    return LLMMetadata(
+                        context_window=65536,  # TODO temp value
+                        num_output=4096,
+                        model_name=self.config.llm.model,
+                    )
+
+                @llm_completion_callback()
+                def complete(_self, prompt: str,
+                             **kwargs) -> CompletionResponse:
+                    message: Message = self._llm_instance.generate(
+                        messages=[Message(role='user', content=prompt)],
+                        stream=False,
+                        **kwargs)
+                    return CompletionResponse(text=message.content)
+
+                @llm_completion_callback()
+                def stream_complete(_self,
+                                    prompt: str,
+                                    formatted: bool = False,
+                                    **kwargs: Any) -> CompletionResponseGen:
+                    for message in self._llm_instance.generate(
+                            messages=[Message(role='user', content=prompt)],
+                            stream=True,
+                            **kwargs):
+                        yield CompletionResponse(text=message.content)
+
+            Settings.llm = MSCustomLLM()
 
         self.index = None
         self.query_engine = None
