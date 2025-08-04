@@ -2,8 +2,6 @@
 from abc import ABC, abstractmethod
 from typing import Any, List
 
-from ms_agent.llm import Message
-
 
 class RAG(ABC):
     """The base class for rags"""

@@ -2,6 +2,7 @@ import os
 import shutil
 from typing import List, Optional
 
+from ms_agent.utils import assert_package_exist
 from omegaconf import DictConfig
 
 from modelscope import snapshot_download
@@ -19,6 +20,7 @@ class LlamaIndexRAG(RAG):
         self.chunk_overlap = getattr(config.rag, 'chunk_overlap', 50)
         self.retrieve_only = getattr(config.rag, 'retrieve_only', False)
         self.storage_dir = getattr(config.rag, 'storage_dir', './llama_index')
+        self._validate_requirements()
 
         self._setup_embedding_model(config)
 
@@ -34,6 +36,13 @@ class LlamaIndexRAG(RAG):
 
         self.index = None
         self.query_engine = None
+
+    def _validate_requirements(self):
+        assert_package_exist(
+            'llama_index',
+            'Please install llama_index to support llama-index-rag:\n'
+            '> pip install -U llama-index-core llama-index-embeddings-huggingface '
+            'llama-index-llms-openai llama-index-llms-replicate\n')
 
     def _validate_config(self, config: DictConfig):
         """Validate configuration parameters"""
