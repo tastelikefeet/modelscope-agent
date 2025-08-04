@@ -5,6 +5,8 @@ import unittest
 from ms_agent.rag.llama_index_rag import LlamaIndexRAG
 from omegaconf import DictConfig
 
+from modelscope.utils.test_utils import test_level
+
 
 class LlamaIndexRagTest(unittest.TestCase):
 
@@ -62,6 +64,7 @@ class LlamaIndexRagTest(unittest.TestCase):
         result2 = await new_rag.retrieve(query, top_k=3)
         return result1, result2
 
+    @unittest.skipUnless(test_level() >= 1, 'skip test in current test level')
     def test_retrieve(self):
         result1, result2 = asyncio.run(self.retrieve())
         self.assertEqual(len(result1), len(result2))

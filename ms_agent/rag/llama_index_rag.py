@@ -2,10 +2,8 @@ import os
 import shutil
 from typing import Any, List, Optional
 
-from llama_index.core.base.llms.types import CompletionResponseGen
 from ms_agent.utils import assert_package_exist
 from omegaconf import DictConfig
-from pydantic import Field
 
 from modelscope import snapshot_download
 from ..llm import LLM, Message
@@ -80,7 +78,7 @@ class LlamaIndexRAG(RAG):
                 def stream_complete(_self,
                                     prompt: str,
                                     formatted: bool = False,
-                                    **kwargs: Any) -> CompletionResponseGen:
+                                    **kwargs: Any):
                     for message in self._llm_instance.generate(
                             messages=[Message(role='user', content=prompt)],
                             stream=True,
