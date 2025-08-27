@@ -20,7 +20,11 @@ class InputCallback(Callback):
         if messages[-1].tool_calls or messages[-1].role in ('tool', 'user'):
             return
 
-        query = input('>>>')
+        while True:
+            query = input('>>> ').strip()
+            if query:
+                break
+
         if not query:
             runtime.should_stop = True
         else:
