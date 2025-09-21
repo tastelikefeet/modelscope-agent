@@ -30,6 +30,9 @@ class ToolManager:
             self.extra_tools.append(SplitTask(config))
         if hasattr(config, 'tools') and hasattr(config.tools, 'file_system'):
             self.extra_tools.append(FileSystemTool(config))
+        global TOOL_CALL_TIMEOUT
+        TOOL_CALL_TIMEOUT = getattr(config, 'tool_call_timeout',
+                                    TOOL_CALL_TIMEOUT)
         self._tool_index = {}
 
     def register_tool(self, tool: ToolBase):
