@@ -143,7 +143,7 @@ class Mem0Memory(Memory):
                         getattr(self.config, 'llm_base_url',
                                 self.config.llm.openai_base_url),
                         'api_key':
-                        getattr(self.config, 'llm_base_url',
+                        getattr(self.config, 'llm_api_key',
                                 self.config.llm.openai_api_key)
                     }
                 },
