@@ -124,13 +124,27 @@ class Mem0Memory(Memory):
                 'embedder': {
                     'provider': 'openai',
                     'config': {
-                        'model': embedding_model
+                        'model':
+                        embedding_model,
+                        'openai_base_url':
+                        getattr(self.config, 'embedder_base_url',
+                                self.config.llm.openai_base_url),
+                        'api_key':
+                        getattr(self.config, 'embedder_api_key',
+                                self.config.llm.openai_api_key),
                     }
                 },
                 'llm': {
                     'provider': 'openai',
                     'config': {
-                        'model': summary_model
+                        'model':
+                        summary_model,
+                        'openai_base_url':
+                        getattr(self.config, 'llm_base_url',
+                                self.config.llm.openai_base_url),
+                        'api_key':
+                        getattr(self.config, 'llm_base_url',
+                                self.config.llm.openai_api_key)
                     }
                 },
             }

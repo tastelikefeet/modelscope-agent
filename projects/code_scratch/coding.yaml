@@ -24,15 +24,17 @@ prompt:
       * Do not modify the `files.json` file
     2. Group the code files by:
       * 3~5 files in one group, for example:
-        - frontend/package.json: Include React 18, Vite, React Router, Zustand for state management, Axios for API calls, and all necessary dependencies
-        - frontend/vite.config.js: Configure Vite with proper proxy settings for localhost:3001 backend
-        - frontend/.gitignore: Standard React/Node.js gitignore
-        - frontend/.env: Environment variables for development
-        - frontend/.env.example: Example environment file
-        - frontend/index.html: Main HTML template with proper meta tags and title 'OneDay AI Workspace'
-        - frontend/public/favicon.ico: Placeholder favicon
-        - frontend/public/manifest.json: PWA manifest for OneDay AI Workspace
-        - frontend/README.md: Comprehensive project documentation
+        Group1:
+          - frontend/package.json: Include React 18, Vite, React Router, Zustand for state management, Axios for API calls, and all necessary dependencies
+          - frontend/vite.config.js: Configure Vite with proper proxy settings for localhost:3001 backend
+          - frontend/.gitignore: Standard React/Node.js gitignore
+          - frontend/.env: Environment variables for development
+          - frontend/.env.example: Example environment file
+        Group2:
+          - frontend/index.html: Main HTML template with proper meta tags and title 'OneDay AI Workspace'
+          - frontend/public/favicon.ico: Placeholder favicon
+          - frontend/public/manifest.json: PWA manifest for OneDay AI Workspace
+          - frontend/README.md: Comprehensive project documentation
       * Group closely related modules especially modules ** on a complete calling stack ** or ** depends on each other **, minimize the dependencies between groups
       * List groups from low level to high levels
       * All files should start from the frontend folder
