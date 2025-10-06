@@ -281,7 +281,7 @@ class Mem0Memory(Memory):
 
         return messages
 
-    def _add_memories_from_procedural(self, messages: List[Message],
+    def add_memories_from_procedural(self, messages: List[Message],
                                       user_id: str, agent_id: str,
                                       memory_type: str):
         """Add new memories from the conversation."""
@@ -338,7 +338,7 @@ class Mem0Memory(Memory):
             logger.error(f'Error adding memories: {e}')
             # Don't re-raise, just log the error
 
-    def _add_memories_from_conversation(self, messages: List[Message],
+    def add_memories_from_conversation(self, messages: List[Message],
                                         user_id: str):
         """Add new memories from the conversation."""
         if not self.memory:

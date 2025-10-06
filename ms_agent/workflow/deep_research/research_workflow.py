@@ -25,6 +25,8 @@ class ResearchWorkflow:
     """
     RESOURCES = 'resources'
 
+    WORKFLOW_NAME = 'ResearchWorkflow'
+
     def __init__(
             self,
             client: OpenAIChat,
