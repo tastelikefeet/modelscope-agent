@@ -3,12 +3,12 @@ import importlib
 import inspect
 import os
 import sys
-from typing import Optional, Dict
-
-from omegaconf import DictConfig, OmegaConf
+from typing import Dict, Optional
 
 from ms_agent.config.config import Config
-from ms_agent.utils.constants import DEFAULT_TAG, DEFAULT_AGENT_FILE
+from ms_agent.utils.constants import DEFAULT_AGENT_FILE, DEFAULT_TAG
+from omegaconf import DictConfig, OmegaConf
+
 from .base import Agent
 
 
@@ -16,13 +16,12 @@ class AgentLoader:
 
     @classmethod
     def build(cls,
-                    config_dir_or_id: Optional[str] = None,
-                    config: Optional[DictConfig] = None,
-                    env: Optional[Dict[str, str]] = None,
-                    tag: Optional[str] = None,
-                    trust_remote_code: bool = False,
-                    **kwargs
-                    ) -> Agent:
+              config_dir_or_id: Optional[str] = None,
+              config: Optional[DictConfig] = None,
+              env: Optional[Dict[str, str]] = None,
+              tag: Optional[str] = None,
+              trust_remote_code: bool = False,
+              **kwargs) -> Agent:
         agent_config: Optional[DictConfig] = None
         if config_dir_or_id is not None:
             if not os.path.exists(config_dir_or_id):
@@ -41,30 +40,32 @@ class AgentLoader:
             agent_tag = tag
         agent_config.tag = agent_tag
         agent_config.trust_remote_code = trust_remote_code
-        if getattr(agent_config, 'local_dir', None) is None and config_dir_or_id is not None:
+        if getattr(agent_config, 'local_dir',
+                   None) is None and config_dir_or_id is not None:
             agent_config.local_dir = config_dir_or_id
 
         from .llm_agent import LLMAgent
         from .code_agent import CodeAgent
         agent_type = LLMAgent.AGENT_NAME
         if agent_config is not None:
-            agent_type = getattr(agent_config, 'type', '').lower() or agent_type.lower()
+            agent_type = getattr(agent_config, 'type',
+                                 '').lower() or agent_type.lower()
             code_file = getattr(agent_config, 'code_file', None)
         else:
             assert getattr(agent_config, 'local_dir', None) is not None
-            code_file = os.path.join(getattr(agent_config, 'local_dir', ''), DEFAULT_AGENT_FILE)
+            code_file = os.path.join(
+                getattr(agent_config, 'local_dir', ''), DEFAULT_AGENT_FILE)
 
         if code_file is not None:
             agent_instance = cls._load_external_code(agent_config, code_file)
         else:
             assert agent_config is not None
             if agent_type == LLMAgent.AGENT_NAME.lower():
-                agent_instance = LLMAgent(agent_config,
-                                          agent_tag,
-                                          trust_remote_code,
-                                          **kwargs)
+                agent_instance = LLMAgent(agent_config, agent_tag,
+                                          trust_remote_code, **kwargs)
             elif agent_type == CodeAgent.AGENT_NAME.lower():
-                agent_instance = CodeAgent(agent_config, agent_tag, trust_remote_code, **kwargs)
+                agent_instance = CodeAgent(agent_config, agent_tag,
+                                           trust_remote_code, **kwargs)
             else:
                 raise ValueError(f'Unknown agent type: {agent_type}')
         return agent_instance
@@ -81,7 +82,7 @@ class AgentLoader:
         local_dir = config.local_dir
         assert local_dir is not None, 'Using external py files, but local_dir cannot be found.'
         if subdir:
-            subdir = os.path.join(local_dir, subdir) # noqa
+            subdir = os.path.join(local_dir, subdir)  # noqa
         if local_dir not in sys.path:
             sys.path.insert(0, local_dir)
         if subdir and subdir not in sys.path:
@@ -89,13 +90,14 @@ class AgentLoader:
         code_module = importlib.import_module(code_file)
         module_classes = {
             name: agent_cls
-            for name, agent_cls in inspect.getmembers(code_module, inspect.isclass)
+            for name, agent_cls in inspect.getmembers(code_module,
+                                                      inspect.isclass)
         }
         agent_instance = None
         for name, agent_cls in module_classes.items():
-            if agent_cls.__bases__[0] is Agent and agent_cls.__module__ == code_file:
+            if Agent in agent_cls.__mro__[
+                    1:] and agent_cls.__module__ == code_file:
                 agent_instance = agent_cls(config, config.tag)
                 break
         assert agent_instance is not None, f'Cannot find a proper agent class in the external code file: {code_file}'
         return agent_instance
-

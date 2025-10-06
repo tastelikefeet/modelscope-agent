@@ -1,10 +1,9 @@
 # Copyright (c) Alibaba, Inc. and its affiliates.
-from abc import abstractmethod, ABC
+from abc import ABC, abstractmethod
 from typing import Any, AsyncGenerator, List, Optional, Union
 
-from omegaconf import DictConfig
-
 from ms_agent.llm import Message
+from omegaconf import DictConfig
 
 
 class Agent(ABC):
@@ -25,7 +24,7 @@ class Agent(ABC):
 
     @abstractmethod
     async def run(
-            self, inputs: Union[str, List[Message]]
+        self, inputs: Union[str, List[Message]]
     ) -> Union[List[Message], AsyncGenerator[List[Message], Any]]:
         """
         Main method to execute the agent.

@@ -1,20 +1,19 @@
 # Copyright (c) Alibaba, Inc. and its affiliates.
-from typing import Optional, Dict
-
-from omegaconf import DictConfig, OmegaConf
+from typing import Dict, Optional
 
 from ms_agent.config.config import Config
+from omegaconf import DictConfig, OmegaConf
 
 
 class WorkflowLoader:
 
     @classmethod
     def build(cls,
-                  config_dir_or_id: Optional[str] = None,
-                  config: Optional[DictConfig] = None,
-                  env: Optional[Dict[str, str]] = None,
-                  trust_remote_code: bool = False,
-                  **kwargs):
+              config_dir_or_id: Optional[str] = None,
+              config: Optional[DictConfig] = None,
+              env: Optional[Dict[str, str]] = None,
+              trust_remote_code: bool = False,
+              **kwargs):
         wf_config: Optional[DictConfig] = None
         if config_dir_or_id is not None:
             wf_config: DictConfig = Config.from_task(config_dir_or_id, env)
@@ -30,10 +29,11 @@ class WorkflowLoader:
         wf_type = getattr(wf_config, 'type').lower() or wf_type
 
         if wf_type == ChainWorkflow.WORKFLOW_NAME.lower():
-            wf_instance = ChainWorkflow(config_dir_or_id=config_dir_or_id,
-                                        config=wf_config,
-                                        env=env,
-                                        trust_remote_code=trust_remote_code)
+            wf_instance = ChainWorkflow(
+                config_dir_or_id=config_dir_or_id,
+                config=wf_config,
+                env=env,
+                trust_remote_code=trust_remote_code)
         elif wf_type == ResearchWorkflow.WORKFLOW_NAME.lower():
             # TODO
             raise NotImplementedError()

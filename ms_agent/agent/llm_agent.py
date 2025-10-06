@@ -1,7 +1,6 @@
 # Copyright (c) Alibaba, Inc. and its affiliates.
 import importlib
 import inspect
-import json
 import os.path
 import sys
 import uuid
@@ -9,8 +8,7 @@ from contextlib import contextmanager
 from copy import deepcopy
 from typing import Any, AsyncGenerator, Dict, List, Optional, Tuple, Union
 
-from omegaconf import DictConfig, OmegaConf
-
+import json
 from ms_agent.agent.runtime import Runtime
 from ms_agent.callbacks import Callback, callbacks_mapping
 from ms_agent.llm.llm import LLM
@@ -20,12 +18,13 @@ from ms_agent.memory.mem0ai import Mem0Memory
 from ms_agent.rag.base import RAG
 from ms_agent.rag.utils import rag_mapping
 from ms_agent.tools import ToolManager
-from ms_agent.utils import async_retry
-from ms_agent.utils import read_history, save_history
+from ms_agent.utils import async_retry, read_history, save_history
 from ms_agent.utils.constants import DEFAULT_OUTPUT_DIR, DEFAULT_USER
 from ms_agent.utils.logger import logger
-from .base import Agent
+from omegaconf import DictConfig, OmegaConf
+
 from ..config.config import ConfigLifecycleHandler
+from .base import Agent
 
 
 class LLMAgent(Agent):
@@ -73,7 +72,8 @@ class LLMAgent(Agent):
             kwargs.get('mcp_config', {}))
         self.mcp_client = kwargs.get('mcp_client', None)
         self.config_handler = self.register_config_handler()
-        self.output_dir = getattr(self.config, 'output_dir', DEFAULT_OUTPUT_DIR)
+        self.output_dir = getattr(self.config, 'output_dir',
+                                  DEFAULT_OUTPUT_DIR)
 
     def register_callback(self, callback: Callback):
         """
@@ -142,7 +142,7 @@ class LLMAgent(Agent):
             handler = None
             for name, handler_cls in module_classes.items():
                 if handler_cls.__bases__[
-                    0] is ConfigLifecycleHandler and handler_cls.__module__ == handler_file:
+                        0] is ConfigLifecycleHandler and handler_cls.__module__ == handler_file:
                     handler = handler_cls()
             assert handler is not None, f'Config Lifecycle handler class cannot be found in {handler_file}'
             return handler
@@ -155,7 +155,8 @@ class LLMAgent(Agent):
         Raises:
             AssertionError: If untrusted external code is referenced without permission.
         """
-        local_dir = self.config.local_dir if hasattr(self.config, 'local_dir') else None
+        local_dir = self.config.local_dir if hasattr(self.config,
+                                                     'local_dir') else None
         if hasattr(self.config, 'callbacks'):
             callbacks = self.config.callbacks or []
             for _callback in callbacks:
@@ -183,8 +184,9 @@ class LLMAgent(Agent):
                     }
                     for name, cls in module_classes.items():
                         # Find cls which base class is `Callback`
-                        if issubclass(cls, Callback) and cls.__module__ == _callback:
-                            self.callbacks.append(cls(self.config)) # noqa
+                        if issubclass(
+                                cls, Callback) and cls.__module__ == _callback:
+                            self.callbacks.append(cls(self.config))  # noqa
                 else:
                     self.callbacks.append(callbacks_mapping[_callback](
                         self.config))
@@ -218,7 +220,7 @@ class LLMAgent(Agent):
             await getattr(callback, point)(self.runtime, messages)
 
     async def parallel_tool_call(self,
-                                  messages: List[Message]) -> List[Message]:
+                                 messages: List[Message]) -> List[Message]:
         """
         Execute multiple tool calls in parallel and append results to the message list.
 
@@ -261,16 +263,19 @@ class LLMAgent(Agent):
 
     @property
     def stream(self):
-        generation_config = getattr(self.config, 'generation_config', DictConfig({}))
+        generation_config = getattr(self.config, 'generation_config',
+                                    DictConfig({}))
         return getattr(generation_config, 'stream', False)
 
     @property
     def system(self):
-        return getattr(getattr(self.config, 'prompt', DictConfig({})), 'system', None)
+        return getattr(
+            getattr(self.config, 'prompt', DictConfig({})), 'system', None)
 
     @property
     def query(self):
-        query = getattr(getattr(self.config, 'prompt', DictConfig({})), 'system', None)
+        query = getattr(
+            getattr(self.config, 'prompt', DictConfig({})), 'query', None)
         if not query:
             query = input('>>>')
         return query
@@ -288,18 +293,19 @@ class LLMAgent(Agent):
         """
         if isinstance(messages, list):
             system = self.system
-            if system is not None and messages[0].role == 'system' and system != messages[0].content:
+            if system is not None and messages[
+                    0].role == 'system' and system != messages[0].content:
                 # Replace the existing system
                 messages[0].content = system
         else:
             assert isinstance(
                 messages, str
             ), f'inputs can be either a list or a string, but current is {type(messages)}'
-            system = self.system
-            query = self.query
             messages = [
-                Message(role='system', content=system or LLMAgent.DEFAULT_SYSTEM),
-                Message(role='user', content=messages or query),
+                Message(
+                    role='system',
+                    content=self.system or LLMAgent.DEFAULT_SYSTEM),
+                Message(role='user', content=messages or self.query),
             ]
         return messages
 
@@ -326,10 +332,14 @@ class LLMAgent(Agent):
                 if llm_config is None:
                     service = self.config.llm.service
                     config_dict = {
-                        'model': self.config.llm.model,
-                        'provider': 'openai',
-                        'openai_base_url': getattr(self.config.llm, f'{service}_base_url', None),
-                        'openai_api_key': getattr(self.config.llm, f'{service}_api_key', None),
+                        'model':
+                        self.config.llm.model,
+                        'provider':
+                        'openai',
+                        'openai_base_url':
+                        getattr(self.config.llm, f'{service}_base_url', None),
+                        'openai_api_key':
+                        getattr(self.config.llm, f'{service}_api_key', None),
                     }
                     llm_config_obj = OmegaConf.create(config_dict)
                     setattr(_memory, 'llm', llm_config_obj)
@@ -378,7 +388,8 @@ class LLMAgent(Agent):
             for _line in line.split('\\n'):
                 logger.info(f'[{self.tag}] {_line}')
 
-    def handle_new_response(self, messages: List[Message], response_message: Message):
+    def handle_new_response(self, messages: List[Message],
+                            response_message: Message):
         assert response_message is not None, 'No response message generated from LLM.'
         if response_message.tool_calls:
             self.log_output('[tool_calling]:')
@@ -386,7 +397,8 @@ class LLMAgent(Agent):
                 tool_call = deepcopy(tool_call)
                 if isinstance(tool_call['arguments'], str):
                     tool_call['arguments'] = json.loads(tool_call['arguments'])
-                self.log_output(json.dumps(tool_call, ensure_ascii=False, indent=4))
+                self.log_output(
+                    json.dumps(tool_call, ensure_ascii=False, indent=4))
 
         if messages[-1] is not response_message:
             messages.append(response_message)
@@ -469,7 +481,7 @@ class LLMAgent(Agent):
         self.runtime: Runtime = Runtime(llm=self.llm)
 
     def read_history(self, messages: List[Message],
-                      **kwargs) -> Tuple[DictConfig, Runtime, List[Message]]:
+                     **kwargs) -> Tuple[DictConfig, Runtime, List[Message]]:
         """
         Load previous chat history from disk if available.
 
@@ -514,17 +526,15 @@ class LLMAgent(Agent):
         Args:
             messages (List[Message]): Current message history to save.
         """
-        query = messages[1].content if messages[1].role == 'user' else messages[0].content
+        query = messages[1].content if messages[
+            1].role == 'user' else messages[0].content
         if not query:
             return
 
         config: DictConfig = deepcopy(self.config)
         config.runtime = self.runtime.to_dict()
         save_history(
-            self.output_dir,
-            task=self.tag,
-            config=config,
-            messages=messages)
+            self.output_dir, task=self.tag, config=config, messages=messages)
 
     def save_memory(self, messages: List[Message]):
         """
@@ -538,13 +548,16 @@ class LLMAgent(Agent):
                 for memory_tool in self.memory_tools:
                     if isinstance(memory_tool, Mem0Memory):
                         memory_tool.add_memories_from_procedural(
-                            messages, self.get_user_id(), self.tag, 'procedural_memory')
+                            messages, self.get_user_id(), self.tag,
+                            'procedural_memory')
             else:
                 for memory_tool in self.memory_tools:
                     if isinstance(memory_tool, Mem0Memory):
-                        memory_tool.add_memories_from_conversation(messages, self.get_user_id())
+                        memory_tool.add_memories_from_conversation(
+                            messages, self.get_user_id())
 
-    async def run_loop(self, messages: Union[List[Message], str], **kwargs) -> AsyncGenerator[Any, Any]:
+    async def run_loop(self, messages: Union[List[Message], str],
+                       **kwargs) -> AsyncGenerator[Any, Any]:
         """Run the agent, mainly contains a llm calling and tool calling loop.
 
         Args:
@@ -554,7 +567,8 @@ class LLMAgent(Agent):
             List[Message]: A list of message objects representing the agent's response or interaction history.
         """
         try:
-            self.max_chat_round = getattr(self.config, 'max_chat_round', LLMAgent.DEFAULT_MAX_CHAT_ROUND)
+            self.max_chat_round = getattr(self.config, 'max_chat_round',
+                                          LLMAgent.DEFAULT_MAX_CHAT_ROUND)
             self.register_callback_from_config()
             self.prepare_llm()
             self.prepare_runtime()
@@ -590,8 +604,7 @@ class LLMAgent(Agent):
                                 role='assistant',
                                 content=
                                 f'Task {messages[1].content} was cutted off, because '
-                                f'max round({self.max_chat_round}) exceeded.'
-                            ))
+                                f'max round({self.max_chat_round}) exceeded.'))
                     self.runtime.should_stop = True
                     yield messages
                 # save history
@@ -615,11 +628,13 @@ class LLMAgent(Agent):
     ) -> Union[List[Message], AsyncGenerator[List[Message], Any]]:
         stream = kwargs.get('stream', False)
         with self.config_context():
-            if stream or self.stream:
-                OmegaConf.update(self.config, 'generation_config.stream', True, merge=True)
+            if stream:
+                OmegaConf.update(
+                    self.config, 'generation_config.stream', True, merge=True)
 
                 async def stream_generator():
-                    async for _chunk in self.run_loop(messages=messages, **kwargs):
+                    async for _chunk in self.run_loop(
+                            messages=messages, **kwargs):
                         yield _chunk
 
                 return stream_generator()

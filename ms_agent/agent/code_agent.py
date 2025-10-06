@@ -1,8 +1,9 @@
 # Copyright (c) Alibaba, Inc. and its affiliates.
 from typing import List, Union
 
-from .base import Agent
 from ms_agent.llm import Message
+
+from .base import Agent
 
 
 class CodeAgent(Agent):

@@ -1,10 +1,9 @@
 # Copyright (c) Alibaba, Inc. and its affiliates.
-from abc import abstractmethod, ABC
-from typing import Optional, Dict
-
-from omegaconf import DictConfig
+from abc import ABC, abstractmethod
+from typing import Dict, Optional
 
 from ms_agent.config import Config
+from omegaconf import DictConfig
 
 
 class Workflow(ABC):

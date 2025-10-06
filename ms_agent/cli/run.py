@@ -95,15 +95,17 @@ class RunCMD(CLICommand):
 
         if Config.is_workflow(config):
             from ms_agent.workflow.loader import WorkflowLoader
-            engine = WorkflowLoader.build(self.args.query,
-                               config_dir_or_id=self.args.config,
-                               config=config,
-                               mcp_server_file=self.args.mcp_server_file,
-                               trust_remote_code=self.args.trust_remote_code)
+            engine = WorkflowLoader.build(
+                self.args.query,
+                config_dir_or_id=self.args.config,
+                config=config,
+                mcp_server_file=self.args.mcp_server_file,
+                trust_remote_code=self.args.trust_remote_code)
         else:
             from ms_agent.agent.loader import AgentLoader
-            engine = AgentLoader.build(config_dir_or_id=self.args.config,
-                               config=config,
-                                mcp_server_file=self.args.mcp_server_file,
-                               trust_remote_code=self.args.trust_remote_code)
+            engine = AgentLoader.build(
+                config_dir_or_id=self.args.config,
+                config=config,
+                mcp_server_file=self.args.mcp_server_file,
+                trust_remote_code=self.args.trust_remote_code)
         asyncio.run(engine.run(self.args.query))
