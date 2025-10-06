@@ -60,11 +60,11 @@ class AgentLoader:
             assert agent_config is not None
             if agent_type == LLMAgent.AGENT_NAME.lower():
                 agent_instance = LLMAgent(agent_config,
-                                          tag,
+                                          agent_tag,
                                           trust_remote_code,
                                           **kwargs)
             elif agent_type == CodeAgent.AGENT_NAME.lower():
-                agent_instance = CodeAgent(agent_config, tag, trust_remote_code, **kwargs)
+                agent_instance = CodeAgent(agent_config, agent_tag, trust_remote_code, **kwargs)
             else:
                 raise ValueError(f'Unknown agent type: {agent_type}')
         return agent_instance

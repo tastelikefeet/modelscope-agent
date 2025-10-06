@@ -1,6 +1,7 @@
 # Copyright (c) Alibaba, Inc. and its affiliates.
 import importlib
 import inspect
+import json
 import os.path
 import sys
 import uuid
@@ -8,26 +9,22 @@ from contextlib import contextmanager
 from copy import deepcopy
 from typing import Any, AsyncGenerator, Dict, List, Optional, Tuple, Union
 
-import json
+from omegaconf import DictConfig, OmegaConf
 
-from ms_agent.utils.constants import DEFAULT_OUTPUT_DIR, DEFAULT_USER
-
-from .base import Agent
-
+from ms_agent.agent.runtime import Runtime
 from ms_agent.callbacks import Callback, callbacks_mapping
 from ms_agent.llm.llm import LLM
-from ms_agent.llm.utils import Message, Tool
+from ms_agent.llm.utils import Message
 from ms_agent.memory import Memory, memory_mapping
 from ms_agent.memory.mem0ai import Mem0Memory
 from ms_agent.rag.base import RAG
 from ms_agent.rag.utils import rag_mapping
 from ms_agent.tools import ToolManager
 from ms_agent.utils import async_retry
-from ms_agent.utils.logger import logger
-from omegaconf import DictConfig, OmegaConf
-
 from ms_agent.utils import read_history, save_history
-from ms_agent.agent.runtime import Runtime
+from ms_agent.utils.constants import DEFAULT_OUTPUT_DIR, DEFAULT_USER
+from ms_agent.utils.logger import logger
+from .base import Agent
 from ..config.config import ConfigLifecycleHandler
 
 
@@ -547,7 +544,7 @@ class LLMAgent(Agent):
                     if isinstance(memory_tool, Mem0Memory):
                         memory_tool.add_memories_from_conversation(messages, self.get_user_id())
 
-    async def run(self, messages: Union[List[Message], str], **kwargs) -> AsyncGenerator[Any, Any]:
+    async def run_loop(self, messages: Union[List[Message], str], **kwargs) -> AsyncGenerator[Any, Any]:
         """Run the agent, mainly contains a llm calling and tool calling loop.
 
         Args:
@@ -618,16 +615,16 @@ class LLMAgent(Agent):
     ) -> Union[List[Message], AsyncGenerator[List[Message], Any]]:
         stream = kwargs.get('stream', False)
         with self.config_context():
-            if stream:
+            if stream or self.stream:
                 OmegaConf.update(self.config, 'generation_config.stream', True, merge=True)
 
                 async def stream_generator():
-                    async for _chunk in self.run(messages=messages, **kwargs):
+                    async for _chunk in self.run_loop(messages=messages, **kwargs):
                         yield _chunk
 
                 return stream_generator()
             else:
                 res = None
-                async for chunk in self.run(messages=messages, **kwargs):
+                async for chunk in self.run_loop(messages=messages, **kwargs):
                     res = chunk
                 return res
