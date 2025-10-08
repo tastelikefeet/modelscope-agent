@@ -202,8 +202,8 @@ class LLMAgent(Agent):
     async def on_generate_response(self, messages: List[Message]):
         await self.loop_callback('on_generate_response', messages)
 
-    async def after_generate_response(self, messages: List[Message]):
-        await self.loop_callback('after_generate_response', messages)
+    async def on_tool_call(self, messages: List[Message]):
+        await self.loop_callback('on_tool_call', messages)
 
     async def after_tool_call(self, messages: List[Message]):
         await self.loop_callback('after_tool_call', messages)
@@ -459,7 +459,7 @@ class LLMAgent(Agent):
 
         # Response generated
         self.handle_new_response(messages, _response_message)
-        await self.after_generate_response(messages)
+        await self.on_tool_call(messages)
 
         if _response_message.tool_calls:
             messages = await self.parallel_tool_call(messages)
