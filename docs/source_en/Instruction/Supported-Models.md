@@ -1,17 +1,17 @@
-# 支持的模型
+# Supported Models
 
-MS-Agent支持标准OpenAI接口的大模型API。除此之外，为了方便不同模型provider使用，也提供了yaml中不同的配置key。
+MS-Agent supports large model APIs with the standard OpenAI interface. In addition, to facilitate usage by different model providers, it also provides distinct configuration keys in YAML.
 
-## OpenAI通用
+## OpenAI Generic
 
 ```yaml
 llm:
   service: openai
-  # 模型id
+  # Model ID
   model:
-  # 模型api_key
+  # Model API key
   openai_api_key:
-  # 模型base_url
+  # Model base URL
   openai_base_url:
 ```
 
@@ -20,11 +20,11 @@ llm:
 ```yaml
 llm:
   service: modelscope
-  # 模型id
+  # Model ID
   model:
-  # 模型api_key
+  # Model API key
   modelscope_api_key:
-  # 模型base_url
+  # Model base URL
   modelscope_base_url:
 ```
 
@@ -33,12 +33,12 @@ llm:
 ```yaml
 llm:
   service: anthropic
-  # 模型id
+  # Model ID
   model:
-  # 模型api_key
+  # Model API key
   anthropic_api_key:
-  # 模型base_url
+  # Model base URL
   anthropic_base_url:
 ```
 
-> 如果你有其他模型provider，请协助更新此文档。
+> If you have other model providers, please assist in updating this documentation.

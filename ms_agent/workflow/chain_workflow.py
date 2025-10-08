@@ -4,6 +4,7 @@ import os
 from ms_agent.agent.loader import AgentLoader
 from ms_agent.utils import get_logger
 from ms_agent.workflow.base import Workflow
+from omegaconf import DictConfig
 
 logger = get_logger()
 
@@ -75,6 +76,8 @@ class ChainWorkflow(Workflow):
         for task in self.workflow_chains:
             task_info = getattr(self.config, task)
             config = getattr(task_info, 'agent_config', agent_config)
+            if not hasattr(task_info, 'agent'):
+                task_info.agent = DictConfig({})
             init_args = getattr(task_info.agent, 'kwargs', {})
             init_args.pop('trust_remote_code', None)
             init_args['trust_remote_code'] = self.trust_remote_code
@@ -84,7 +87,6 @@ class ChainWorkflow(Workflow):
             init_args['config_dir_or_id'] = os.path.join(
                 self.config.local_dir, config)
             init_args['env'] = self.env
-            print(init_args)
             if 'tag' not in init_args:
                 init_args['tag'] = task
             engine = AgentLoader.build(**init_args)

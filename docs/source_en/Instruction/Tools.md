@@ -1,62 +1,62 @@
-# 工具
+# Tools
 
-## 工具列表
+## Tool List
 
-MS-Agent支持很多内部工具：
+MS-Agent supports many internal tools:
 
 ### split_task
 
-任务拆分工具。LLM可以使用该工具将一个复杂任务拆分为若干个子任务，每个子任务都具有独立的system和query字段。子任务的yaml配置默认继承自父任务。
+Task splitting tool. LLM can use this tool to split a complex task into several subtasks, each with independent system and query fields. The yaml configuration of subtasks inherits from the parent task by default.
 
 #### split_to_sub_task
 
-使用该方法开启多个子任务。
+Use this method to start multiple subtasks.
 
-参数：
+Parameters:
 
-- tasks: ``List[Dict[str, str]]``, 列表长度等于子任务数，每个子任务均包含key为system和query两个字段的Dict
+- tasks: ``List[Dict[str, str]]``, list length equals the number of subtasks, each subtask contains a Dict with keys system and query
 
 ### file_system
 
-一个基础的本地文件增删改查工具。该工具会读取yaml配置中的`output`字段（默认为当前文件夹的`output`文件夹），所有的增删改查均基于output所指定的目录为根目录进行。
+A basic local file CRUD tool. This tool reads the `output` field in the yaml configuration (defaults to the `output` folder in the current directory), and all CRUD operations are performed based on the directory specified by output as the root directory.
 
 #### create_directory
 
-创建一个文件夹
+Create a folder
 
-参数：
+Parameters:
 
-- path: `str`, 待创建的目录，该目录基于yaml配置中的`output`字段。
+- path: `str`, the directory to be created, based on the `output` field in the yaml configuration.
 
 #### write_file
 
-写入具体文件。
+Write to a specific file.
 
-参数：
+Parameters:
 
-- path: `str`, 待写入的具体文件，目录基于yaml配置中的`output`字段。
-- content: `str`: 写入内容。
+- path: `str`, the specific file to write to, directory based on the `output` field in the yaml configuration.
+- content: `str`: content to write.
 
 #### read_file
 
-读取一个文件内容
+Read file content
 
-参数：
+Parameters:
 
-- path: `str`, 待读出的具体文件，目录基于yaml配置中的`output`字段。
+- path: `str`, the specific file to read, directory based on the `output` field in the yaml configuration.
 
 #### list_files
 
-列出某个目录的文件列表
+List files in a directory
 
-参数：
+Parameters:
 
-- path: `str`, 基于yaml配置中的`output`的相对目录。如果为空，则列出根目录下的所有文件。
+- path: `str`, relative directory based on the `output` in yaml configuration. If empty, lists all files in the root directory.
 
 
-### MCP工具
+### MCP Tools
 
-支持传入外部MCP工具，只需要将mcp工具需要的配置写入字段即可，注意配置`mcp: true`。
+Supports passing external MCP tools, just write the configuration required by the mcp tool into the field, and make sure to configure `mcp: true`.
 
 ```yaml
   amap-maps:
@@ -67,28 +67,28 @@ MS-Agent支持很多内部工具：
       - map_geo
 ```
 
-## 自定义工具
+## Custom Tools
 
-### 传入mcp.json
+### Passing mcp.json
 
-该方式可以传入一个mcp工具列表。作用和配置yaml中的tools字段相同。
+This method can pass an mcp tool list. Has the same effect as configuring the tools field in yaml.
 
 ```shell
 ms-agent run --config xxx/xxx --mcp_server_file ./mcp.json
 ```
 
-### 配置yaml文件
+### Configuring yaml file
 
-yaml中可以在tools中添加额外工具。可以参考[配置与参数](./配置与参数.md#工具配置)
+Additional tools can be added in tools within yaml. Refer to [Configuration and Parameters](./Config.md#Tool%20Configuration)
 
-### 编写新的工具
+### Writing new tools
 
 ```python
 from ms_agent.llm.utils import Tool
 from ms_agent.tools.base import ToolBase
 
 
-# 可以改为其他名字
+# Can be changed to other names
 class CustomTool(ToolBase):
     """A file system operation tool
 
@@ -155,7 +155,7 @@ class CustomTool(ToolBase):
         ...
 ```
 
-将文件保存在`agent.yaml`的相对目录中，如`tools/custom_tool.py`。
+Save the file in a relative directory to `agent.yaml`, such as `tools/custom_tool.py`.
 
 ```text
 agent.yaml
@@ -163,22 +163,22 @@ tools
   |--custom_tool.py
 ```
 
-之后可以在`agent.yaml`中进行如下配置：
+Then you can configure it in `agent.yaml` as follows:
 
 ```yaml
 
 tools:
   tool1:
     mcp: true
-    # 其他配置
+    # Other configurations
 
   tool2:
     mcp: false
-    # 其他配置
+    # Other configurations
 
-  # 这里是注册的新工具
+  # This is the registered new tool
   plugins:
     - tools/custom_tool
 ```
 
-我们有一个[简单的例子](https://www.modelscope.cn/models/ms-agent/simple_tool_plugin)，可以基于这个例子进行修改。
+We have a [simple example](https://www.modelscope.cn/models/ms-agent/simple_tool_plugin) that you can modify based on this example.

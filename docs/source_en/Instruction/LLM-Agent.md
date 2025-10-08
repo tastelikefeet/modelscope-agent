@@ -1,28 +1,30 @@
-from typing import Listfrom ms_agent.agent import Runtimefrom ms_agent.callbacks import Callback
+from typing import List
+from ms_agent.agent import Runtime
+from ms_agent.callbacks import Callback
 
-# 基础智能体
+# Basic Agent
 
-MS-Agent的基础智能体类是[LLMAgent](https://github.com/modelscope/ms-agent/blob/main/ms_agent/agent/llm_agent.py)。MS-Agent的对话能力、工具调用都经由该类进行处理。示意图如下：
+The basic agent class in MS-Agent is [LLMAgent](https://github.com/modelscope/ms-agent/blob/main/ms_agent/agent/llm_agent.py). MS-Agent's conversational capabilities and tool invocation are all handled through this class. The diagram is as follows:
 
 ![png](../../resources/llmagent.png)
 
-LLMAgent在构造时会初始化config。然后依次进行：
+LLMAgent initializes config during construction. Then it proceeds sequentially:
 
-- 将config中配置的callbacks注册进来
-- 初始化LLM、工具、消息管理、rag
-- 读取消息历史缓存（如有）
-- 准备消息，如进行rag查询，增加plan等
-- 进入循环，尝试压缩消息
-- 准备好工具列表，调用LLM
-- 根据LLM的结果调用工具，重新开始循环
+- Register callbacks configured in config
+- Initialize LLM, tools, message management, rag
+- Read message history cache (if any)
+- Prepare messages, such as performing rag queries, adding plans, etc.
+- Enter loop, attempt to compress messages
+- Prepare tool list, call LLM
+- Call tools based on LLM results, restart loop
 
-循环的结束条件：
-1. 模型进行了回复，但没有任何工具调用
-2. 达到了config中max_chat_round的轮数
+Loop termination conditions:
+1. The model made a reply but without any tool calls
+2. Reached the number of rounds specified by max_chat_round in config
 
 ## callbacks
 
-开发者可以通过callbacks来对Agent执行流程进行定制。callbacks可以进行如下配置：
+Developers can customize the Agent execution flow through callbacks. Callbacks can be configured as follows:
 
 - custom_callback.py
 
@@ -31,8 +33,8 @@ from ms_agent.callbacks import Callback
 
 class CustomCallback(Callback):
 
-    def on_generate_response(self, runtime: Runtime,
-                                   messages: List[Message]):
+    def on_generate_response(self, runtime,
+                                   messages):
         ...
 
 ```
@@ -44,19 +46,19 @@ callbacks:
   - custom_callback
 ```
 
-这意味着在yaml文件平级有一个`custom_callback.py`文件。该文件包含了继承自`Callback`类的子类，并实现了某些具体方法。支持的callback有：
+This means there is a `custom_callback.py` file at the same level as the yaml file. This file contains subclasses that inherit from the `Callback` class and implement certain specific methods. Supported callbacks include:
 
-- on_task_begin: 在任务开始执行时调用callback
-- on_generate_response: 在调用LLM前调用callback
-- on_tool_call: 在调用tool前调用该callback
-- after_tool_call: 在调用tool后调用该callback
-- on_task_end: 在任务完成后调用该callback
+- on_task_begin: Called when task begins execution
+- on_generate_response: Called before calling LLM
+- on_tool_call: Called before calling tool
+- after_tool_call: Called after calling tool
+- on_task_end: Called after task completion
 
-callback作为一种辅助机制，由于其可读性不高，建议在callback中执行一些不太复杂的流程，例如控制流程结束、打印日志等。如果需要定制Agent，请考虑直接继承LLMAgent。
+As an auxiliary mechanism, callbacks have low readability, so it's recommended to execute less complex processes in callbacks, such as controlling process termination, printing logs, etc. If you need to customize the Agent, please consider directly inheriting from LLMAgent.
 
-## 自定义Agent
+## Custom Agent
 
-如果需要更多的定制化，可以考虑继承LLMAgent类并复写其中的某些方法。定义新的Agent类和上述定义callback的流程相同：
+If more customization is needed, you can consider inheriting from the LLMAgent class and overriding certain methods. Defining a new Agent class follows the same process as defining callbacks above:
 
 - custom_agent.py
 
@@ -77,10 +79,10 @@ class CustomAgent(LLMAgent):
 code_file: custom_agent
 ```
 
-在这种情况下，agent.yaml会使用你自定义的agent类，而不会再加载LLMAgent类执行。
+In this case, agent.yaml will use your custom agent class instead of loading the LLMAgent class for execution.
 
-## 例子
+## Examples
 
-1. 一个基本的agent.yaml：https://www.modelscope.cn/models/ms-agent/simple_agent
-2. 外部代码的agent：https://www.modelscope.cn/models/ms-agent/simple_agent_code
-3. 使用callback完成复杂工作流：https://github.com/modelscope/ms-agent/tree/main/projects/code_scratch
+1. A basic agent.yaml: https://www.modelscope.cn/models/ms-agent/simple_agent
+2. Agent with external code: https://www.modelscope.cn/models/ms-agent/simple_agent_code
+3. Using callbacks to complete complex workflows: https://github.com/modelscope/ms-agent/tree/main/projects/code_scratch

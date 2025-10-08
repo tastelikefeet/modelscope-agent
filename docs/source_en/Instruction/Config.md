@@ -1,30 +1,51 @@
-# 配置与参数
+# Configuration and Parameters
 
-MS-Agent使用一个yaml文件进行配置管理，通常这个文件被命名为`agent.yaml`，这样的设计使不同场景可以读取不同的配置文件。该文件具体包含的字段有：
+MS-Agent uses a yaml file for configuration management, typically named `agent.yaml`, which allows different scenarios to read different configuration files. The specific fields contained in this file are:
 
-## LLM配置
+## Type Configuration
 
-> 必须存在
+> Optional
+
+```yaml
+# type: codeagent
+type: llmagent
+```
+
+Identifies the agent type corresponding to this configuration, supporting two types: `llmagent` and `codeagent`. Default is `llmagent`. If the yaml contains a code_file field, code_file takes priority.
+
+## Custom Code
+
+> Optional, used when customizing LLMAgent
+
+```yaml
+code_file: custom_agent
+```
+
+An external agent class can be used, which needs to inherit from `LLMAgent`. Several methods can be overridden. If code_file has a value, the `type` field does not take effect.
+
+## LLM Configuration
+
+> Required
 
 ```yaml
 llm:
-  # 大模型服务backend
+  # Large model service backend
   service: modelscope
-  # 模型id
+  # Model id
   model: Qwen/Qwen3-235B-A22B-Instruct-2507
-  # 模型api_key
+  # Model api_key
   modelscope_api_key:
-  # 模型base_url
+  # Model base_url
   modelscope_base_url: https://api-inference.modelscope.cn/v1
 ```
 
-## 推理配置
+## Inference Configuration
 
-> 必须存在
+> Required
 
 ```yaml
 generation_config:
-  # 下面的字段均为OpenAI sdk的标准参数，你也可以配置OpenAI支持的其他参数在这里。
+  # The following fields are all standard parameters of OpenAI SDK, you can also configure other parameters supported by OpenAI here.
   top_p: 0.6
   temperature: 0.2
   top_k: 20
@@ -33,39 +54,39 @@ generation_config:
     enable_thinking: false
 ```
 
-## system和query
+## system and query
 
-> 可选，但推荐传入system
+> Optional, but system is recommended
 
 ```yaml
 prompt:
-  # LLM system，如果不传递则使用默认的`you are a helpful assistant.`
+  # LLM system, if not passed, the default `you are a helpful assistant.` is used
   system:
-  # LLM初始query，通常来说可以不使用
+  # LLM initial query, usually not needed
   query:
 ```
 
 ## callbacks
 
-> 可选，推荐自定义callbacks
+> Optional, recommended
 
 ```yaml
 callbacks:
-  # 用户输入callback，该callback在assistant回复后自动等待用户输入
+  # User input callback, this callback automatically waits for user input after assistant reply
   - input_callback
 ```
 
-## 工具配置
+## Tool Configuration
 
-> 可选，推荐使用
+> Optional, recommended
 
 ```yaml
 tools:
-  # 工具名称
+  # Tool name
   file_system:
-    # 是否是mcp
+    # Whether it is mcp
     mcp: false
-    # 排除的function，可以为空
+    # Excluded functions, can be empty
     exclude:
       - create_directory
       - write_file
@@ -77,57 +98,56 @@ tools:
       - map_geo
 ```
 
-支持的完整工具列表，以及自定义工具请参考[这里](./工具.md)
+For the complete list of supported tools and custom tools, please refer to [here](./工具.md)
 
-## 其他
+## Others
 
-> 可选，按需配置
+> Optional, configure as needed
 
 ```yaml
-# 自动对话轮数，默认为20轮
+# Automatic conversation rounds, default is 20 rounds
 max_chat_round: 9999
 
-# 工具调用超时时间，单位秒
+# Tool call timeout, in seconds
 tool_call_timeout: 30000
 
-# 输出artifact目录
+# Output artifact directory
 output_dir: output
 
-# 帮助信息，通常在运行错误后出现
+# Help information, usually appears after runtime errors
 help: |
   A commonly use config, try whatever you want!
 ```
 
 ## config_handler
 
-为了便于在任务开始时对config进行定制化，MS-Agent构建了一个名为`ConfigLifecycleHandler`的机制。这是一个callback类，开发者可以在yaml文件中增加这样一个配置：
+To facilitate customization of config at the beginning of tasks, MS-Agent has built a mechanism called `ConfigLifecycleHandler`. This is a callback class, and developers can add such a configuration in the yaml file:
 
 ```yaml
 handler: custom_handler
 ```
 
-这代表和yaml文件同级有一个custom_handler.py文件，该文件的类继承自`ConfigLifecycleHandler`，分别有两个方法：
+This means there is a custom_handler.py file at the same level as the yaml file, and the class in this file inherits from `ConfigLifecycleHandler`, with two methods:
 
 ```python
-    def task_begin(self, config: DictConfig, tag: str) -> DictConfig:
-        return config
-
-    def task_end(self, config: DictConfig, tag: str) -> DictConfig:
-        return config
+def task_begin(self, config: DictConfig, tag: str) -> DictConfig:
+    return config
+def task_end(self, config: DictConfig, tag: str) -> DictConfig:
+    return config
 ```
 
-`task_begin`在LLMAgent类构造时生效，在该方法中可以对config进行一些修改。如果你的工作流中下游任务会继承上游的yaml配置，这个机制会有帮助。值得注意的是`tag`参数，该参数会传入当前LLMAgent的名字，方便分辨当前工作流的节点。
+`task_begin` takes effect when the LLMAgent class is constructed, and in this method you can make some modifications to the config. This mechanism is helpful if downstream tasks in your workflow will inherit the yaml configuration from upstream. It's worth noting the `tag` parameter, which passes in the name of the current LLMAgent, making it convenient to distinguish the current workflow node.
 
 
-## 命令行配置
+## Command Line Configuration
 
-在yaml配置之外，MS-Agent还支持若干额外的命令行参数。
+In addition to yaml configuration, MS-Agent also supports several additional command line parameters.
 
-- query: 初始query，这个query的优先级高于yaml中的prompt.query
-- config: 配置文件路径，支持modelscope model-id
-- trust_remote_code: 是否信任外部代码。如果某个配置包含了一些外部代码，需要将这个参数置为true才会生效
-- load_cache: 从历史messages继续对话。cache会被自动存储在`output`配置中。默认为`False`
-- mcp_server_file: 可以读取一个外部的mcp工具配置，格式为：
+- query: Initial query, this query has higher priority than prompt.query in yaml
+- config: Configuration file path, supports modelscope model-id
+- trust_remote_code: Whether to trust external code. If a configuration contains some external code, this parameter needs to be set to true for it to take effect
+- load_cache: Continue conversation from historical messages. Cache will be automatically stored in the `output` configuration. Default is `False`
+- mcp_server_file: Can read an external mcp tool configuration, format is:
     ```json
     {
       "mcpServers": {
@@ -139,4 +159,4 @@ handler: custom_handler
     }
     ```
 
-> agent.yaml中的任意一个配置，都可以使用命令行传入新的值, 也支持从同名（大小写不敏感）环境变量中读取，例如`--llm.modelscope_api_key xxx-xxx`。
+> Any configuration in agent.yaml can be passed in with new values via command line, and also supports reading from environment variables with the same name (case insensitive), for example `--llm.modelscope_api_key xxx-xxx`.
