@@ -19,7 +19,7 @@ from ms_agent.rag.base import RAG
 from ms_agent.rag.utils import rag_mapping
 from ms_agent.tools import ToolManager
 from ms_agent.utils import async_retry, read_history, save_history
-from ms_agent.utils.constants import DEFAULT_OUTPUT_DIR, DEFAULT_USER
+from ms_agent.utils.constants import DEFAULT_OUTPUT_DIR, DEFAULT_USER, DEFAULT_TAG
 from ms_agent.utils.logger import logger
 from omegaconf import DictConfig, OmegaConf
 
@@ -55,7 +55,7 @@ class LLMAgent(Agent):
 
     def __init__(self,
                  config: DictConfig,
-                 tag: str,
+                 tag: str = DEFAULT_TAG,
                  trust_remote_code: bool = False,
                  **kwargs):
         super().__init__(config, tag, trust_remote_code)

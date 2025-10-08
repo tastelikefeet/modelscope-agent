@@ -152,10 +152,11 @@ export MODELSCOPE_API_KEY={your_modelscope_api_key}
 You can find or generate your API key at https://modelscope.cn/my/myaccesstoken.
 
 ```python
-from ms_agent import LLMAgent
 import asyncio
 
-# Configure MCP server
+from ms_agent.agent.loader import AgentLoader
+
+# 配置 MCP 服务器
 mcp = {
   "mcpServers": {
     "fetch": {
@@ -166,13 +167,12 @@ mcp = {
 }
 
 async def main():
-    # Initialize the agent with MCP configuration
-    llm_agent = LLMAgent(mcp_config=mcp)
-    # Run a task
-    await llm_agent.run('Briefly introduce modelscope.cn')
+    # 使用 MCP 配置初始化 agent
+    llm_agent = AgentLoader.build(config_dir_or_id='ms-agent/simple_agent', mcp_config=mcp)    # 运行任务
+    await llm_agent.run('简要介绍 modelscope.cn')
 
 if __name__ == '__main__':
-    # Launch the async main function
+    # 启动异步主函数
     asyncio.run(main())
 ```
 ----
@@ -210,7 +210,8 @@ This example demonstrates how the agent remembers user preferences across sessio
 import uuid
 import asyncio
 from omegaconf import OmegaConf
-from ms_agent.agent import LLMAgent
+from ms_agent.agent.loader import AgentLoader
+
 
 async def main():
     random_id = str(uuid.uuid4())
@@ -220,18 +221,18 @@ async def main():
             'user_id': 'awesome_me'
         }]
     })
-    agent1 = LLMAgent(config=default_memory)
+    agent1 = AgentLoader.build(config_dir_or_id='ms-agent/simple_agent', config=default_memory)
     agent1.config.callbacks.remove('input_callback')  # Disable interactive input for direct output
 
     await agent1.run('I am a vegetarian and I drink coffee every morning.')
     del agent1
     print('========== Data preparation completed, starting test ===========')
-    agent2 = LLMAgent(config=default_memory)
+    agent2 = AgentLoader.build(config_dir_or_id='ms-agent/simple_agent', config=default_memory)
     agent2.config.callbacks.remove('input_callback')  # Disable interactive input for direct output
 
     res = await agent2.run('Please help me plan tomorrow’s three meals.')
     print(res)
-    assert ('vegan' in res[-1].content.lower()) and 'coffee' in res[-1].content.lower()
+    assert 'vegan' in res[-1].content.lower() and 'coffee' in res[-1].content.lower()
 
 asyncio.run(main())
 ```

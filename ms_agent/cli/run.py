@@ -96,7 +96,6 @@ class RunCMD(CLICommand):
         if Config.is_workflow(config):
             from ms_agent.workflow.loader import WorkflowLoader
             engine = WorkflowLoader.build(
-                self.args.query,
                 config_dir_or_id=self.args.config,
                 config=config,
                 mcp_server_file=self.args.mcp_server_file,

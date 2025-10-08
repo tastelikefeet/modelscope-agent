@@ -83,7 +83,10 @@ class ChainWorkflow(Workflow):
             init_args['config_dir_or_id'] = self.config_dir_or_id
             init_args['config'] = config
             init_args['env'] = self.env
+            print(init_args)
             if 'tag' not in init_args:
                 init_args['tag'] = task
-            inputs, agent_config = await AgentLoader.run(inputs, **init_args)
+            engine = AgentLoader.build(**init_args)
+            inputs = await engine.run(inputs)
+            agent_config = engine.config
         return inputs
