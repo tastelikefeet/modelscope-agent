@@ -19,7 +19,8 @@ from ms_agent.rag.base import RAG
 from ms_agent.rag.utils import rag_mapping
 from ms_agent.tools import ToolManager
 from ms_agent.utils import async_retry, read_history, save_history
-from ms_agent.utils.constants import DEFAULT_OUTPUT_DIR, DEFAULT_USER, DEFAULT_TAG
+from ms_agent.utils.constants import (DEFAULT_OUTPUT_DIR, DEFAULT_TAG,
+                                      DEFAULT_USER)
 from ms_agent.utils.logger import logger
 from omegaconf import DictConfig, OmegaConf
 
@@ -176,6 +177,8 @@ class LLMAgent(Agent):
                         sys.path.insert(0, local_dir)
                     if subdir and subdir not in sys.path:
                         sys.path.insert(0, subdir)
+                    if _callback.endswith('.py'):
+                        _callback = _callback[:-3]
                     callback_file = importlib.import_module(_callback)
                     module_classes = {
                         name: cls

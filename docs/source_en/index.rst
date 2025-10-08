@@ -9,9 +9,20 @@ MS-Agent DOCUMENTATION
    :maxdepth: 2
    :caption: Get Started
 
+   GetStarted/Introduction.md
+   GetStarted/Installation.md
+
 .. toctree::
    :maxdepth: 2
    :caption: Instruction
+
+   Instruction/Config.md
+   Instruction/LLM-Agent.md
+   Instruction/Workflow.md
+   Instruction/Supported-Models.md
+   Instruction/Tools.md
+   Instruction/Deep-Research.md
+   Instruction/Code-Scratch.md
 
 Indices and tables
 ==================

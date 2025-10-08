@@ -87,6 +87,8 @@ class AgentLoader:
             sys.path.insert(0, local_dir)
         if subdir and subdir not in sys.path:
             sys.path.insert(0, subdir)
+        if code_file.endswith('.py'):
+            code_file = code_file[:-3]
         code_module = importlib.import_module(code_file)
         module_classes = {
             name: agent_cls

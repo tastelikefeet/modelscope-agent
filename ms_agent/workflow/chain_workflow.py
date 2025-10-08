@@ -81,7 +81,8 @@ class ChainWorkflow(Workflow):
             init_args['mcp_server_file'] = self.mcp_server_file
             init_args['task'] = task
             init_args['load_cache'] = self.load_cache
-            init_args['config_dir_or_id'] = os.path.join(self.config.local_dir, config)
+            init_args['config_dir_or_id'] = os.path.join(
+                self.config.local_dir, config)
             init_args['env'] = self.env
             print(init_args)
             if 'tag' not in init_args:

@@ -31,8 +31,8 @@ from ms_agent.callbacks import Callback
 
 class CustomCallback(Callback):
 
-    def on_generate_response(self, runtime,
-                                   messages):
+    def on_generate_response(self, runtime: Runtime,
+                                   messages: List[Message]):
         ...
 
 ```

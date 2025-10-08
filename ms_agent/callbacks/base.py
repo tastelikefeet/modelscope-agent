@@ -37,8 +37,7 @@ class Callback:
         """
         pass
 
-    async def on_tool_call(self, runtime: Runtime,
-                                      messages: List[Message]):
+    async def on_tool_call(self, runtime: Runtime, messages: List[Message]):
         """Called after LLM generates response.
 
         Args:
