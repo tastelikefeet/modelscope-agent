@@ -24,7 +24,7 @@ from ms_agent.utils.constants import (DEFAULT_OUTPUT_DIR, DEFAULT_TAG,
 from ms_agent.utils.logger import logger
 from omegaconf import DictConfig, OmegaConf
 
-from ..config.config import ConfigLifecycleHandler
+from ..config.config import ConfigLifecycleHandler, Config
 from .base import Agent
 
 
@@ -59,6 +59,11 @@ class LLMAgent(Agent):
                  tag: str = DEFAULT_TAG,
                  trust_remote_code: bool = False,
                  **kwargs):
+        if not hasattr(config, 'llm'):
+            default_yaml = os.path.join(
+                os.path.dirname(os.path.abspath(__file__)), 'agent.yaml')
+            llm_config = Config.from_task(default_yaml)
+            config = OmegaConf.merge(llm_config, config)
         super().__init__(config, tag, trust_remote_code)
         self.callbacks: List[Callback] = []
         self.tool_manager: Optional[ToolManager] = None
