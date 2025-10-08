@@ -529,8 +529,11 @@ class LLMAgent(Agent):
         Args:
             messages (List[Message]): Current message history to save.
         """
-        query = messages[1].content if messages[
-            1].role == 'user' else messages[0].content
+        query = None
+        if len(messages) > 1 and messages[1].role == 'user':
+            query = messages[1].content
+        elif messages:
+            query = messages[0].content
         if not query:
             return
 

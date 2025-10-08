@@ -303,9 +303,10 @@ asyncio.run(main())
 
 **2. 本地Gradio应用**
 
-* 针对[UniME: Breaking the Modality Barrier: Universal Embedding Learning
-with Multimodal LLMs](https://arxiv.org/pdf/2504.17432)的研究报告
-<img src="https://github.com/user-attachments/assets/3f85ba08-6366-49b7-b551-cbe50edf6218" alt="LocalGradioApplication" width="750">  <p><em>演示：UniME 研究报告</em></p>
+* 针对[UniME: Breaking the Modality Barrier: Universal Embedding Learning with Multimodal LLMs](https://arxiv.org/pdf/2504.17432)的研究报告
+<div align="center">
+  <img src="https://github.com/user-attachments/assets/3f85ba08-6366-49b7-b551-cbe50edf6218" alt="LocalGradioApplication" width="750">
+  <p><em>演示：UniME 研究报告</em></p>
 </div>
 
 更多详情，请参考 [文档研究](projects/doc_research/README.md)

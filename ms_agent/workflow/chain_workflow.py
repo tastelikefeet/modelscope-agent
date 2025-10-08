@@ -76,6 +76,7 @@ class ChainWorkflow(Workflow):
         for task in self.workflow_chains:
             task_info = getattr(self.config, task)
             config = getattr(task_info, 'agent_config', agent_config)
+            assert isinstance(config, str)
             if not hasattr(task_info, 'agent'):
                 task_info.agent = DictConfig({})
             init_args = getattr(task_info.agent, 'kwargs', {})

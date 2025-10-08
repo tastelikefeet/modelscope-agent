@@ -1,4 +1,4 @@
-# Configuration and Parameters
+# Config
 
 MS-Agent uses a yaml file for configuration management, typically named `agent.yaml`, which allows different scenarios to read different configuration files. The specific fields contained in this file are:
 
