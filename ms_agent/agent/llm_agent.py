@@ -24,7 +24,7 @@ from ms_agent.utils.constants import (DEFAULT_OUTPUT_DIR, DEFAULT_TAG,
 from ms_agent.utils.logger import logger
 from omegaconf import DictConfig, OmegaConf
 
-from ..config.config import ConfigLifecycleHandler, Config
+from ..config.config import Config, ConfigLifecycleHandler
 from .base import Agent
 
 
