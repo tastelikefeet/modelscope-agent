@@ -99,7 +99,10 @@ class AgentLoader:
         for name, agent_cls in module_classes.items():
             if Agent in agent_cls.__mro__[
                     1:] and agent_cls.__module__ == code_file:
-                agent_instance = agent_cls(config, config.tag)
+                agent_instance = agent_cls(
+                    config,
+                    config.tag,
+                    trust_remote_code=config.trust_remote_code)
                 break
         assert agent_instance is not None, f'Cannot find a proper agent class in the external code file: {code_file}'
         return agent_instance

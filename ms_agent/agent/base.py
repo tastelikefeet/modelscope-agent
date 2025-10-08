@@ -24,7 +24,7 @@ class Agent(ABC):
 
     @abstractmethod
     async def run(
-        self, inputs: Union[str, List[Message]]
+            self, inputs: Union[str, List[Message]], **kwargs
     ) -> Union[List[Message], AsyncGenerator[List[Message], Any]]:
         """
         Main method to execute the agent.

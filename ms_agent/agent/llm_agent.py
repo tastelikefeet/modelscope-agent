@@ -599,6 +599,10 @@ class LLMAgent(Agent):
                 async for messages in self.step(messages, self.tag):
                     yield messages
                 self.runtime.round += 1
+                # save history
+                self.save_memory(messages)
+                self.save_history(messages)
+
                 # +1 means the next round the assistant may give a conclusion
                 if self.runtime.round >= self.max_chat_round + 1:
                     if not self.runtime.should_stop:
@@ -610,9 +614,6 @@ class LLMAgent(Agent):
                                 f'max round({self.max_chat_round}) exceeded.'))
                     self.runtime.should_stop = True
                     yield messages
-                # save history
-                self.save_memory(messages)
-                self.save_history(messages)
 
             # save memory
             self.save_memory(messages)

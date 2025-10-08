@@ -11,7 +11,8 @@ class CodeAgent(Agent):
 
     AGENT_NAME = 'CodeAgent'
 
-    async def run(self, inputs: Union[str, List[Message]]) -> List[Message]:
+    async def run(self, inputs: Union[str, List[Message]],
+                  **kwargs) -> List[Message]:
         """Run the external code. Default implementation here does nothing.
 
         Args:
