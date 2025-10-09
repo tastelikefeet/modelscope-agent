@@ -154,7 +154,7 @@ You can find or generate your API key at https://modelscope.cn/my/myaccesstoken.
 ```python
 import asyncio
 
-from ms_agent.agent.loader import AgentLoader
+from ms_agent import LLMAgent
 
 # Configure MCP servers
 mcp = {
@@ -168,7 +168,7 @@ mcp = {
 
 async def main():
     # Use json to configure MCP
-    llm_agent = AgentLoader.build(config_dir_or_id='ms-agent/simple_agent', mcp_config=mcp)    # Run task
+    llm_agent = LLMAgent(mcp_config=mcp)   # Run task
     await llm_agent.run('Introduce modelscope.cn')
 
 if __name__ == '__main__':

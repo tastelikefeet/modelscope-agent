@@ -55,7 +55,7 @@ class LLMAgent(Agent):
     DEFAULT_MAX_CHAT_ROUND = 20
 
     def __init__(self,
-                 config: DictConfig,
+                 config: DictConfig = DictConfig({}),
                  tag: str = DEFAULT_TAG,
                  trust_remote_code: bool = False,
                  **kwargs):
