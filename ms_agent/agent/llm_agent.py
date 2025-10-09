@@ -404,12 +404,20 @@ class LLMAgent(Agent):
             for tool_call in response_message.tool_calls:
                 tool_call = deepcopy(tool_call)
                 if isinstance(tool_call['arguments'], str):
-                    tool_call['arguments'] = json.loads(tool_call['arguments'])
+                    try:
+                        tool_call['arguments'] = json.loads(
+                            tool_call['arguments'])
+                    except json.decoder.JSONDecodeError:
+                        pass
                 self.log_output(
                     json.dumps(tool_call, ensure_ascii=False, indent=4))
 
         if messages[-1] is not response_message:
             messages.append(response_message)
+
+        if messages[-1].role == 'assistant' and not messages[
+                -1].content and response_message.tool_calls:
+            messages[-1].content = 'Let me do a tool calling.'
 
     @async_retry(max_attempts=2, delay=1.0)
     async def step(

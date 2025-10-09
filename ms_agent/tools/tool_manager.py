@@ -144,7 +144,10 @@ class ToolManager:
             tool_name = tool_info['tool_name']
             tool_args = tool_info['arguments']
             while isinstance(tool_args, str):
-                tool_args = json.loads(tool_args)
+                try:
+                    tool_args = json.loads(tool_args)
+                except json.decoder.JSONDecodeError:
+                    return f'The input {tool_args} is not a valid JSON, fix your arguments and try again'
             assert tool_name in self._tool_index, f'Tool name {tool_name} not found'
             tool_ins, server_name, _ = self._tool_index[tool_name]
             response = await asyncio.wait_for(
