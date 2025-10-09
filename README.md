@@ -7,7 +7,7 @@
 <p>
 
 <p align="center">
-<a href="https://modelscope.cn/mcp/playground">MCP Playground</a> ｜ <a href="https://arxiv.org/abs/2309.00986">Paper</a> | <a href="https://ms-agent.readthedocs.io/zh-cn/latest">Docs</a>
+<a href="https://modelscope.cn/mcp/playground">MCP Playground</a> ｜ <a href="https://arxiv.org/abs/2309.00986">Paper</a> | <a href="https://ms-agent.readthedocs.io/en/latest">Docs</a>
 <br>
 </p>
 
