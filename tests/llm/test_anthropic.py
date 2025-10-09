@@ -147,7 +147,8 @@ class OpenaiLLM(unittest.TestCase):
             conf2 = deepcopy(self.conf)
             conf2.generation_config.stream = True
             agent = LLMAgent(config=self.conf, mcp_config=self.mcp_config)
-            agent.config.callbacks.remove('input_callback')  # noqa
+            if hasattr(agent.config, 'callbacks'):
+                agent.config.callbacks.remove('input_callback')  # noqa
             res = await agent.run('访问www.baidu.com')
             print('res:', res)
             assert ('robots.txt' in res[-1].content)
