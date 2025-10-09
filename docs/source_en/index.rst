@@ -17,12 +17,12 @@ MS-Agent DOCUMENTATION
    :caption: Instruction
 
    Instruction/Config.md
-   Instruction/LLM-Agent.md
+   Instruction/LLMAgent.md
    Instruction/Workflow.md
-   Instruction/Supported-Models.md
+   Instruction/SupportedModels.md
    Instruction/Tools.md
-   Instruction/Deep-Research.md
-   Instruction/Code-Scratch.md
+   Instruction/DeepResearch.md
+   Instruction/CodeScratch.md
 
 Indices and tables
 ==================
