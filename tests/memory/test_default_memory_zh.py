@@ -148,14 +148,14 @@ class TestDefaultMemory(unittest.TestCase):
                 Message(role='user', content='北京市朝阳区最炫酷的运动公园的地点?')
             ]
             random_id = str(uuid.uuid4())
-            config = OmegaConf.create([{
-                'memory': {
+            config = OmegaConf.create({
+                'memory': [{
                     'ignore_role': ['system'],
                     'history_mode': 'overwrite',
                     'path': f'output_zh/{random_id}',
                     'user_id': random_id,
-                }
-            }])
+                }]
+            })
             agent1 = LLMAgent(config=OmegaConf.create(config))
             agent1.config.callbacks.remove('input_callback')  # noqa
             await agent1.run(tool_history1)
