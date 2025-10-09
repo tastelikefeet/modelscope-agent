@@ -307,7 +307,7 @@ This project provides a framework for **Doc Research**, enabling agents to auton
 * Research Report for [UniME: Breaking the Modality Barrier: Universal Embedding Learning with Multimodal LLMs](https://arxiv.org/pdf/2504.17432)
 <div align="center">
   <img src="https://github.com/user-attachments/assets/3f85ba08-6366-49b7-b551-cbe50edf6218" alt="LocalGradioApplication" width="750">
-  <p><em>演示：UniME 研究报告</em></p>
+  <p><em>Demo：UniME Research Report</em></p>
 </div>
 
 
