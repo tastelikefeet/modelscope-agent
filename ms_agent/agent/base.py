@@ -18,6 +18,20 @@ class Agent(ABC):
                  tag: str,
                  trust_remote_code: bool = False,
                  **kwargs):
+        """
+         Base class for all agents. Provides core functionality such as configuration loading,
+         lifecycle handling via external code, and defining the interface for agent execution.
+
+         The agent can be initialized either with a config object directly or by loading from a config directory or ID.
+         If external code (e.g., custom handlers) is involved, the agent must be explicitly trusted via
+         `trust_remote_code=True`.
+
+         Base class for all agents. Make sure your custom agents are derived from this class.
+         Args:
+             config (DictConfig): Pre-loaded configuration object.
+             tag (str): A custom tag for identifying this agent run.
+             trust_remote_code (bool): Whether to allow loading of external code (e.g., custom handler modules).
+         """
         self.config = config
         self.tag = tag
         self.trust_remote_code = trust_remote_code

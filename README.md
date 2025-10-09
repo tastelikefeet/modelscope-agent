@@ -156,7 +156,7 @@ import asyncio
 
 from ms_agent.agent.loader import AgentLoader
 
-# 配置 MCP 服务器
+# Configure MCP servers
 mcp = {
   "mcpServers": {
     "fetch": {
@@ -167,12 +167,12 @@ mcp = {
 }
 
 async def main():
-    # 使用 MCP 配置初始化 agent
-    llm_agent = AgentLoader.build(config_dir_or_id='ms-agent/simple_agent', mcp_config=mcp)    # 运行任务
-    await llm_agent.run('简要介绍 modelscope.cn')
+    # Use json to configure MCP
+    llm_agent = AgentLoader.build(config_dir_or_id='ms-agent/simple_agent', mcp_config=mcp)    # Run task
+    await llm_agent.run('Introduce modelscope.cn')
 
 if __name__ == '__main__':
-    # 启动异步主函数
+    # Start
     asyncio.run(main())
 ```
 ----
