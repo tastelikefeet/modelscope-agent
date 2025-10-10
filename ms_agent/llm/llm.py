@@ -12,7 +12,7 @@ from .utils import Message, Tool
 
 class LLM:
 
-    retry_count = os.environ.get('LLM_RETRY_COUNT', DEFAULT_RETRY_COUNT)
+    retry_count = int(os.environ.get('LLM_RETRY_COUNT', DEFAULT_RETRY_COUNT))
 
     def __init__(self, config: DictConfig):
         """Initialize the model.

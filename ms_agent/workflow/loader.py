@@ -36,7 +36,6 @@ class WorkflowLoader:
                 load_cache=kwargs.get('load_cache', False),
                 trust_remote_code=trust_remote_code)
         elif wf_type == 'ResearchWorkflow'.lower():
-
             # TODO
             raise NotImplementedError()
         else:

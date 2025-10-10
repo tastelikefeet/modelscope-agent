@@ -86,8 +86,7 @@ class SplitTask(ToolBase):
         # result = await asyncio.gather(*sub_tasks)
         res = []
         for messages in result:
-            content = ''
-            if isintance(messages, list):
+            if isinstance(messages, list):
                 content = messages[-1].content
                 if len(content) > 2048:
                     content = content[:2048]
