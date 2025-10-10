@@ -419,7 +419,7 @@ class LLMAgent(Agent):
                 -1].content and response_message.tool_calls:
             messages[-1].content = 'Let me do a tool calling.'
 
-    @async_retry(max_attempts=2, delay=1.0)
+    @async_retry(max_attempts=7, delay=1.0)
     async def step(
             self, messages: List[Message],
             tag: str) -> AsyncGenerator[List[Message], Any]:  # type: ignore

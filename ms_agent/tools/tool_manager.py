@@ -161,6 +161,9 @@ class ToolManager:
             # TODO: How to get the information printed by the tool before hanging to return to the model?
             return f'Execute tool call timeout: {tool_info}'
         except Exception as e:
+            tool_info = json.dumps(tool_info, ensure_ascii=False)
+            if len(tool_info) > 1024:
+                tool_info = tool_info[:1024] + '...'
             return f'Tool calling failed: {tool_info}, details: {str(e)}'
 
     async def parallel_call_tool(self, tool_list: List[ToolCall]):

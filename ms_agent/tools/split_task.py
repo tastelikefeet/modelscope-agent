@@ -77,13 +77,23 @@ class SplitTask(ToolBase):
             sub_tasks.append(agent.run(query))
 
         result = []
-        for t in sub_tasks:
-            r = await t
+        for i, t in enumerate(sub_tasks):
+            try:
+                r = await t
+            except Exception as e:
+                r = f'Subtask{i} failed with error: {e}'
             result.append(r)
         # result = await asyncio.gather(*sub_tasks)
         res = []
         for messages in result:
-            res.append(messages[-1].content)
+            content = ''
+            if isintance(messages, list):
+                content = messages[-1].content
+                if len(content) > 2048:
+                    content = content[:2048]
+            else:
+                content = messages
+            res.append(content)
         self.round += 1
         result = ''
         for i in range(len(res)):
