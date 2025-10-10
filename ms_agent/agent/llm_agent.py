@@ -447,35 +447,39 @@ class LLMAgent(Agent):
             List[Message]: Updated message history after this step.
         """
         messages = deepcopy(messages)
-        messages = await self.condense_memory(messages)
-        await self.on_generate_response(messages)
-        tools = await self.tool_manager.get_tools()
+        if messages[-1].role != 'assistant':
+            messages = await self.condense_memory(messages)
+            await self.on_generate_response(messages)
+            tools = await self.tool_manager.get_tools()
 
-        if self.stream:
-            self.log_output('[assistant]:')
-            _content = ''
-            is_first = True
-            _response_message = None
-            for _response_message in self.llm.generate(messages, tools=tools):
-                if is_first:
-                    messages.append(_response_message)
-                    is_first = False
-                new_content = _response_message.content[len(_content):]
-                sys.stdout.write(new_content)
-                sys.stdout.flush()
-                _content = _response_message.content
-                messages[-1] = _response_message
-                yield messages
-            sys.stdout.write('\n')
-        else:
-            _response_message = self.llm.generate(messages, tools=tools)
-            if _response_message.content:
+            if self.stream:
                 self.log_output('[assistant]:')
-                self.log_output(_response_message.content)
+                _content = ''
+                is_first = True
+                _response_message = None
+                for _response_message in self.llm.generate(messages, tools=tools):
+                    if is_first:
+                        messages.append(_response_message)
+                        is_first = False
+                    new_content = _response_message.content[len(_content):]
+                    sys.stdout.write(new_content)
+                    sys.stdout.flush()
+                    _content = _response_message.content
+                    messages[-1] = _response_message
+                    yield messages
+                sys.stdout.write('\n')
+            else:
+                _response_message = self.llm.generate(messages, tools=tools)
+                if _response_message.content:
+                    self.log_output('[assistant]:')
+                    self.log_output(_response_message.content)
 
-        # Response generated
-        self.handle_new_response(messages, _response_message)
-        await self.on_tool_call(messages)
+            # Response generated
+            self.handle_new_response(messages, _response_message)
+            await self.on_tool_call(messages)
+        else:
+            _response_message = messages[-1]
+        self.save_memory(messages)
 
         if _response_message.tool_calls:
             messages = await self.parallel_tool_call(messages)
@@ -636,6 +640,7 @@ class LLMAgent(Agent):
 
             await self.on_task_end(messages)
             await self.cleanup_tools()
+            yield messages
         except Exception as e:
             if hasattr(self.config, 'help'):
                 logger.error(

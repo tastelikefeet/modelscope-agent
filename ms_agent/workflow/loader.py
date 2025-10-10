@@ -33,6 +33,8 @@ class WorkflowLoader:
                 config_dir_or_id=config_dir_or_id,
                 config=wf_config,
                 env=env,
+                mcp_server_file=kwargs.get('mcp_server_file'),
+                load_cache=kwargs.get('load_cache', False),
                 trust_remote_code=trust_remote_code)
         elif wf_type == ResearchWorkflow.WORKFLOW_NAME.lower():
 
