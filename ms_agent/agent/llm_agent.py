@@ -419,7 +419,7 @@ class LLMAgent(Agent):
                 -1].content and response_message.tool_calls:
             messages[-1].content = 'Let me do a tool calling.'
 
-    @async_retry(max_attempts=7, delay=1.0)
+    @async_retry(max_attempts=Agent.retry_count, delay=1.0)
     async def step(
             self, messages: List[Message],
             tag: str) -> AsyncGenerator[List[Message], Any]:  # type: ignore
@@ -457,7 +457,8 @@ class LLMAgent(Agent):
                 _content = ''
                 is_first = True
                 _response_message = None
-                for _response_message in self.llm.generate(messages, tools=tools):
+                for _response_message in self.llm.generate(
+                        messages, tools=tools):
                     if is_first:
                         messages.append(_response_message)
                         is_first = False
