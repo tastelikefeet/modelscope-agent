@@ -531,6 +531,8 @@ class LLMAgent(Agent):
             else:
                 runtime = self.runtime
             if _messages[-1].role == 'tool':
+                # Ignore and redo the last tool response
+                # This is because it's the last calling, the unhandled error may be started from here
                 _messages = _messages[:-1]
             return config, runtime, _messages
         else:
