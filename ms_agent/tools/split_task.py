@@ -72,8 +72,8 @@ class SplitTask(ToolBase):
             agent = LLMAgent(
                 config=config,
                 trust_remote_code=trust_remote_code,
-                tag=f'{self.config.tag}-r{self.round}-{self.tag_prefix}{i}',
-                task='subtask')
+                tag=f'{config.tag}-r{self.round}-{self.tag_prefix}{i}',
+                load_cache=config.load_cache)
             sub_tasks.append(agent.run(query))
 
         result = []

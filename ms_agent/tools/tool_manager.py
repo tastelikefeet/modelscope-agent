@@ -140,13 +140,16 @@ class ToolManager:
         return [value[2] for value in self._tool_index.values()]
 
     async def single_call_tool(self, tool_info: ToolCall):
+        brief_info = json.dumps(tool_info, ensure_ascii=False)
+        if len(brief_info) > 1024:
+            brief_info = brief_info[:1024] + '...'
         try:
             tool_name = tool_info['tool_name']
             tool_args = tool_info['arguments']
             while isinstance(tool_args, str):
                 try:
                     tool_args = json.loads(tool_args)
-                except json.decoder.JSONDecodeError:
+                except Exception:  # noqa
                     return f'The input {tool_args} is not a valid JSON, fix your arguments and try again'
             assert tool_name in self._tool_index, f'Tool name {tool_name} not found'
             tool_ins, server_name, _ = self._tool_index[tool_name]
@@ -159,12 +162,9 @@ class ToolManager:
             return response
         except asyncio.TimeoutError:
             # TODO: How to get the information printed by the tool before hanging to return to the model?
-            return f'Execute tool call timeout: {tool_info}'
+            return f'Execute tool call timeout: {brief_info}'
         except Exception as e:
-            tool_info = json.dumps(tool_info, ensure_ascii=False)
-            if len(tool_info) > 1024:
-                tool_info = tool_info[:1024] + '...'
-            return f'Tool calling failed: {tool_info}, details: {str(e)}'
+            return f'Tool calling failed: {brief_info}, details: {str(e)}'
 
     async def parallel_call_tool(self, tool_list: List[ToolCall]):
         tasks = [self.single_call_tool(tool) for tool in tool_list]

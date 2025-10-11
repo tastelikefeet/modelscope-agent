@@ -73,6 +73,7 @@ class LLMAgent(Agent):
         self.runtime: Optional[Runtime] = None
         self.max_chat_round: int = 0
         self.load_cache = kwargs.get('load_cache', False)
+        self.config.load_cache = self.load_cache
         self.mcp_server_file = kwargs.get('mcp_server_file', None)
         self.mcp_config: Dict[str, Any] = self.parse_mcp_servers(
             kwargs.get('mcp_config', {}))
@@ -457,7 +458,8 @@ class LLMAgent(Agent):
                 _content = ''
                 is_first = True
                 _response_message = None
-                for _response_message in self.llm.generate(messages, tools=tools):
+                for _response_message in self.llm.generate(
+                        messages, tools=tools):
                     if is_first:
                         messages.append(_response_message)
                         is_first = False
@@ -526,6 +528,8 @@ class LLMAgent(Agent):
                 delattr(config, 'runtime')
             else:
                 runtime = self.runtime
+            if _messages[-1].role == 'tool':
+                _messages = _messages[:-1]
             return config, runtime, _messages
         else:
             return self.config, self.runtime, messages

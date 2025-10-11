@@ -35,6 +35,8 @@ class Agent(ABC):
         self.config = config
         self.tag = tag
         self.trust_remote_code = trust_remote_code
+        self.config.tag = tag
+        self.config.trust_remote_code = trust_remote_code
 
     @abstractmethod
     async def run(
