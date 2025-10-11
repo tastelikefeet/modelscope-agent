@@ -420,10 +420,10 @@ class LLMAgent(Agent):
                 -1].content and response_message.tool_calls:
             messages[-1].content = 'Let me do a tool calling.'
 
-    @async_retry(max_attempts=7, delay=1.0)
+    @async_retry(max_attempts=Agent.retry_count, delay=1.0)
     async def step(
-            self, messages: List[Message],
-            tag: str) -> AsyncGenerator[List[Message], Any]:  # type: ignore
+        self, messages: List[Message]
+    ) -> AsyncGenerator[List[Message], Any]:  # type: ignore
         """
         Execute a single step in the agent's interaction loop.
 
@@ -442,13 +442,12 @@ class LLMAgent(Agent):
 
         Args:
             messages (List[Message]): Current message history.
-            tag (str): Identifier for logging purposes.
 
         Returns:
             List[Message]: Updated message history after this step.
         """
         messages = deepcopy(messages)
-        if messages[-1].role != 'assistant':
+        if (not self.load_cache) or messages[-1].role != 'assistant':
             messages = await self.condense_memory(messages)
             await self.on_generate_response(messages)
             tools = await self.tool_manager.get_tools()
@@ -480,6 +479,9 @@ class LLMAgent(Agent):
             self.handle_new_response(messages, _response_message)
             await self.on_tool_call(messages)
         else:
+            # Set load_cache to `false` to avoid affect later operations
+            self.load_cache = False
+            # Meaning the latest message is `assistant`, this prevents a different response if there are sub-tasks.
             _response_message = messages[-1]
         self.save_memory(messages)
 
@@ -620,7 +622,7 @@ class LLMAgent(Agent):
                     self.log_output('[' + message.role + ']:')
                     self.log_output(message.content)
             while not self.runtime.should_stop:
-                async for messages in self.step(messages, self.tag):
+                async for messages in self.step(messages):
                     yield messages
                 self.runtime.round += 1
                 # save history
