@@ -14,7 +14,10 @@ from ms_agent.tools.base import ToolBase
 from ms_agent.tools.filesystem_tool import FileSystemTool
 from ms_agent.tools.mcp_client import MCPClient
 from ms_agent.tools.split_task import SplitTask
+from ms_agent.utils import get_logger
 from ms_agent.utils.constants import TOOL_PLUGIN_NAME
+
+logger = get_logger()
 
 MAX_TOOL_NAME_LEN = int(os.getenv('MAX_TOOL_NAME_LEN', 64))
 TOOL_CALL_TIMEOUT = int(os.getenv('TOOL_CALL_TIMEOUT', 30))
@@ -161,9 +164,13 @@ class ToolManager:
                 timeout=self.tool_call_timeout)
             return response
         except asyncio.TimeoutError:
+            import traceback
+            logger.warning(traceback.format_exc())
             # TODO: How to get the information printed by the tool before hanging to return to the model?
             return f'Execute tool call timeout: {brief_info}'
         except Exception as e:
+            import traceback
+            logger.warning(traceback.format_exc())
             return f'Tool calling failed: {brief_info}, details: {str(e)}'
 
     async def parallel_call_tool(self, tool_list: List[ToolCall]):

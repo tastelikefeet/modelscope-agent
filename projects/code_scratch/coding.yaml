@@ -69,6 +69,7 @@ memory:
     procedural_search_limit: 3
     embedding_model: "text-embedding-v4"
     summary_model: "qwen3-coder-plus"
+    max_tokens: 4096
 
 max_chat_round: 100
 

@@ -483,7 +483,7 @@ class LLMAgent(Agent):
             self.load_cache = False
             # Meaning the latest message is `assistant`, this prevents a different response if there are sub-tasks.
             _response_message = messages[-1]
-        self.save_memory(messages)
+        self.save_history(messages)
 
         if _response_message.tool_calls:
             messages = await self.parallel_tool_call(messages)
@@ -572,6 +572,16 @@ class LLMAgent(Agent):
         Args:
             messages (List[Message]): Current message history to save.
         """
+        for message in messages:
+            # Prevent the arguments are not json
+            if message.tool_calls:
+                for tool_call in message.tool_calls:
+                    try:
+                        if tool_call['arguments']:
+                            json.loads(tool_call['arguments'])
+                    except Exception:
+                        tool_call['arguments'] = '{}'
+
         if self.memory_tools:
             if self.runtime.should_stop:
                 for memory_tool in self.memory_tools:
@@ -648,6 +658,8 @@ class LLMAgent(Agent):
             await self.cleanup_tools()
             yield messages
         except Exception as e:
+            import traceback
+            logger.warning(traceback.format_exc())
             if hasattr(self.config, 'help'):
                 logger.error(
                     f'[{self.tag}] Runtime error, please follow the instructions:\n\n {self.config.help}'
