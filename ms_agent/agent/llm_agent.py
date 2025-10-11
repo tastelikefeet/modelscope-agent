@@ -483,7 +483,6 @@ class LLMAgent(Agent):
             self.load_cache = False
             # Meaning the latest message is `assistant`, this prevents a different response if there are sub-tasks.
             _response_message = messages[-1]
-        self.save_memory(messages)
 
         if _response_message.tool_calls:
             messages = await self.parallel_tool_call(messages)
