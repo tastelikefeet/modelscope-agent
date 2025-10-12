@@ -574,6 +574,7 @@ class LLMAgent(Agent):
         Args:
             messages (List[Message]): Current message history to save.
         """
+        messages = deepcopy(messages)
         for message in messages:
             # Prevent the arguments are not json
             if message.tool_calls:
