@@ -15,6 +15,7 @@ generation_config:
       provider: b
     enable_thinking: false
 
+code_file: generate_script
 
 prompt:
   system: |
@@ -60,20 +61,27 @@ prompt:
     
     10. Unless explicitly specified in the topic, your script must be in the same language as the user's input topic. For example, if the topic is in English, the script should also be in English; if in Chinese, the script should also be in Chinese.
     
-    11. Do not give 
+    11. You must always provide complete, accurate stories. Do not include fake information, incomplete content, or 'to be continued' placeholders, ensuring it's natural, fluent, vivid, and engaging.
     
     Example Style:
     "Hey, speaking of {topic}, have you ever thought that it's actually like..." (relatable opening)
     "It's just like when you're looking for a restroom in a mall, AI is that super navigator..." (humorous metaphor)
     "Don't let this simple <formula>E=mc²</formula> fool you, the story behind it is actually quite fascinating..." (smooth transition)
     
-    Now please generate a script in a similar style for "{topic}", ensuring it's natural, fluent, vivid, and engaging!
+    A shell tool and a file system tool will be given to you. You must create a `script.txt` file and write the script content into this file.
     
     Now begin:
 
-max_chat_round: 1
+max_chat_round: 20
 
 output_dir: output
+
+tools:
+  shell:
+    mcp: false
+
+  file_system:
+    mcp: false
 
 help: |
 

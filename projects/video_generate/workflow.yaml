@@ -1,5 +1,4 @@
 generate_script:
-  description: Generate script for the video
   agent_config: "step1_script_agent.yaml"
   next:
     - generate_assets
