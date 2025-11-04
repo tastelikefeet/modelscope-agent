@@ -2,15 +2,83 @@ import re
 from typing import List, Dict
 
 from ms_agent.agent import CodeAgent
+from ms_agent.llm import LLM, Message
+from ms_agent.llm.openai_llm import OpenAI
 
 
 class AnalyzeCode(CodeAgent):
 
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
+        self.max_fix_rounds = getattr(self.config, 'max_fix_rounds', 3)
+        self.llm: OpenAI = LLM.from_config(self.config)
 
     async def run(self, inputs, **kwargs):
         code = inputs[-1].content
+
+        for i in range(self.max_fix_rounds):
+            analysis = self.analyze_and_score(code)
+            if not analysis['needs_fix'] or analysis['layout_score'] >= 90:
+                break
+
+            if analysis['issue_count'] == 0:
+                break
+
+            code = await self.fix_code(analysis)
+
+        code = self.optimize_simple_code(code)
+        return code
+
+    def optimize_simple_code(self, code):
+        """修复代码中的间距问题"""
+
+        lines = code.split('\n')
+        optimized_lines = []
+
+        for line in lines:
+            # 给next_to加个buff，防重叠
+            if 'next_to(' in line and 'buff=' not in line and ')' in line:
+                line = line.replace(')', ', buff=0.3)')
+
+            # buff太小了没用，改大点
+            line = re.sub(r'buff=0\.[012](?!\d)', 'buff=0.3', line)
+
+            optimized_lines.append(line)
+
+        return '\n'.join(optimized_lines)
+
+    async def fix_code(self, analysis):
+        fix_prompt = analysis['fix_prompt']
+        manim_code = analysis['initial_analysis']
+        fix_request = f"""
+{fix_prompt}
+
+**原始代码**:
+```python
+{manim_code}
+```
+
+- 请专注解决检测到的问题
+- 保持已有的良好部分，只修复存在问题的地方
+- 确保不引入新的布局问题
+- 如果某些问题难以解决，优先解决影响最大的问题
+
+请精确修复检测到的问题，确保保持动画效果的丰富性和创意性。
+"""
+        inputs = [Message(role='user', content = fix_request)]
+        _response_message = self.llm.generate(inputs)
+        response = _response_message.content
+        if '```python' in response:
+            manim_code = response.split('```python')[1].split('```')[0]
+        elif '```' in response:
+            manim_code = response.split('```')[1].split('```')[0]
+        else:
+            manim_code = response
+
+        return manim_code
+
+
+    def analyze_and_score(self, code):
         lines = code.split('\n')
         issues = self.detect_layout_issues(code)
 
@@ -66,6 +134,7 @@ class AnalyzeCode(CodeAgent):
             'issues': issues,
             'issue_count': len(issues),
             'needs_fix': len(issues) > 0,
+            'manim_code': code,
             'fix_prompt':
                 self.generate_fix_prompt(code, issues) if issues else ''
         }
