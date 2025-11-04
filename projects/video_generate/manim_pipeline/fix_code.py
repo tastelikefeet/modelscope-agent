@@ -30,17 +30,17 @@ class AnalyzeCode(CodeAgent):
         return code
 
     def optimize_simple_code(self, code):
-        """修复代码中的间距问题"""
+        """Fix spacing issues in code"""
 
         lines = code.split('\n')
         optimized_lines = []
 
         for line in lines:
-            # 给next_to加个buff，防重叠
+            # Add buff to next_to to prevent overlap
             if 'next_to(' in line and 'buff=' not in line and ')' in line:
                 line = line.replace(')', ', buff=0.3)')
 
-            # buff太小了没用，改大点
+            # Increase buff if too small
             line = re.sub(r'buff=0\.[012](?!\d)', 'buff=0.3', line)
 
             optimized_lines.append(line)
@@ -49,23 +49,23 @@ class AnalyzeCode(CodeAgent):
 
     async def fix_code(self, analysis):
         fix_prompt = analysis['fix_prompt']
-        manim_code = analysis['initial_analysis']
+        manim_code = analysis['manim_code']
         fix_request = f"""
 {fix_prompt}
 
-**原始代码**:
+**Original Code**:
 ```python
 {manim_code}
 ```
 
-- 请专注解决检测到的问题
-- 保持已有的良好部分，只修复存在问题的地方
-- 确保不引入新的布局问题
-- 如果某些问题难以解决，优先解决影响最大的问题
+- Please focus on solving the detected issues
+- Keep the good parts, only fix problematic areas
+- Ensure no new layout issues are introduced
+- If some issues are difficult to solve, prioritize the most impactful ones
 
-请精确修复检测到的问题，确保保持动画效果的丰富性和创意性。
+Please precisely fix the detected issues while maintaining the richness and creativity of the animation.
 """
-        inputs = [Message(role='user', content = fix_request)]
+        inputs = [Message(role='user', content=fix_request)]
         _response_message = self.llm.generate(inputs)
         response = _response_message.content
         if '```python' in response:
@@ -318,7 +318,7 @@ Please return the complete fixed code, ensuring both layout issues are resolved 
                 vgroup_depth += line.count('VGroup(')
                 max_depth = max(max_depth, vgroup_depth)
             if ')' in line:
-                vgroup_depth = max(0, vgroup_depth - line.count(')'))  # Fixed: prevent negative depth
+                vgroup_depth = max(0, vgroup_depth - line.count(')'))
 
         if max_depth > 3:
             complexity_issues.append(f'VGroup nesting too deep ({max_depth} levels), consider simplifying structure')
@@ -390,7 +390,7 @@ Please return the complete fixed code, ensuring both layout issues are resolved 
                 operation['type'] = 'shift'
                 operation['reference'] = 'relative'
 
-            if operation['type'] != 'unknown':  # Fixed: only add valid operations
+            if operation['type'] != 'unknown':
                 operations.append(operation)
 
         return operations
@@ -428,7 +428,7 @@ Please return the complete fixed code, ensuring both layout issues are resolved 
         if method_match:
             obj_name = method_match.group(1)
             # Ensure valid identifier (alphanumeric and underscore)
-            if obj_name and not obj_name[0].isdigit() and obj_name.replace('_', '').replace('.', '').isalnum():
+            if obj_name and not obj_name[0].isdigit() and obj_name.replace('_', '').isalnum():
                 return obj_name
 
         return None
