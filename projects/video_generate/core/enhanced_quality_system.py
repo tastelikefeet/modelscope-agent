@@ -1,11 +1,10 @@
 # 评估系统待改进
 
+import json
 import os
 import re
 import time
-from typing import Any, Dict, List, Optional
 
-import json
 from openai import OpenAI
 
 

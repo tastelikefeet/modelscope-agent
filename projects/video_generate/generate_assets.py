@@ -1,10 +1,11 @@
 import re
+import uuid
 from dataclasses import dataclass, field
 import json
 import os
 from typing import List, Union
 
-from omegaconf import DictConfig
+from omegaconf import DictConfig, OmegaConf
 
 from ms_agent.agent import CodeAgent
 from ms_agent.llm import Message
@@ -55,45 +56,6 @@ class GenerateAssets(CodeAgent):
                     Pattern(name='key', pattern=r'<key>([^<]*?)(?=<|$)', tags=['<key>'])]
         return patterns
 
-    def analyze_content_context(content, content_type, surrounding_text=''):
-        context_info = {
-            'emphasis_words': [],
-            'explanation_flow': [],
-            'timing_cues': [],
-            'emotional_tone': 'neutral',
-            'complexity_level': 'medium'
-        }
-
-        emphasis_patterns = [
-            r'【强调】(.*?)【/强调】', r'重要的是', r'关键在于', r'特别注意', r'核心概念', r'最重要的'
-        ]
-
-        for pattern in emphasis_patterns:
-            matches = re.findall(pattern, surrounding_text, re.IGNORECASE)
-            context_info['emphasis_words'].extend(matches)
-
-        flow_patterns = [r'首先|第一', r'然后|接着|其次', r'最后|最终|总之', r'例如|比如', r'因此|所以']
-
-        for pattern in flow_patterns:
-            if re.search(pattern, surrounding_text):
-                context_info['explanation_flow'].append(pattern)
-
-        if len(content
-               ) > 100 or '复杂' in surrounding_text or '高级' in surrounding_text:
-            context_info['complexity_level'] = 'high'
-        elif len(content
-                 ) < 30 or '简单' in surrounding_text or '基础' in surrounding_text:
-            context_info['complexity_level'] = 'low'
-
-        if any(word in surrounding_text for word in ['激动', '兴奋', '惊人', '突破']):
-            context_info['emotional_tone'] = 'excited'
-        elif any(word in surrounding_text for word in ['重要', '关键', '核心', '必须']):
-            context_info['emotional_tone'] = 'serious'
-        elif any(word in surrounding_text for word in ['简单', '容易', '轻松']):
-            context_info['emotional_tone'] = 'casual'
-
-        return context_info
-
     async def run(self, inputs: Union[str, List[Message]],
                   **kwargs) -> List[Message]:
         return await self._generate_assets_from_script(inputs)
@@ -125,8 +87,8 @@ class GenerateAssets(CodeAgent):
             context_end = min(len(script), match['end'] + 100)
             surrounding_text = script[context_start:context_end]
 
-            context_info = analyze_content_context(match['content'], match['type'],
-                                                   surrounding_text)
+            # TODO
+            context_info = None
 
             segments.append({
                 'type': match['type'],
@@ -145,6 +107,75 @@ class GenerateAssets(CodeAgent):
 
         return segments
 
+    @staticmethod
+    async def create_silent_audio(output_path, duration=5.0):
+        from moviepy.editor import AudioClip
+        import numpy as np
+
+        def make_frame(t):
+            return np.array([0.0, 0.0])
+
+        audio = AudioClip(make_frame, duration=duration, fps=44100)
+        audio.write_audiofile(output_path, verbose=False, logger=None)
+        audio.close()
+
+    @staticmethod
+    async def edge_tts_generate(text, output_file, speaker='male'):
+        import edge_tts
+        text = text.strip()
+        if not text:
+            return False
+
+        voices = OmegaConf.load(os.path.join(__file__, 'voices.yaml'))
+        voice, params = voices.get(speaker, voices['male'])
+        rate = params.get('rate', '+0%')
+        pitch = params.get('pitch', '+0Hz')
+        output_dir = os.path.dirname(output_file) or '.'
+        os.makedirs(output_dir, exist_ok=True)
+        logger.info(f'Using voice: {voice}, rate: {rate}, pitch: {pitch}')
+        communicate = edge_tts.Communicate(
+            text=text, voice=voice, rate=rate, pitch=pitch)
+
+        audio_data = b''
+        chunk_count = 0
+        async for chunk in communicate.stream():
+            if chunk['type'] == 'audio':
+                audio_data += chunk['data']
+                chunk_count += 1
+
+        if len(audio_data) > 0:
+            with open(output_file, 'wb') as f:
+                f.write(audio_data)
+            return True
+        else:
+            print('No audio data received.')
+            return False
+
+    @staticmethod
+    def get_audio_duration(audio_path):
+        from moviepy.editor import AudioFileClip
+        audio_clip = AudioFileClip(audio_path)
+        duration = audio_clip.duration
+        audio_clip.close()
+        return duration
+
+    async def generate_audio(self, segment, audio_path):
+        tts_text = segment.get('content', '')
+
+        # Generate TTS
+        if tts_text:
+            generated = await self.edge_tts_generate(tts_text, audio_path)
+            if generated:
+                segment[
+                    'audio_duration'] = self.get_audio_duration(
+                    audio_path)
+            else:
+                await self.create_silent_audio(audio_path, duration=3.0)
+                segment['audio_duration'] = 3.0
+        else:
+            await self.create_silent_audio(audio_path, duration=2.0)
+            segment['audio_duration'] = 2.0
+
     async def _generate_assets_from_script(self, messages: List[Message]) -> str:
         logger.info('Starting asset generation from script')
         with open('script.txt', 'r', encoding='utf-8') as f:
@@ -155,7 +186,7 @@ class GenerateAssets(CodeAgent):
                 topic = messages[1]
                 break
 
-        segments = video_workflow.parse_structured_content(script)
+        segments = self.parse_structured_content(script)
 
         # Further split long text segments
         final_segments = []
@@ -176,7 +207,7 @@ class GenerateAssets(CodeAgent):
             else:
                 final_segments.append(segment)
         segments = final_segments
-        print(f'[video_agent] Script parsed into {len(segments)} segments.')
+        logger.info(f'[video_agent] Script parsed into {len(segments)} segments.')
 
         # 2. Generate assets for each segment
         asset_paths = {
@@ -186,6 +217,8 @@ class GenerateAssets(CodeAgent):
             'illustration_paths': [],
             'subtitle_segments_list': []
         }
+
+        full_output_dir = self.work_dir
 
         tts_dir = os.path.join(full_output_dir, 'audio')
         os.makedirs(tts_dir, exist_ok=True)
@@ -197,27 +230,11 @@ class GenerateAssets(CodeAgent):
         illustration_paths: List[str] = []
 
         for i, segment in enumerate(segments):
-            print(
+            logger.info(
                 f"[video_agent] Processing segment {i+1}/{len(segments)}: {segment['type']}"
             )
-
-            # Clean content to avoid issues with markers
-            tts_text = video_workflow.clean_content(segment.get('content', ''))
-
-            # Generate TTS
-            audio_path = os.path.join(tts_dir, f'segment_{i+1}.mp3')
-            if tts_text:
-                if video_workflow.edge_tts_generate(tts_text, audio_path):
-                    segment[
-                        'audio_duration'] = video_workflow.get_audio_duration(
-                            audio_path)
-                else:
-                    video_workflow.create_silent_audio(
-                        audio_path, duration=3.0)
-                    segment['audio_duration'] = 3.0
-            else:
-                video_workflow.create_silent_audio(audio_path, duration=2.0)
-                segment['audio_duration'] = 2.0
+            audio_path = os.path.join(tts_dir, f'segment_{i + 1}.mp3')
+            await self.generate_audio(segment, audio_path)
             asset_paths['audio_paths'].append(audio_path)
 
             # Generate Animation (only for non-text types)
