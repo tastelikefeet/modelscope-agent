@@ -80,6 +80,8 @@ max_chat_round: 20
 
 output_dir: output
 
+subtitle_lang: English
+
 tools:
   shell:
     mcp: false
