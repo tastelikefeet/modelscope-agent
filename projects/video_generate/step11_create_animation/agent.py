@@ -31,7 +31,7 @@ class CreateBackground(Agent):
                                               'auto').strip().lower() or 'auto'
         print(f'[video_agent] Animation mode: {self.animation_mode}')
     
-    def _synthesize_video(self, asset_info_path: str) -> Union[str, None]:
+    def _animate(self, asset_info_path: str) -> Union[str, None]:
         # In human mode, auto-generate placeholder foreground clips for non-text segments
         if self.animation_mode == 'human':
             try:
@@ -103,35 +103,4 @@ class CreateBackground(Agent):
 
     async def run(self, inputs: Union[str, List[Message]],
                   **kwargs) -> List[Message]:
-        """Dispatch by self.tag to keep ChainWorkflow simple.
-        Inputs is the query string for first step, else pass file paths between steps via return messages.
-        """
-        # Normalize inputs
-        if isinstance(inputs, list) and inputs and hasattr(
-                inputs[0], 'content'):
-            in_text = inputs[0].content
-        else:
-            in_text = inputs if isinstance(inputs, str) else ''
-
-        result_path = None
-        if self.tag == 'generate_script':
-            topic = in_text
-            result_path = self._generate_script(topic)
-        elif self.tag == 'generate_assets':
-            # inputs should be the path from previous step
-            # fallback: if inputs looks like a path, use it; else assume default script.txt
-            script_path = in_text if os.path.exists(in_text) else os.path.join(
-                self.work_dir, 'script.txt')
-            # We need topic; reuse the folder name or query text if available
-            topic = os.path.basename(os.path.dirname(script_path)) or 'topic'
-            result_path = self._generate_assets_from_script(script_path, topic)
-        elif self.tag == 'synthesize_video':
-            asset_info_path = in_text if os.path.exists(
-                in_text) else os.path.join(self.work_dir, 'asset_info.json')
-            result_path = self._synthesize_video(asset_info_path)
-        else:
-            print(f'[video_agent] Unknown tag: {self.tag}')
-
-        # Return as a single Message list so next agent receives a text content
-        out_text = result_path or ''
-        return [Message(role='assistant', content=out_text)]
+        self._animate(inputs)

@@ -462,8 +462,8 @@ class ComposeVideo(Agent):
             print(f'视频合成失败: {e}')
             return None
 
-    def _synthesize_video(self, asset_info_path: str) -> Union[str, None]:
-
+    async def run(self, inputs: Union[str, List[Message]],
+                  **kwargs) -> List[Message]:
         # Compose final video (human mode generates a preview with placeholders)
         final_name = 'preview_with_placeholders.mp4' if self.animation_mode == 'human' else 'final_video.mp4'
         final_video_path = os.path.join(full_output_dir, final_name)
@@ -486,7 +486,3 @@ class ComposeVideo(Agent):
         else:
             print('[video_agent] Final video composition failed.')
             return None
-
-    async def run(self, inputs: Union[str, List[Message]],
-                  **kwargs) -> List[Message]:
-        pass

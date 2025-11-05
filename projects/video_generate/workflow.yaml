@@ -1,13 +1,67 @@
 generate_script:
-  agent_config: "step1_script_agent.yaml"
+  agent_config: "agent.yaml"
+  agent:
+    name: LLMAgent
+    kwargs:
+      code_file: step1_generate_script/agent.py
   next:
-    - generate_assets
+    - segment
 
-generate_assets:
-  description: Generate assets from the script
-  agent_config: "step2_assets_agent.yaml"
+segment:
+  agent:
+    name: CodeAgent
+    kwargs:
+      code_file: step2_segment/agent.py
   next:
-    - synthesize_video
+    - generate_audio
+
+generate_audio:
+  agent:
+    name: CodeAgent
+    kwargs:
+      code_file: step3_generate_audio/agent.py
+  next:
+    - generate_manim_code
+
+generate_manim_code:
+  agent:
+    name: CodeAgent
+    kwargs:
+      code_file: step4_generate_manim_code/agent.py
+  next:
+    - fix_manim_code
+
+fix_manim_code:
+  agent:
+    name: CodeAgent
+    kwargs:
+      code_file: step5_fix_manim_code/agent.py
+  next:
+    - render_manim
+
+render_manim:
+  agent:
+    name: CodeAgent
+    kwargs:
+      code_file: step6_render_manim/agent.py
+  next:
+    - generate_illustration_prompts
+
+generate_illustration_prompts:
+  agent:
+    name: CodeAgent
+    kwargs:
+      code_file: step7_generate_illustration_prompts/agent.py
+  next:
+    - generate_images
+
+generate_images:
+  agent:
+    name: CodeAgent
+    kwargs:
+      code_file: step8_generate_images/agent.py
+  next:
+    - generate_images
 
 synthesize_video:
   description: Synthesize the video from the assets

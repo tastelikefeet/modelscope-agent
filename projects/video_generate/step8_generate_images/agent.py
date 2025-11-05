@@ -8,12 +8,11 @@ import requests
 from PIL import Image
 from omegaconf import DictConfig
 
-from ms_agent.agent.base import Agent
+from ms_agent.agent import CodeAgent
 from ms_agent.llm import Message
-from projects.video_generate.core import workflow as video_workflow
 
 
-class GenerateImages(Agent):
+class GenerateImages(CodeAgent):
 
     def __init__(self,
                  config: DictConfig,
@@ -21,17 +20,6 @@ class GenerateImages(Agent):
                  trust_remote_code: bool = False,
                  **kwargs):
         super().__init__(config, tag, trust_remote_code, **kwargs)
-        # work_dir for intermediates
-        self.work_dir = os.path.join(
-            self.config.local_dir, 'output') if getattr(
-                self.config, 'local_dir', None) else os.getcwd()
-        os.makedirs(self.work_dir, exist_ok=True)
-        self.meta_path = os.path.join(self.work_dir, 'meta.json')
-        # animation mode: auto (default) or human (manual animation workflow)
-        import os as _os
-        self.animation_mode = _os.environ.get('MS_ANIMATION_MODE',
-                                              'auto').strip().lower() or 'auto'
-        print(f'[video_agent] Animation mode: {self.animation_mode}')
 
     def generate_images(self,
                         prompts,

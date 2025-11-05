@@ -9,25 +9,33 @@ from ms_agent.llm import LLM
 from ms_agent.llm.openai_llm import OpenAI
 
 
-class Render(CodeAgent):
+class RenderManim(CodeAgent):
 
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
-        self.max_fix_rounds = getattr(self.config, 'max_fix_rounds', 3)
+        self.work_dir = getattr(self.config, 'output_dir', 'output')
+        self.animation_mode = getattr(self.config, 'animation_code', 'auto')
         self.llm: OpenAI = LLM.from_config(self.config)
 
     async def run(self, inputs, **kwargs):
-        scene_name = f'Scene{i + 1}'
-        scene_dir = os.path.join(full_output_dir, f'scene_{i + 1}')
-        return self.render_manim_scene(inputs, scene_name, scene_dir)
+        messages, context = inputs
+        context['foreground_paths'] = []
+        segments = context['segments']
+        manim_code = context['manim_code']
+        for i, (segment, code) in enumerate(segments, manim_code):
+            if segment['type'] == 'text' and self.animation_mode == 'human':
+                context['foreground_paths'].append(None)
+                continue
+            scene_name = f'Scene{i + 1}'
+            scene_dir = os.path.join(self.work_dir, f'scene_{i + 1}')
+            manim_file = self.render_manim_scene(code, scene_name, scene_dir)
+            context['foreground_paths'].append(manim_file)
 
     @staticmethod
     def render_manim_scene(code,
                            scene_name,
                            output_dir):
-
-        code_file = os.path.join(output_dir,
-                                 f'{scene_name}.py')
+        code_file = os.path.join(output_dir, f'{scene_name}.py')
         with open(code_file, 'w') as f:
             f.write(code)
         class_match = re.search(r'class\s+(\w+)\s*\(Scene\)', code)
@@ -60,12 +68,6 @@ class Render(CodeAgent):
                 env=env)
 
             output_text = (result.stdout or '') + (result.stderr or '')
-
-            warnings_to_ignore = [
-                'pkg_resources is deprecated', 'UserWarning',
-                'DeprecationWarning', 'FutureWarning', 'manim_voiceover'
-            ]
-
             if result.returncode == 1:
 
                 real_error_indicators = [
@@ -80,70 +82,52 @@ class Render(CodeAgent):
                         break
 
             temp_media_dir = os.path.join(temp_dir, 'media', 'videos')
-            if os.path.exists(temp_media_dir):
-                for root, dirs, files in os.walk(temp_media_dir):
-                    for file in files:
-                        if file == f'{actual_scene_name}.mov':
-                            found_file = os.path.join(root, file)
-                            shutil.copy2(found_file, output_path)
-                            if Render.verify_and_fix_mov_file(output_path):
-                                pass
-                            else:
-                                fixed_path = Render.convert_mov_to_compatible(
-                                    output_path)
-                                if fixed_path:
-                                    output_path = fixed_path
+            assert os.path.exists(temp_media_dir)
+            for root, dirs, files in os.walk(temp_media_dir):
+                for file in files:
+                    if file == f'{actual_scene_name}.mov':
+                        found_file = os.path.join(root, file)
+                        shutil.copy2(found_file, output_path)
+                        if not RenderManim.verify_and_fix_mov_file(output_path):
+                            fixed_path = RenderManim.convert_mov_to_compatible(output_path)
+                            if fixed_path:
+                                output_path = fixed_path
 
-                            scaled_path = Render.scale_video_to_fit(
-                                output_path, target_size=(1280, 720))
-                            if scaled_path and scaled_path != output_path:
-                                print(f'视频已缩放以适应屏幕: {scaled_path}')
-                                return scaled_path
+                        scaled_path = RenderManim.scale_video_to_fit(
+                            output_path, target_size=(1280, 720))
+                        if scaled_path and scaled_path != output_path:
+                            return scaled_path
 
-                            return output_path
-
-            return None
+                        return output_path
+            raise FileNotFoundError
 
     @staticmethod
     def verify_and_fix_mov_file(mov_path):
-        try:
-            from moviepy.editor import VideoFileClip
-            clip = VideoFileClip(mov_path)
-            frame = clip.get_frame(0)
-            clip.close()
-
-            if frame is not None:
-                return True
-            else:
-                return False
-        except Exception as e:
-            return False
+        from moviepy.editor import VideoFileClip
+        clip = VideoFileClip(mov_path)
+        frame = clip.get_frame(0)
+        clip.close()
+        return frame is not None
 
     @staticmethod
     def convert_mov_to_compatible(mov_path):
-        try:
+        from moviepy.editor import VideoFileClip
+        base_path, ext = os.path.splitext(mov_path)
+        fixed_path = f'{base_path}_fixed.mov'
+        clip = VideoFileClip(mov_path)
+        clip.write_videofile(
+            fixed_path,
+            codec='libx264',
+            audio_codec='aac' if clip.audio else None,
+            fps=24,
+            verbose=False,
+            logger=None,
+            ffmpeg_params=['-pix_fmt', 'yuva420p'])
 
-            from moviepy.editor import VideoFileClip
-            base_path, ext = os.path.splitext(mov_path)
-            fixed_path = f'{base_path}_fixed.mov'
-
-            clip = VideoFileClip(mov_path)
-
-            clip.write_videofile(
-                fixed_path,
-                codec='libx264',
-                audio_codec='aac' if clip.audio else None,
-                fps=24,
-                verbose=False,
-                logger=None,
-                ffmpeg_params=['-pix_fmt', 'yuva420p'])
-
-            clip.close()
-            if Render.verify_and_fix_mov_file(fixed_path):
-                return fixed_path
-            else:
-                return None
-        except Exception as e:
+        clip.close()
+        if RenderManim.verify_and_fix_mov_file(fixed_path):
+            return fixed_path
+        else:
             return None
 
     @staticmethod

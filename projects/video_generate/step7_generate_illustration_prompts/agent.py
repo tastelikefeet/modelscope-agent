@@ -1,16 +1,14 @@
-import re
-import uuid
-from dataclasses import dataclass, field
+import asyncio
 import json
 import os
-from typing import List, Union
+from dataclasses import dataclass, field
+from typing import List
 
-from omegaconf import DictConfig, OmegaConf
+from omegaconf import DictConfig
 
 from ms_agent.agent import CodeAgent
 from ms_agent.llm import Message, LLM
 from ms_agent.llm.openai_llm import OpenAI
-from projects.video_generate.core import workflow as video_workflow
 from ms_agent.utils import get_logger
 
 logger = get_logger(__name__)
@@ -37,27 +35,25 @@ class GenerateIllustrationPrompts(CodeAgent):
                                               'auto').strip().lower() or 'auto'
         self.llm: OpenAI = LLM.from_config(self.config)
 
-    async def run(self, inputs: Union[str, List[Message]],
-                  **kwargs) -> List[Message]:
-        return await self._generate_illustratino_prompts(inputs)
-
-    async def _generate_illustratino_prompts(self, messages: List[Message]) -> str:
-        segments = messages
+    async def run(self, inputs, **kwargs):
+        messages, context = inputs
+        segments = context['segments']
         text_segments = [
             seg for seg in segments if seg.get('type') == 'text'
         ]
         illustration_prompts_path = os.path.join(
-            full_output_dir, 'illustration_prompts.json')
-        illustration_prompts = self.generate_illustration_prompts(
-            [seg['content'] for seg in text_segments])
-        json.dump(
-            illustration_prompts,
-            open(illustration_prompts_path, 'w', encoding='utf-8'),
-            ensure_ascii=False,
-            indent=2)
+            self.work_dir, 'illustration_prompts.json')
 
-    def generate_illustration_prompts(self, segments):
-        prompts = []
+        illustration_prompts = await asyncio.gather(*[
+            self.generate_illustration_prompts(segment)
+            for segment in text_segments
+        ])
+
+        json.dump(illustration_prompts, open(illustration_prompts_path, 'w', encoding='utf-8'),
+                    ensure_ascii=False, indent=2)
+        context['illustration_prompts_path'] = illustration_prompts_path
+
+    async def generate_illustration_prompts(self, segment):
         system_prompt = """You is a scene description expert for AI knowledge science stickman videos. Based on the given knowledge point or storyboard, generate a detailed English description for a minimalist black-and-white stickman illustration with an AI/technology theme. Requirements:
     - The illustration must depict only ONE scene, not multiple scenes, not comic panels, not split images. Absolutely do NOT use any comic panels, split frames, multiple windows, or any kind of visual separation. Each image is a single, unified scene.
     - All elements (stickmen, objects, icons, patterns, tech elements, decorations) must appear together in the same space, on the same pure white background, with no borders, no frames, and no visual separation.
@@ -75,24 +71,22 @@ class GenerateIllustrationPrompts(CodeAgent):
     - All elements should be relevant to the main theme and the meaning of the current subtitle segment.
     - Output 80-120 words in English, only the scene description, no style keywords, and only use English text in the image if it is truly needed for the scene. """  # noqa
 
-        for seg in segments:
-            prompt = (
-                f'Please generate a detailed English scene description for an AI knowledge science stickman '
-                f'illustration based on: {seg}\nRemember: The illustration must depict only ONE scene, '
-                f'not multiple scenes, not comic panels, not split images. Absolutely do NOT use any comic panels, '
-                f'split frames, multiple windows, or any kind of visual separation. '
-                f'All elements must be solid black or outlined in black, and all faces must use irregular '
-                f'white lines for eyes and mouth to express emotion. All elements should be relevant to the '
-                f'main theme and the meaning of the current subtitle segment. All icons, patterns, and objects '
-                f'are decorative elements floating around or near the stickman, not separate scenes or frames. '
-                f'For example, do NOT draw any boxes, lines, or frames that separate parts of the image. '
-                f'All elements must be together in one open space.')
+        prompt = (
+            f'Please generate a detailed English scene description for an AI knowledge science stickman '
+            f'illustration based on: {segment}\nRemember: The illustration must depict only ONE scene, '
+            f'not multiple scenes, not comic panels, not split images. Absolutely do NOT use any comic panels, '
+            f'split frames, multiple windows, or any kind of visual separation. '
+            f'All elements must be solid black or outlined in black, and all faces must use irregular '
+            f'white lines for eyes and mouth to express emotion. All elements should be relevant to the '
+            f'main theme and the meaning of the current subtitle segment. All icons, patterns, and objects '
+            f'are decorative elements floating around or near the stickman, not separate scenes or frames. '
+            f'For example, do NOT draw any boxes, lines, or frames that separate parts of the image. '
+            f'All elements must be together in one open space.')
 
-            inputs = [
-                Message(role='system', content=system_prompt),
-                Message(role='user', content=prompt),
-            ]
-            _response_message = self.llm.generate(inputs)
-            response = _response_message.content
-            prompts.append(response.strip())
-        return prompts
+        inputs = [
+            Message(role='system', content=system_prompt),
+            Message(role='user', content=prompt),
+        ]
+        _response_message = self.llm.generate(inputs)
+        response = _response_message.content
+        return response.strip()

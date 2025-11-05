@@ -6,7 +6,7 @@ from ms_agent.llm import LLM, Message
 from ms_agent.llm.openai_llm import OpenAI
 
 
-class AnalyzeCode(CodeAgent):
+class FixManimCode(CodeAgent):
 
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
@@ -14,22 +14,27 @@ class AnalyzeCode(CodeAgent):
         self.llm: OpenAI = LLM.from_config(self.config)
 
     async def run(self, inputs, **kwargs):
-        code = inputs[-1].content
+        messages, context = inputs
+        for i in range(len(context['manim_code'])):
+            code = context['manim_code'][i]
+            if code is None:
+                continue
+            for _ in range(self.max_fix_rounds):
+                analysis = self.analyze_and_score(code)
+                if not analysis['needs_fix'] or analysis['layout_score'] >= 90:
+                    break
 
-        for i in range(self.max_fix_rounds):
-            analysis = self.analyze_and_score(code)
-            if not analysis['needs_fix'] or analysis['layout_score'] >= 90:
-                break
+                if analysis['issue_count'] == 0:
+                    break
 
-            if analysis['issue_count'] == 0:
-                break
+                code = await self.fix_code(analysis)
 
-            code = await self.fix_code(analysis)
+            code = self.optimize_simple_code(code)
+            context['manim_code'][i] = code
+        return messages, context
 
-        code = self.optimize_simple_code(code)
-        return code
-
-    def optimize_simple_code(self, code):
+    @staticmethod
+    def optimize_simple_code(code):
         """Fix spacing issues in code"""
 
         lines = code.split('\n')
@@ -77,10 +82,10 @@ Please precisely fix the detected issues while maintaining the richness and crea
 
         return manim_code
 
-
-    def analyze_and_score(self, code):
+    @staticmethod
+    def analyze_and_score(code):
         lines = code.split('\n')
-        issues = self.detect_layout_issues(code)
+        issues = FixManimCode.detect_layout_issues(code)
 
         # Basic statistics
         element_count = len([
@@ -136,10 +141,11 @@ Please precisely fix the detected issues while maintaining the richness and crea
             'needs_fix': len(issues) > 0,
             'manim_code': code,
             'fix_prompt':
-                self.generate_fix_prompt(code, issues) if issues else ''
+                FixManimCode.generate_fix_prompt(code, issues) if issues else ''
         }
 
-    def generate_fix_prompt(self, code, issues):
+    @staticmethod
+    def generate_fix_prompt(code, issues):
         """Generate fix suggestions based on detected issues"""
 
         if not issues:
@@ -218,7 +224,8 @@ Please ensure during the fix process:
 Please return the complete fixed code, ensuring both layout issues are resolved and animation richness and creativity are maintained."""
         return fix_prompt
 
-    def detect_layout_issues(self, code):
+    @staticmethod
+    def detect_layout_issues(code):
         issues = []
         lines = code.split('\n')
 
@@ -256,14 +263,14 @@ Please return the complete fixed code, ensuring both layout issues are resolved 
         overlap_risks = []
 
         # 1. Extract all spatial positioning operations
-        spatial_operations = self._extract_spatial_operations(lines)
+        spatial_operations = FixManimCode._extract_spatial_operations(lines)
 
         # 2. Analyze spatial relationship conflicts
-        spatial_conflicts = self._analyze_spatial_conflicts(spatial_operations)
+        spatial_conflicts = FixManimCode._analyze_spatial_conflicts(spatial_operations)
 
         # 3. Convert to readable issue descriptions
         for conflict in spatial_conflicts:
-            overlap_risks.append(self._format_conflict_description(conflict))
+            overlap_risks.append(FixManimCode._format_conflict_description(conflict))
 
         if overlap_risks:
             issues.append('Overlap Risk:')
@@ -347,8 +354,8 @@ Please return the complete fixed code, ensuring both layout issues are resolved 
 
         return issues
 
-    def _extract_spatial_operations(self, lines: List[str]) -> List[Dict]:
-        """Extract all positioning operations from code"""
+    @staticmethod
+    def _extract_spatial_operations(lines: List[str]) -> List[Dict]:
         operations = []
 
         for i, line in enumerate(lines, 1):
@@ -357,7 +364,7 @@ Please return the complete fixed code, ensuring both layout issues are resolved 
                 continue
 
             # Extract object name
-            object_name = self._extract_object_name(line_clean)
+            object_name = FixManimCode._extract_object_name(line_clean)
             if not object_name:
                 continue
 
@@ -374,18 +381,18 @@ Please return the complete fixed code, ensuring both layout issues are resolved 
             # Analyze positioning type
             if '.move_to(' in line:
                 operation['type'] = 'move_to'
-                operation['reference'] = self._extract_move_to_target(line_clean)
+                operation['reference'] = FixManimCode._extract_move_to_target(line_clean)
             elif '.next_to(' in line:
                 operation['type'] = 'next_to'
-                operation['reference'] = self._extract_next_to_reference(line_clean)
+                operation['reference'] = FixManimCode._extract_next_to_reference(line_clean)
                 operation['has_spacing'] = 'buff=' in line
-                operation['spacing_value'] = self._extract_buff_value(line_clean)
+                operation['spacing_value'] = FixManimCode._extract_buff_value(line_clean)
             elif '.center()' in line:
                 operation['type'] = 'center'
                 operation['reference'] = 'ORIGIN'
             elif '.to_edge(' in line:
                 operation['type'] = 'to_edge'
-                operation['reference'] = self._extract_edge_direction(line_clean)
+                operation['reference'] = FixManimCode._extract_edge_direction(line_clean)
             elif '.shift(' in line:
                 operation['type'] = 'shift'
                 operation['reference'] = 'relative'
@@ -395,23 +402,23 @@ Please return the complete fixed code, ensuring both layout issues are resolved 
 
         return operations
 
-    def _extract_edge_direction(self, line):
-        """Extract edge direction"""
+    @staticmethod
+    def _extract_edge_direction(line):
         match = re.search(r'\.to_edge\(([^)]+)\)', line)
         return match.group(1).strip() if match else None
 
-    def _extract_buff_value(self, line):
-        """Extract buff value"""
+    @staticmethod
+    def _extract_buff_value(line):
         match = re.search(r'buff\s*=\s*([0-9.]+)', line)
         return float(match.group(1)) if match else None
 
-    def _extract_next_to_reference(self, line):
-        """Extract reference object in next_to"""
+    @staticmethod
+    def _extract_next_to_reference(line):
         match = re.search(r'\.next_to\(([^,)]+)', line)
         return match.group(1).strip() if match else None
 
-    def _extract_object_name(self, line):
-        """Extract object name from code line"""
+    @staticmethod
+    def _extract_object_name(line):
         # Handle assignment statements
         if '=' in line and not line.strip().startswith('#'):
             # Extract variable name on the left side of equals sign
@@ -433,8 +440,8 @@ Please return the complete fixed code, ensuring both layout issues are resolved 
 
         return None
 
-    def _extract_move_to_target(self, line):
-        """Extract move_to target"""
+    @staticmethod
+    def _extract_move_to_target(line):
         match = re.search(r'\.move_to\(([^)]+)\)', line)
         if match:
             target = match.group(1).strip()
@@ -455,8 +462,8 @@ Please return the complete fixed code, ensuring both layout issues are resolved 
             return target if target else None
         return None
 
-    def _analyze_spatial_conflicts(self, operations):
-        """Analyze spatial relationship conflicts"""
+    @staticmethod
+    def _analyze_spatial_conflicts(operations):
         conflicts = []
 
         # 1. Detect same reference point conflicts
@@ -470,7 +477,7 @@ Please return the complete fixed code, ensuring both layout issues are resolved 
         for ref, ops_list in reference_groups.items():
             if len(ops_list) > 1:
                 conflicts.extend(
-                    self._detect_reference_conflicts(ref, ops_list))
+                    FixManimCode._detect_reference_conflicts(ref, ops_list))
 
         # 2. Detect missing spacing risk
         for op in operations:
@@ -497,19 +504,19 @@ Please return the complete fixed code, ensuring both layout issues are resolved 
                 })
 
         # 4. Detect object-geometry overlap risk
-        conflicts.extend(self._detect_geometry_conflicts(operations))
+        conflicts.extend(FixManimCode._detect_geometry_conflicts(operations))
 
         return conflicts
 
-    def _is_text_object(self, obj_name):
-        """Check if it's a text object"""
+    @staticmethod
+    def _is_text_object(obj_name):
         if not obj_name:
             return False
         return any(keyword in obj_name.lower()
                    for keyword in ['text', 'label', 'title'])
 
-    def _is_geometry_reference(self, ref):
-        """Check if it's a geometry object reference"""
+    @staticmethod
+    def _is_geometry_reference(ref):
         if not ref:
             return False
         ref_lower = ref.lower()
@@ -519,14 +526,14 @@ Please return the complete fixed code, ensuring both layout issues are resolved 
         ]
         return any(keyword in ref_lower for keyword in geometry_keywords)
 
-    def _is_label_object(self, obj_name):
-        """Check if it's a label object"""
+    @staticmethod
+    def _is_label_object(obj_name):
         if not obj_name:
             return False
         return 'label' in obj_name.lower() or obj_name.endswith('_text')
 
-    def _detect_geometry_conflicts(self, operations):
-        """Check if text and geometric shapes overlap"""
+    @staticmethod
+    def _detect_geometry_conflicts(operations):
         conflicts = []
 
         for op in operations:
@@ -534,8 +541,8 @@ Please return the complete fixed code, ensuring both layout issues are resolved 
                 ref = op['reference']
 
                 # Detect text moving directly to geometry object
-                if self._is_text_object(
-                        op['object']) and self._is_geometry_reference(ref):
+                if FixManimCode._is_text_object(
+                        op['object']) and FixManimCode._is_geometry_reference(ref):
                     conflicts.append({
                         'type':
                             'text_geometry_overlap',
@@ -548,8 +555,8 @@ Please return the complete fixed code, ensuring both layout issues are resolved 
                     })
 
                 # Detect label moving directly to object
-                elif self._is_label_object(
-                        op['object']) and not self._is_safe_reference(ref):
+                elif FixManimCode._is_label_object(
+                        op['object']) and not FixManimCode._is_safe_reference(ref):
                     conflicts.append({
                         'type':
                             'label_object_overlap',
@@ -563,8 +570,8 @@ Please return the complete fixed code, ensuring both layout issues are resolved 
 
         return conflicts
 
-    def _is_safe_reference(self, ref):
-        """Check if it's a safe reference"""
+    @staticmethod
+    def _is_safe_reference(ref):
         if not ref:
             return False
         safe_patterns = [
@@ -572,8 +579,8 @@ Please return the complete fixed code, ensuring both layout issues are resolved 
         ]
         return any(pattern in ref for pattern in safe_patterns)
 
-    def _detect_reference_conflicts(self, reference, operations):
-        """Detect conflicts with same reference point"""
+    @staticmethod
+    def _detect_reference_conflicts(reference, operations):
         conflicts = []
 
         # Group by positioning type
@@ -601,8 +608,8 @@ Please return the complete fixed code, ensuring both layout issues are resolved 
 
         return conflicts
 
-    def _format_conflict_description(self, conflict):
-        """Format conflict description"""
+    @staticmethod
+    def _format_conflict_description(conflict):
         op = conflict.get('operation', {})
         line = op.get('line', '?')
 
