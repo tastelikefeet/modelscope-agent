@@ -41,17 +41,11 @@ class GenerateIllustrationPrompts(CodeAgent):
         text_segments = [
             seg for seg in segments if seg.get('type') == 'text'
         ]
-        illustration_prompts_path = os.path.join(
-            self.work_dir, 'illustration_prompts.json')
-
         illustration_prompts = await asyncio.gather(*[
             self.generate_illustration_prompts(segment)
             for segment in text_segments
         ])
-
-        json.dump(illustration_prompts, open(illustration_prompts_path, 'w', encoding='utf-8'),
-                    ensure_ascii=False, indent=2)
-        context['illustration_prompts_path'] = illustration_prompts_path
+        context['illustration_prompts'] = illustration_prompts
 
     async def generate_illustration_prompts(self, segment):
         system_prompt = """You is a scene description expert for AI knowledge science stickman videos. Based on the given knowledge point or storyboard, generate a detailed English description for a minimalist black-and-white stickman illustration with an AI/technology theme. Requirements:

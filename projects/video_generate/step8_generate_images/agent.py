@@ -20,100 +20,31 @@ class GenerateImages(CodeAgent):
                  trust_remote_code: bool = False,
                  **kwargs):
         super().__init__(config, tag, trust_remote_code, **kwargs)
+        self.work_dir = getattr(self.config, 'output_dir', 'output')
 
-    def generate_images(self,
-                        prompts,
-                        model_id='AIUSERS/jianbihua',
-                        negative_prompt=None,
-                        output_dir=None):
-        if output_dir:
-            save_dir = os.path.join(output_dir, 'images')
-        else:
-            save_dir = os.path.join(os.path.dirname(__file__), 'images')
-        if not os.path.exists(save_dir):
-            os.makedirs(save_dir)
-        base_url = 'https://api-inference.modelscope.cn/'
-        import os
-        api_key = os.environ.get('MODELSCOPE_API_KEY')
-        if not api_key:
-            raise ValueError('请设置环境变量 MODELSCOPE_API_KEY')
-        headers = {
-            'Authorization': f'Bearer {api_key}',
-            'Content-Type': 'application/json',
-        }
-
-        def create_placeholder(path):
-            img = Image.new('RGB', (512, 512), (255, 255, 255))
-            img.save(path)
-
-        results = []
-        for idx, desc in enumerate(prompts):
-            prompt = desc
-            img_path = os.path.join(save_dir, f'illustration_{idx + 1}.jpg')
-            try:
-                resp = requests.post(
-                    f'{base_url}v1/images/generations',
-                    headers={
-                        **headers, 'X-ModelScope-Async-Mode': 'true'
-                    },
-                    data=json.dumps(
-                        {
-                            'model': model_id,
-                            'prompt': prompt,
-                            'negative_prompt': negative_prompt or ''
-                        },
-                        ensure_ascii=False).encode('utf-8'))
-                resp.raise_for_status()
-                task_id = resp.json()['task_id']
-                for _ in range(30):
-                    result = requests.get(
-                        f'{base_url}v1/tasks/{task_id}',
-                        headers={
-                            **headers, 'X-ModelScope-Task-Type': 'image_generation'
-                        },
-                    )
-                    result.raise_for_status()
-                    data = result.json()
-                    if data['task_status'] == 'SUCCEED':
-                        img_url = data['output_images'][0]
-                        image = Image.open(BytesIO(requests.get(img_url).content))
-                        image.save(img_path)
-                        results.append(img_path)
-                        break
-                    elif data['task_status'] == 'FAILED':
-                        print(f'插画生成失败: {desc}')
-                        create_placeholder(img_path)
-                        results.append(img_path)
-                        break
-                    time.sleep(5)
-                else:
-                    print(f'插画生成超时: {desc}')
-                    create_placeholder(img_path)
-                    results.append(img_path)
-            except Exception as e:
-                print(f'插画生成异常: {e}')
-                create_placeholder(img_path)
-                results.append(img_path)
-        return results
-
-    def _generate_images(self, segments, illustration_prompts) -> str:
+    async def run(self, inputs, **kwargs) -> List[Message]:
+        messages, context = inputs
+        segments = context['segments']
+        illustration_prompts = context['illustration_prompts']
         text_segments = [
             seg for seg in segments if seg.get('type') == 'text'
         ]
-        full_output_dir = os.path.dirname(script_path)
-        images_dir = os.path.join(full_output_dir, 'images')
-        image_paths_path = os.path.join(images_dir, 'image_paths.json')
-        image_paths = self.generate_images(
-            illustration_prompts, output_dir=full_output_dir)
+        images_dir = os.path.join(self.work_dir, 'images')
+        os.makedirs(images_dir, exist_ok=True)
+        image_files = []
+        for prompt in illustration_prompts:
+            output_file = self.generate_images(prompt, output_dir=images_dir)
+            image_files.append(output_file)
+
         # Prepare illustration paths list aligned to segments
         illustration_paths: List[str] = []
         # move to images folder for consistent paths
         for i, img_path in enumerate(image_paths):
             if os.path.exists(img_path):
                 new_path = os.path.join(
-                    images_dir, f'illustration_{i+1}.png'
+                    images_dir, f'illustration_{i + 1}.png'
                     if img_path.lower().endswith('.png') else
-                    f'illustration_{i+1}.jpg')
+                    f'illustration_{i + 1}.jpg')
                 try:
                     os.replace(img_path, new_path)
                 except Exception:
@@ -133,8 +64,8 @@ class GenerateImages(CodeAgent):
         os.makedirs(fg_out_dir, exist_ok=True)
         # process background removal if needed
         if len([
-                f for f in os.listdir(fg_out_dir)
-                if f.lower().endswith('.png')
+            f for f in os.listdir(fg_out_dir)
+            if f.lower().endswith('.png')
         ]) < len(image_paths):
             self.keep_only_black_for_folder(
                 images_dir, fg_out_dir)
@@ -145,7 +76,7 @@ class GenerateImages(CodeAgent):
             if seg.get('type') == 'text':
                 if text_idx < len(image_paths):
                     transparent_path = os.path.join(
-                        fg_out_dir, f'illustration_{text_idx+1}.png')
+                        fg_out_dir, f'illustration_{text_idx + 1}.png')
                     if os.path.exists(transparent_path):
                         illustration_paths[idx] = transparent_path
                     else:
@@ -160,6 +91,59 @@ class GenerateImages(CodeAgent):
 
         # Attach illustration paths to asset_paths
         asset_paths['illustration_paths'] = illustration_paths
+
+    def generate_images(self,
+                        prompt,
+                        img_path,
+                        negative_prompt=None):
+        base_url = self.config.text2image.base_url
+        api_key = self.config.text2image.api_key
+        model_id = self.config.text2image.model
+        assert api_key is not None
+        headers = {
+            'Authorization': f'Bearer {api_key}',
+            'Content-Type': 'application/json',
+        }
+
+        def create_placeholder(path):
+            img = Image.new('RGB', (512, 512), (255, 255, 255))
+            img.save(path)
+
+        resp = requests.post(
+            f'{base_url}v1/images/generations',
+            headers={
+                **headers, 'X-ModelScope-Async-Mode': 'true'
+            },
+            data=json.dumps(
+                {
+                    'model': model_id,
+                    'prompt': prompt,
+                    'negative_prompt': negative_prompt or ''
+                },
+                ensure_ascii=False).encode('utf-8'))
+        resp.raise_for_status()
+        task_id = resp.json()['task_id']
+
+        for _ in range(30):
+            result = requests.get(
+                f'{base_url}v1/tasks/{task_id}',
+                headers={
+                    **headers, 'X-ModelScope-Task-Type': 'image_generation'
+                },
+            )
+            result.raise_for_status()
+            data = result.json()
+            if data['task_status'] == 'SUCCEED':
+                img_url = data['output_images'][0]
+                image = Image.open(BytesIO(requests.get(img_url).content))
+                image.save(img_path)
+                results.append(img_path)
+                break
+            elif data['task_status'] == 'FAILED':
+                print(f'插画生成失败: {desc}')
+                create_placeholder(img_path)
+                results.append(img_path)
+                break
 
     def keep_only_black_for_folder(self, input_dir, output_dir, threshold=80):
         """去插画背景"""
@@ -222,7 +206,3 @@ class GenerateImages(CodeAgent):
                         print(f'创建备用透明图片: {output_png}')
                     except:  # noqa
                         pass
-
-    async def run(self, inputs: Union[str, List[Message]],
-                  **kwargs) -> List[Message]:
-        return self._generate_images()

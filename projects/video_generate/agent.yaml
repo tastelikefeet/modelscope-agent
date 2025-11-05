@@ -15,6 +15,12 @@ generation_config:
       provider: b
     enable_thinking: false
 
+text2image:
+  model: AIUSERS/jianbihua
+  api_key:
+  base_url: https://api-inference.modelscope.cn
+
+
 prompt:
   system: |
     You are a seasoned AI science communicator with expertise in artificial intelligence theories and applications across various domains. Your responsibility is to popularize AI knowledge for the general public with zero background, using accessible, authoritative, and humorous language to help people understand AI principles, development trends, and practical applications.
