@@ -4,6 +4,7 @@ import shutil
 import subprocess
 import tempfile
 
+from moviepy.editor import VideoFileClip
 from ms_agent.agent import CodeAgent
 from ms_agent.llm import LLM
 from ms_agent.llm.openai_llm import OpenAI
@@ -102,7 +103,6 @@ class RenderManim(CodeAgent):
 
     @staticmethod
     def verify_and_fix_mov_file(mov_path):
-        from moviepy.editor import VideoFileClip
         clip = VideoFileClip(mov_path)
         frame = clip.get_frame(0)
         clip.close()
@@ -110,7 +110,6 @@ class RenderManim(CodeAgent):
 
     @staticmethod
     def convert_mov_to_compatible(mov_path):
-        from moviepy.editor import VideoFileClip
         base_path, ext = os.path.splitext(mov_path)
         fixed_path = f'{base_path}_fixed.mov'
         clip = VideoFileClip(mov_path)
@@ -131,47 +130,34 @@ class RenderManim(CodeAgent):
 
     @staticmethod
     def scale_video_to_fit(video_path, target_size=(1280, 720)):
-        try:
-            from moviepy.editor import VideoFileClip
-            import os
+        if not os.path.exists(video_path):
+            return video_path
 
-            if not os.path.exists(video_path):
-                return video_path
+        clip = VideoFileClip(video_path)
+        original_size = clip.size
 
-            print(f'检查视频尺寸: {video_path}')
-            clip = VideoFileClip(video_path)
-            original_size = clip.size
-            print(f'原始尺寸: {original_size}')
+        target_width, target_height = target_size
+        original_width, original_height = original_size
 
-            target_width, target_height = target_size
-            original_width, original_height = original_size
+        scale_x = target_width / original_width
+        scale_y = target_height / original_height
+        scale_factor = min(scale_x, scale_y, 1.0)
 
-            scale_x = target_width / original_width
-            scale_y = target_height / original_height
-            scale_factor = min(scale_x, scale_y, 1.0)
+        if scale_factor < 0.95:
+            scaled_clip = clip.resize(scale_factor)
 
-            if scale_factor < 0.95:
-                print(f'需要缩放，缩放比例: {scale_factor:.2f}')
-                scaled_clip = clip.resize(scale_factor)
+            base_path, ext = os.path.splitext(video_path)
+            scaled_path = f'{base_path}_scaled{ext}'
+            scaled_clip.write_videofile(
+                scaled_path,
+                codec='libx264',
+                audio_codec='aac' if scaled_clip.audio else None,
+                fps=24,
+                verbose=False,
+                logger=None)
 
-                base_path, ext = os.path.splitext(video_path)
-                scaled_path = f'{base_path}_scaled{ext}'
-                scaled_clip.write_videofile(
-                    scaled_path,
-                    codec='libx264',
-                    audio_codec='aac' if scaled_clip.audio else None,
-                    fps=24,
-                    verbose=False,
-                    logger=None)
-
-                clip.close()
-                scaled_clip.close()
-                print(f'视频缩放完成: {scaled_path}')
-                return scaled_path
-            else:
-                print('视频尺寸合适，无需缩放')
-                clip.close()
-                return video_path
-        except Exception as e:
-            print(f'视频缩放失败: {e}')
+            clip.close()
+            scaled_clip.close()
+            return scaled_path
+        else:
             return video_path

@@ -2,6 +2,8 @@ import os
 from dataclasses import dataclass, field
 from typing import List
 
+import edge_tts
+from moviepy.editor import AudioClip, AudioFileClip
 from ms_agent.agent import CodeAgent
 from ms_agent.llm import LLM
 from ms_agent.llm.openai_llm import OpenAI
@@ -36,7 +38,6 @@ class GenerateAudio(CodeAgent):
         context['audio_paths'] = []
         tts_dir = os.path.join(self.work_dir, 'audio')
         os.makedirs(tts_dir, exist_ok=True)
-
         subtitle_dir = os.path.join(self.work_dir, 'subtitles')
         os.makedirs(subtitle_dir, exist_ok=True)
 
@@ -48,7 +49,6 @@ class GenerateAudio(CodeAgent):
 
     @staticmethod
     async def create_silent_audio(output_path, duration=5.0):
-        from moviepy.editor import AudioClip
         import numpy as np
 
         def make_frame(t):
@@ -60,7 +60,7 @@ class GenerateAudio(CodeAgent):
 
     @staticmethod
     async def edge_tts_generate(text, output_file, speaker='male'):
-        import edge_tts
+
         text = text.strip()
         if not text:
             return False
@@ -90,7 +90,6 @@ class GenerateAudio(CodeAgent):
 
     @staticmethod
     def get_audio_duration(audio_path):
-        from moviepy.editor import AudioFileClip
         audio_clip = AudioFileClip(audio_path)
         duration = audio_clip.duration
         audio_clip.close()

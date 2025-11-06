@@ -230,7 +230,6 @@ class ComposeVideo(Agent):
                 bg_music = mp.AudioFileClip(bg_music_path)
                 bg_music = afx.audio_loop(
                     bg_music, duration=final_video.duration)
-                bg_music = bg_music.volumex(0.2)
 
         assert final_video is not None
         logger.info('Rendering final video...')

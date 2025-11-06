@@ -1,5 +1,3 @@
-from copy import deepcopy
-
 from ms_agent.agent import CodeAgent
 from ms_agent.llm import LLM, Message
 from ms_agent.llm.openai_llm import OpenAI
