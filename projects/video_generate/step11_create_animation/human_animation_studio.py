@@ -1,22 +1,15 @@
+import json
 import os
 import subprocess
 import sys
 import tempfile
-from typing import Any, Dict, List, Optional
+from typing import Optional
 
-import json
-
-from .animation_production_modes import (AnimationProductionMode,
-                                         AnimationStatus, AnimationTask,
+from .animation_modes import (AnimationProductionMode,
+                                         AnimationStatus,
                                          AnimationTaskManager,
                                          PlaceholderGenerator)
 
-# 添加当前目录到路径，确保能导入其他模块
-# current_dir = os.path.dirname(os.path.abspath(__file__))
-# if current_dir not in sys.path:
-#     sys.path.insert(0, current_dir)
-
-# 导入自动错误处理函数
 try:
     from .workflow import clean_llm_code_output, fix_manim_error_with_llm
 except Exception as e:

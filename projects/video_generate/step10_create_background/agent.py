@@ -91,5 +91,5 @@ class CreateBackground(Agent):
                   fill=(0, 0, 0),
                   width=config['line_width'])
         image.save(self.bg_path)
-        context['background_image'] = self.bg_path
+        context['background_path'] = self.bg_path
         return messages, context

@@ -31,8 +31,7 @@ class GenerateIllustrationPrompts(CodeAgent):
                  **kwargs):
         super().__init__(config, tag, trust_remote_code, **kwargs)
         self.work_dir = getattr(self.config, 'output_dir', 'output')
-        self.animation_mode = os.environ.get('MS_ANIMATION_MODE',
-                                              'auto').strip().lower() or 'auto'
+        self.animation_mode = getattr(self.config, 'animation_code', 'auto')
         self.llm: OpenAI = LLM.from_config(self.config)
 
     async def run(self, inputs, **kwargs):

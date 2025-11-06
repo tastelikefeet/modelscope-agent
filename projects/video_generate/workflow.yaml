@@ -77,8 +77,18 @@ create_background:
     kwargs:
       code_file: step10_create_background/agent.py
   next:
-    - create_background
+    - create_animation
 
-synthesize_video:
-  description: Synthesize the video from the assets
-  agent_config: "step3_synthesis_agent.yaml"
+create_animation:
+  agent:
+    name: CodeAgent
+    kwargs:
+      code_file: step11_create_animation/agent.py
+  next:
+    - compose_video
+
+compose_video:
+  agent:
+    name: CodeAgent
+    kwargs:
+      code_file: step12_compose_video/agent.py
