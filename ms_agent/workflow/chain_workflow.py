@@ -76,7 +76,6 @@ class ChainWorkflow(Workflow):
         for task in self.workflow_chains:
             task_info = getattr(self.config, task)
             config = getattr(task_info, 'agent_config', agent_config)
-            assert isinstance(config, str)
             if not hasattr(task_info, 'agent'):
                 task_info.agent = DictConfig({})
             init_args = getattr(task_info.agent, 'kwargs', {})
@@ -85,8 +84,9 @@ class ChainWorkflow(Workflow):
             init_args['mcp_server_file'] = self.mcp_server_file
             init_args['task'] = task
             init_args['load_cache'] = self.load_cache
-            init_args['config_dir_or_id'] = os.path.join(
-                self.config.local_dir, config)
+            if isinstance(config, str):
+                init_args['config_dir_or_id'] = os.path.join(
+                    self.config.local_dir, config)
             init_args['env'] = self.env
             if 'tag' not in init_args:
                 init_args['tag'] = task

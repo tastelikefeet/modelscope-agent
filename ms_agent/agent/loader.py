@@ -47,7 +47,9 @@ class AgentLoader:
         from .llm_agent import LLMAgent
         from .code_agent import CodeAgent
         agent_type = LLMAgent.AGENT_NAME
-        if agent_config is not None:
+        if 'code_file' in kwargs:
+            code_file = kwargs['code_file']
+        elif agent_config is not None:
             agent_type = getattr(agent_config, 'type',
                                  '').lower() or agent_type.lower()
             code_file = getattr(agent_config, 'code_file', None)

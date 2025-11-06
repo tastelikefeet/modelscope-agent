@@ -17,7 +17,7 @@ Please generate an AI knowledge popularization script suitable for short video n
 
 1. Clear structure, including an opening hook (using questions/interesting scenarios/relatable examples to attract viewers), main explanation (incorporating real AI cases or trending applications), and a complete conclusion (must have a complete ending, do not cut off).
 
-2. **Smart Animation Elements** (optional, the system will automatically determine appropriate timing):
+2. **Smart Animation Elements** (the system will automatically determine appropriate timing):
    When content genuinely needs visualization, you may use the following tags:
    - Formula: <formula>LaTeX formula</formula> - only for important mathematical concepts
    - Code: <code>code content</code> - only for programming implementation examples
@@ -37,7 +37,7 @@ Please generate an AI knowledge popularization script suitable for short video n
 
 4. Strictly prohibited: any form of section headers, structural prompts, column names, easter egg hints, interaction prompts, P.S., completion notes, AI assistant self-descriptions, AI identity declarations, AI writing explanations, AI completion notes, "hope you enjoy", acknowledgments, postscripts, footnotes, author's remarks, AI hints, AI supplements, AI notes, AI explanations, AI summaries, AI conclusions, AI postscripts, "continuing from above", "to be continued", casual interactive endings, interactive endings, etc.
 
-5. Word count between 800-1500 words, with fluent language and coherent content.
+5. Word count between 800-1500 words(around 5 mins speech), with fluent language and coherent content.
 
 6. **Core Style Requirements**: Use relatable, accessible language, combining vivid metaphors, cases, fun interactions, light humor, and moderate use of internet culture. For example:
    - Use everyday examples to explain complex concepts (like using "finding a parking spot" to explain search algorithms)

@@ -7,12 +7,10 @@ llm:
 generation_config:
   temperature: 0.3
   top_k: 50
-  stream: true
   max_tokens: 64000
   extra_body:
     dashscope_extend_params:
       provider: b
-    enable_thinking: false
 
 text2image:
   model: AIUSERS/jianbihua

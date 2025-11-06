@@ -1,7 +1,6 @@
 generate_script:
   agent_config: "agent.yaml"
   agent:
-    name: LLMAgent
     kwargs:
       code_file: step1_generate_script/agent.py
   next:
@@ -9,7 +8,6 @@ generate_script:
 
 segment:
   agent:
-    name: CodeAgent
     kwargs:
       code_file: step2_segment/agent.py
   next:
@@ -17,7 +15,6 @@ segment:
 
 generate_audio:
   agent:
-    name: CodeAgent
     kwargs:
       code_file: step3_generate_audio/agent.py
   next:
@@ -25,7 +22,6 @@ generate_audio:
 
 generate_manim_code:
   agent:
-    name: CodeAgent
     kwargs:
       code_file: step4_generate_manim_code/agent.py
   next:
@@ -33,7 +29,6 @@ generate_manim_code:
 
 fix_manim_code:
   agent:
-    name: CodeAgent
     kwargs:
       code_file: step5_fix_manim_code/agent.py
   next:
@@ -41,7 +36,6 @@ fix_manim_code:
 
 render_manim:
   agent:
-    name: CodeAgent
     kwargs:
       code_file: step6_render_manim/agent.py
   next:
@@ -49,7 +43,6 @@ render_manim:
 
 generate_illustration_prompts:
   agent:
-    name: CodeAgent
     kwargs:
       code_file: step7_generate_illustration_prompts/agent.py
   next:
@@ -57,7 +50,6 @@ generate_illustration_prompts:
 
 generate_images:
   agent:
-    name: CodeAgent
     kwargs:
       code_file: step8_generate_images/agent.py
   next:
@@ -65,7 +57,6 @@ generate_images:
 
 generate_subtitle:
   agent:
-    name: CodeAgent
     kwargs:
       code_file: step9_generate_subtitle/agent.py
   next:
@@ -73,7 +64,6 @@ generate_subtitle:
 
 create_background:
   agent:
-    name: CodeAgent
     kwargs:
       code_file: step10_create_background/agent.py
   next:
@@ -81,7 +71,6 @@ create_background:
 
 create_animation:
   agent:
-    name: CodeAgent
     kwargs:
       code_file: step11_create_animation/agent.py
   next:
@@ -89,6 +78,5 @@ create_animation:
 
 compose_video:
   agent:
-    name: CodeAgent
     kwargs:
       code_file: step12_compose_video/agent.py
