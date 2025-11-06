@@ -9,9 +9,6 @@ from projects.video_generate.core import workflow as video_workflow
 
 
 class CreateBackground(Agent):
-    """A thin wrapper that dispatches to original workflow functions.
-    It preserves all original prompts/logic. We only adapt to ms-agent's CodeAgent loading via code_file.
-    """
 
     def __init__(self,
                  config: DictConfig,

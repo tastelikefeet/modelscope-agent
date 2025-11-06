@@ -69,7 +69,15 @@ generate_subtitle:
     kwargs:
       code_file: step9_generate_subtitle/agent.py
   next:
-    - generate_subtitle
+    - create_background
+
+create_background:
+  agent:
+    name: CodeAgent
+    kwargs:
+      code_file: step10_create_background/agent.py
+  next:
+    - create_background
 
 synthesize_video:
   description: Synthesize the video from the assets

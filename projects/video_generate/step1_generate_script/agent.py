@@ -24,4 +24,4 @@ class GenerateScript(LLMAgent):
 
     async def run(self, messages, **kwargs):
         inputs = await super().run(messages, **kwargs)
-        return inputs, {}
+        return inputs, {'topic': messages[1].content}

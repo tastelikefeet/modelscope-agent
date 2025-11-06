@@ -82,6 +82,8 @@ output_dir: output
 
 subtitle_lang: English
 
+slogan: ['硬核知识分享', '魔搭社区出品']
+
 tools:
   shell:
     mcp: false
