@@ -4,11 +4,10 @@ from io import BytesIO
 
 import aiohttp
 import numpy as np
-from PIL import Image
-from omegaconf import DictConfig
-
 from ms_agent.agent import CodeAgent
 from ms_agent.utils import get_logger
+from omegaconf import DictConfig
+from PIL import Image
 
 logger = get_logger()
 
@@ -25,14 +24,15 @@ class GenerateImages(CodeAgent):
 
     async def run(self, inputs, **kwargs):
         messages, context = inputs
-        segments = context['segments']
         illustration_prompts = context['illustration_prompts']
         context['illustration_paths'] = []
         images_dir = os.path.join(self.work_dir, 'images')
         os.makedirs(images_dir, exist_ok=True)
         for i, prompt in enumerate(illustration_prompts):
-            img_path = os.path.join(images_dir, f'illustration_{i + 1}_origin.png')
-            black_img_path = os.path.join(images_dir, f'illustration_{i + 1}.png')
+            img_path = os.path.join(images_dir,
+                                    f'illustration_{i + 1}_origin.png')
+            black_img_path = os.path.join(images_dir,
+                                          f'illustration_{i + 1}.png')
             await self.generate_images(prompt, img_path)
             self.keep_only_black_for_folder(img_path, black_img_path)
             context['illustration_paths'].append(black_img_path)
@@ -51,17 +51,18 @@ class GenerateImages(CodeAgent):
         async with aiohttp.ClientSession() as session:
             async with session.post(
                     f'{base_url}v1/images/generations',
-                    headers={**headers, 'X-ModelScope-Async-Mode': 'true'},
+                    headers={
+                        **headers, 'X-ModelScope-Async-Mode': 'true'
+                    },
                     json={
                         'model': model_id,
                         'prompt': prompt,
                         'negative_prompt': negative_prompt or ''
-                    }
-            ) as resp:
+                    }) as resp:
                 resp.raise_for_status()
                 task_id = (await resp.json())['task_id']
 
-            max_wait_time = 600 # 10 min
+            max_wait_time = 600  # 10 min
             poll_interval = 2
             max_poll_interval = 10
             elapsed_time = 0
@@ -72,8 +73,10 @@ class GenerateImages(CodeAgent):
 
                 async with session.get(
                         f'{base_url}v1/tasks/{task_id}',
-                        headers={**headers, 'X-ModelScope-Task-Type': 'image_generation'}
-                ) as result:
+                        headers={
+                            **headers, 'X-ModelScope-Task-Type':
+                            'image_generation'
+                        }) as result:
                     result.raise_for_status()
                     data = await result.json()
 
@@ -86,7 +89,8 @@ class GenerateImages(CodeAgent):
                         return img_path
 
                     elif data['task_status'] == 'FAILED':
-                        raise RuntimeError(f'Generate image failed because of error: {data}')
+                        raise RuntimeError(
+                            f'Generate image failed because of error: {data}')
 
                 poll_interval = min(poll_interval * 1.5, max_poll_interval)
 

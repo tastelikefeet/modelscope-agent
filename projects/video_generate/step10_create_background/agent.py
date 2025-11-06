@@ -1,12 +1,11 @@
 import os
 import textwrap
 
-from PIL import Image, ImageDraw, ImageFont
-from omegaconf import DictConfig
-
 from ms_agent.agent.base import Agent
 from ms_agent.llm import LLM
 from ms_agent.llm.openai_llm import OpenAI
+from omegaconf import DictConfig
+from PIL import Image, ImageDraw, ImageFont
 
 
 class CreateBackground(Agent):
@@ -20,20 +19,22 @@ class CreateBackground(Agent):
         self.work_dir = getattr(self.config, 'output_dir', 'output')
         self.bg_path = os.path.join(self.work_dir, 'background.jpg')
         self.llm: OpenAI = LLM.from_config(self.config)
-        self.fonts = getattr(self.config, 'fonts', [
-            'SimHei', 'WenQuanYi Micro Hei', 'Heiti TC', 'Microsoft YaHei'
-        ])
+        self.fonts = getattr(
+            self.config, 'fonts',
+            ['SimHei', 'WenQuanYi Micro Hei', 'Heiti TC', 'Microsoft YaHei'])
         self.slogan = getattr(self.config, 'slogan', [])
 
     def get_font(self, size):
         import matplotlib.font_manager as fm
-        local_font = os.path.join(os.path.dirname(__file__), '字小魂扶摇手书(商用需授权).ttf')
+        local_font = os.path.join(
+            os.path.dirname(__file__), '字小魂扶摇手书(商用需授权).ttf')
         try:
             return ImageFont.truetype(local_font, size)
         except OSError or ValueError:
             for font_name in self.fonts:
                 try:
-                    font_path = fm.findfont(fm.FontProperties(family=font_name))
+                    font_path = fm.findfont(
+                        fm.FontProperties(family=font_name))
                     return ImageFont.truetype(font_path, size)
                 except OSError or ValueError:
                     continue
@@ -79,7 +80,7 @@ class CreateBackground(Agent):
         for i, line in enumerate(subtitle_lines):
             bbox = draw.textbbox((0, 0), line, font=subtitle_font)
             x_offset = width - bbox[2] - (config['padding'] + 30) + (
-                    i * config['subtitle_offset'])
+                i * config['subtitle_offset'])
             draw.text((x_offset, y_position),
                       line,
                       font=subtitle_font,

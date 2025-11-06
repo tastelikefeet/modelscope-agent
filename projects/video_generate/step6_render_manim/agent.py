@@ -32,15 +32,12 @@ class RenderManim(CodeAgent):
             context['foreground_paths'].append(manim_file)
 
     @staticmethod
-    def render_manim_scene(code,
-                           scene_name,
-                           output_dir):
+    def render_manim_scene(code, scene_name, output_dir):
         code_file = os.path.join(output_dir, f'{scene_name}.py')
         with open(code_file, 'w') as f:
             f.write(code)
         class_match = re.search(r'class\s+(\w+)\s*\(Scene\)', code)
-        actual_scene_name = class_match.group(
-            1) if class_match else scene_name
+        actual_scene_name = class_match.group(1) if class_match else scene_name
         output_path = os.path.join(output_dir, f'{scene_name}.mov')
 
         with tempfile.TemporaryDirectory() as temp_dir:
@@ -88,8 +85,10 @@ class RenderManim(CodeAgent):
                     if file == f'{actual_scene_name}.mov':
                         found_file = os.path.join(root, file)
                         shutil.copy2(found_file, output_path)
-                        if not RenderManim.verify_and_fix_mov_file(output_path):
-                            fixed_path = RenderManim.convert_mov_to_compatible(output_path)
+                        if not RenderManim.verify_and_fix_mov_file(
+                                output_path):
+                            fixed_path = RenderManim.convert_mov_to_compatible(
+                                output_path)
                             if fixed_path:
                                 output_path = fixed_path
 

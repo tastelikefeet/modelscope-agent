@@ -2,19 +2,19 @@ import os
 import re
 import subprocess
 from pathlib import Path
-from typing import Dict, Any
-
-from ms_agent.utils.constants import DEFAULT_OUTPUT_DIR
+from typing import Any, Dict
 
 from ms_agent.llm.utils import Tool
 from ms_agent.tools.base import ToolBase
+from ms_agent.utils.constants import DEFAULT_OUTPUT_DIR
 
 
 class Shell(ToolBase):
 
     def __init__(self, config):
         super().__init__(config)
-        self.output_dir = getattr(self.config, 'output_dir', DEFAULT_OUTPUT_DIR)
+        self.output_dir = getattr(self.config, 'output_dir',
+                                  DEFAULT_OUTPUT_DIR)
 
     async def connect(self) -> None:
         pass
@@ -26,27 +26,25 @@ class Shell(ToolBase):
                     tool_name='execute_single',
                     server_name='shell',
                     description='Execute a single shell command. '
-                                'Use this tool to read/write/create file/dirs, '
-                                'or start/stop processes or install required packages.'
-                                'Note:\n '
-                                '1. Do not execute dangerous commands which will affect the file system '
-                                'or other processes\n '
-                                '2. The work_dir arg should always base on the project you are working on',
+                    'Use this tool to read/write/create file/dirs, '
+                    'or start/stop processes or install required packages.'
+                    'Note:\n '
+                    '1. Do not execute dangerous commands which will affect the file system '
+                    'or other processes\n '
+                    '2. The work_dir arg should always base on the project you are working on',
                     parameters={
                         'type': 'object',
                         'properties': {
                             'command': {
-                                'type':
-                                    'string',
-                                'description':
-                                    'The shell command to execute.',
+                                'type': 'string',
+                                'description': 'The shell command to execute.',
                             },
                             'work_dir': {
                                 'type':
-                                    'string',
+                                'string',
                                 'description':
-                                    'The work dir of the command, this argument should always '
-                                    'be a relative sub folder of the project you are working on.',
+                                'The work dir of the command, this argument should always '
+                                'be a relative sub folder of the project you are working on.',
                             }
                         },
                         'required': ['command', 'work_dir'],
@@ -98,7 +96,8 @@ class Shell(ToolBase):
 
         for pattern in dangerous_commands:
             if re.search(pattern, command, re.IGNORECASE):
-                raise ValueError(f"Command contains dangerous operation: {pattern}")
+                raise ValueError(
+                    f'Command contains dangerous operation: {pattern}')
 
         # 3. Check path traversal
         suspicious_patterns = [
@@ -112,15 +111,18 @@ class Shell(ToolBase):
         for pattern in suspicious_patterns:
             if re.search(pattern, command):
                 # 提取所有可能的路径
-                potential_paths = re.findall(r'(?:^|\s)([\w\./~${}]+)', command)
+                potential_paths = re.findall(r'(?:^|\s)([\w\./~${}]+)',
+                                             command)
                 for path_str in potential_paths:
                     if not path_str:
                         continue
 
                     try:
-                        expanded_path = os.path.expandvars(os.path.expanduser(path_str))
+                        expanded_path = os.path.expandvars(
+                            os.path.expanduser(path_str))
                         if not os.path.isabs(expanded_path):
-                            full_path = (work_dir_abs / expanded_path).resolve()
+                            full_path = (work_dir_abs
+                                         / expanded_path).resolve()
                         else:
                             full_path = Path(expanded_path).resolve()
                         if not str(full_path).startswith(str(output_dir_abs)):
@@ -140,15 +142,15 @@ class Shell(ToolBase):
 
         for pattern in redirect_patterns:
             if re.search(pattern, command):
-                raise ValueError(f"Command contains dangerous redirection")
+                raise ValueError('Command contains dangerous redirection')
 
         # 5. Check environment variable modifications
         if re.search(r'\bexport\b|\benv\b.*=', command, re.IGNORECASE):
-            if re.search(r'\bPATH\s*=|LD_PRELOAD|LD_LIBRARY_PATH', command, re.IGNORECASE):
+            if re.search(r'\bPATH\s*=|LD_PRELOAD|LD_LIBRARY_PATH', command,
+                         re.IGNORECASE):
                 raise ValueError(
-                    "Command attempts to modify critical (PATH/LD_PRELOAD/LD_LIBRARY_PATH) "
-                    "environment variables"
-                )
+                    'Command attempts to modify critical (PATH/LD_PRELOAD/LD_LIBRARY_PATH) '
+                    'environment variables')
 
         # 6. Check for command substitution and other shell injection risks
         shell_injection_patterns = [
@@ -164,7 +166,7 @@ class Shell(ToolBase):
                     for dangerous in dangerous_commands:
                         if re.search(dangerous, inner_cmd, re.IGNORECASE):
                             raise ValueError(
-                                f"Command substitution contains dangerous operation: {inner_cmd}"
+                                f'Command substitution contains dangerous operation: {inner_cmd}'
                             )
 
     async def execute_shell(self, command: str, work_dir: str):
@@ -186,7 +188,7 @@ class Shell(ToolBase):
                 result = f'Command executed failed. return_code={ret.returncode}, error message: {ret.stderr.strip()}'
 
         except subprocess.TimeoutExpired:
-            result = f'Run timed out after 30 seconds.'
+            result = 'Run timed out after 30 seconds.'
         except Exception as e:
             result = f'Run failed with an exception: {e}.'
 
@@ -196,9 +198,10 @@ class Shell(ToolBase):
                   f'Result: {result}')
         return output
 
-
-    async def call_tool(self, server_name: str, *, tool_name: str, tool_args: dict) -> str:
+    async def call_tool(self, server_name: str, *, tool_name: str,
+                        tool_args: dict) -> str:
         if tool_name == 'execute_single':
-            return await self.execute_shell(tool_args['command'], tool_args['work_dir'])
+            return await self.execute_shell(tool_args['command'],
+                                            tool_args['work_dir'])
         else:
             return f'Unknown tool type: {tool_name}'

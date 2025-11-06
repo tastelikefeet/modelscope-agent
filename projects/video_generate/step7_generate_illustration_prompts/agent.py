@@ -1,15 +1,14 @@
 import asyncio
-import json
 import os
 from dataclasses import dataclass, field
 from typing import List
 
-from omegaconf import DictConfig
-
+import json
 from ms_agent.agent import CodeAgent
-from ms_agent.llm import Message, LLM
+from ms_agent.llm import LLM, Message
 from ms_agent.llm.openai_llm import OpenAI
 from ms_agent.utils import get_logger
+from omegaconf import DictConfig
 
 logger = get_logger(__name__)
 
@@ -37,9 +36,7 @@ class GenerateIllustrationPrompts(CodeAgent):
     async def run(self, inputs, **kwargs):
         messages, context = inputs
         segments = context['segments']
-        text_segments = [
-            seg for seg in segments if seg.get('type') == 'text'
-        ]
+        text_segments = [seg for seg in segments if seg.get('type') == 'text']
         illustration_prompts = await asyncio.gather(*[
             self.generate_illustration_prompts(segment)
             for segment in text_segments

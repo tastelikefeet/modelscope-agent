@@ -1,5 +1,5 @@
 import re
-from typing import List, Dict
+from typing import Dict, List
 
 from ms_agent.agent import CodeAgent
 from ms_agent.llm import LLM, Message
@@ -132,16 +132,24 @@ Please precisely fix the detected issues while maintaining the richness and crea
             is_over_engineered = True
 
         return {
-            'layout_score': layout_score,
-            'element_count': element_count,
-            'spacing_issues': spacing_issues,
-            'is_over_engineered': is_over_engineered,
-            'issues': issues,
-            'issue_count': len(issues),
-            'needs_fix': len(issues) > 0,
-            'manim_code': code,
+            'layout_score':
+            layout_score,
+            'element_count':
+            element_count,
+            'spacing_issues':
+            spacing_issues,
+            'is_over_engineered':
+            is_over_engineered,
+            'issues':
+            issues,
+            'issue_count':
+            len(issues),
+            'needs_fix':
+            len(issues) > 0,
+            'manim_code':
+            code,
             'fix_prompt':
-                FixManimCode.generate_fix_prompt(code, issues) if issues else ''
+            FixManimCode.generate_fix_prompt(code, issues) if issues else ''
         }
 
     @staticmethod
@@ -167,7 +175,7 @@ Please precisely fix the detected issues while maintaining the richness and crea
 
         richness_level = 'Rich' if (text_count > 5 and animation_count > 5
                                     and color_count > 3) else 'Moderate' if (
-                text_count > 3) else 'Simple'
+                                        text_count > 3) else 'Simple'
 
         fix_prompt = f"""**Layout Issue Fix Task**
 
@@ -221,7 +229,7 @@ Please ensure during the fix process:
 3. Maintain educational value and expressiveness of content
 4. Keep animation rhythm smooth and engaging
 
-Please return the complete fixed code, ensuring both layout issues are resolved and animation richness and creativity are maintained."""
+Please return the complete fixed code, ensuring both layout issues are resolved and animation richness and creativity are maintained.""" # noqa
         return fix_prompt
 
     @staticmethod
@@ -238,11 +246,14 @@ Please return the complete fixed code, ensuring both layout issues are resolved 
 
             # Check if move_to exceeds boundaries
             if re.search(r'\.move_to\(\[?\s*[+-]?([8-9]|[1-9]\d)', line):
-                boundary_violations.append(f'Line {i}: Absolute position out of bounds - {line_clean}')
+                boundary_violations.append(
+                    f'Line {i}: Absolute position out of bounds - {line_clean}'
+                )
 
             # Large shift values can also cause out of bounds
             if re.search(r'\.shift\(\s*[A-Z_]*\s*\*\s*([6-9]|[1-9]\d)', line):
-                boundary_violations.append(f'Line {i}: Shift displacement too large - {line_clean}')
+                boundary_violations.append(
+                    f'Line {i}: Shift displacement too large - {line_clean}')
 
             # Font size check
             font_match = re.search(r'font_size\s*=\s*([0-9]+)', line)
@@ -266,11 +277,13 @@ Please return the complete fixed code, ensuring both layout issues are resolved 
         spatial_operations = FixManimCode._extract_spatial_operations(lines)
 
         # 2. Analyze spatial relationship conflicts
-        spatial_conflicts = FixManimCode._analyze_spatial_conflicts(spatial_operations)
+        spatial_conflicts = FixManimCode._analyze_spatial_conflicts(
+            spatial_operations)
 
         # 3. Convert to readable issue descriptions
         for conflict in spatial_conflicts:
-            overlap_risks.append(FixManimCode._format_conflict_description(conflict))
+            overlap_risks.append(
+                FixManimCode._format_conflict_description(conflict))
 
         if overlap_risks:
             issues.append('Overlap Risk:')
@@ -289,16 +302,20 @@ Please return the complete fixed code, ensuring both layout issues are resolved 
         rect_elements = len([
             line for line in lines
             if any(shape in line for shape in ['Rectangle(', 'Square('])
-               and not line.strip().startswith('#')
+            and not line.strip().startswith('#')
         ])
 
         total_elements = text_elements + circle_elements + rect_elements
 
         if text_elements > 12:  # Too many text elements
-            crowding_issues.append(f'Too many text elements ({text_elements}), consider grouping or pagination')
+            crowding_issues.append(
+                f'Too many text elements ({text_elements}), consider grouping or pagination'
+            )
 
         if total_elements > 20:  # Too many total elements, display will be cluttered
-            crowding_issues.append(f'Too many display elements ({total_elements}), may appear crowded')
+            crowding_issues.append(
+                f'Too many display elements ({total_elements}), may appear crowded'
+            )
 
         if crowding_issues:
             issues.append('Layout Crowding:')
@@ -310,12 +327,14 @@ Please return the complete fixed code, ensuring both layout issues are resolved 
         if 'Helper' in code or 'helper' in code.lower():
             helper_count = code.count('Helper') + code.count('helper')
             complexity_issues.append(
-                f'Using Helper class pattern ({helper_count} occurrences), consider simplification')
+                f'Using Helper class pattern ({helper_count} occurrences), consider simplification'
+            )
 
         create_methods = code.count('def create_')
         if create_methods > 4:  # Too many create methods
             complexity_issues.append(
-                f'Too many create methods ({create_methods}), consider merging related functions')
+                f'Too many create methods ({create_methods}), consider merging related functions'
+            )
 
         # Check VGroup nesting depth
         vgroup_depth = 0
@@ -328,7 +347,9 @@ Please return the complete fixed code, ensuring both layout issues are resolved 
                 vgroup_depth = max(0, vgroup_depth - line.count(')'))
 
         if max_depth > 3:
-            complexity_issues.append(f'VGroup nesting too deep ({max_depth} levels), consider simplifying structure')
+            complexity_issues.append(
+                f'VGroup nesting too deep ({max_depth} levels), consider simplifying structure'
+            )
 
         if complexity_issues:
             issues.append('Complexity Issues:')
@@ -341,12 +362,16 @@ Please return the complete fixed code, ensuring both layout issues are resolved 
         runtime_values = re.findall(r'run_time\s*=\s*([0-9.]+)', code)
         for runtime in runtime_values:
             if float(runtime) > 6.0:
-                animation_issues.append(f'Animation duration too long ({runtime}s), may affect rhythm')
+                animation_issues.append(
+                    f'Animation duration too long ({runtime}s), may affect rhythm'
+                )
 
         wait_values = re.findall(r'self\.wait\(([0-9.]+)\)', code)
         for wait_time in wait_values:
             if float(wait_time) > 4.0:
-                animation_issues.append(f'Wait time too long ({wait_time}s), may affect continuity')
+                animation_issues.append(
+                    f'Wait time too long ({wait_time}s), may affect continuity'
+                )
 
         if animation_issues:
             issues.append('Animation Timing Issues:')
@@ -381,18 +406,23 @@ Please return the complete fixed code, ensuring both layout issues are resolved 
             # Analyze positioning type
             if '.move_to(' in line:
                 operation['type'] = 'move_to'
-                operation['reference'] = FixManimCode._extract_move_to_target(line_clean)
+                operation['reference'] = FixManimCode._extract_move_to_target(
+                    line_clean)
             elif '.next_to(' in line:
                 operation['type'] = 'next_to'
-                operation['reference'] = FixManimCode._extract_next_to_reference(line_clean)
+                operation[
+                    'reference'] = FixManimCode._extract_next_to_reference(
+                        line_clean)
                 operation['has_spacing'] = 'buff=' in line
-                operation['spacing_value'] = FixManimCode._extract_buff_value(line_clean)
+                operation['spacing_value'] = FixManimCode._extract_buff_value(
+                    line_clean)
             elif '.center()' in line:
                 operation['type'] = 'center'
                 operation['reference'] = 'ORIGIN'
             elif '.to_edge(' in line:
                 operation['type'] = 'to_edge'
-                operation['reference'] = FixManimCode._extract_edge_direction(line_clean)
+                operation['reference'] = FixManimCode._extract_edge_direction(
+                    line_clean)
             elif '.shift(' in line:
                 operation['type'] = 'shift'
                 operation['reference'] = 'relative'
@@ -424,8 +454,8 @@ Please return the complete fixed code, ensuring both layout issues are resolved 
             # Extract variable name on the left side of equals sign
             var_match = re.search(r'(\w+)\s*=', line)
             if var_match and any(method in line for method in [
-                '.move_to(', '.next_to(', '.center()', '.to_edge(',
-                '.shift('
+                    '.move_to(', '.next_to(', '.center()', '.to_edge(',
+                    '.shift('
             ]):
                 return var_match.group(1)
 
@@ -435,7 +465,8 @@ Please return the complete fixed code, ensuring both layout issues are resolved 
         if method_match:
             obj_name = method_match.group(1)
             # Ensure valid identifier (alphanumeric and underscore)
-            if obj_name and not obj_name[0].isdigit() and obj_name.replace('_', '').isalnum():
+            if obj_name and not obj_name[0].isdigit() and obj_name.replace(
+                    '_', '').isalnum():
                 return obj_name
 
         return None
@@ -483,10 +514,14 @@ Please return the complete fixed code, ensuring both layout issues are resolved 
         for op in operations:
             if op['type'] == 'next_to' and not op['has_spacing']:
                 conflicts.append({
-                    'type': 'missing_spacing',
-                    'severity': 'medium',
-                    'operation': op,
-                    'description': 'Missing buff parameter may cause overlap'
+                    'type':
+                    'missing_spacing',
+                    'severity':
+                    'medium',
+                    'operation':
+                    op,
+                    'description':
+                    'Missing buff parameter may cause overlap'
                 })
 
         # 3. Detect insufficient spacing
@@ -494,13 +529,13 @@ Please return the complete fixed code, ensuring both layout issues are resolved 
             if op['spacing_value'] is not None and op['spacing_value'] < 0.2:
                 conflicts.append({
                     'type':
-                        'insufficient_spacing',
+                    'insufficient_spacing',
                     'severity':
-                        'medium',
+                    'medium',
                     'operation':
-                        op,
+                    op,
                     'description':
-                        f"Spacing too small ({op['spacing_value']}) may cause overlap"
+                    f"Spacing too small ({op['spacing_value']}) may cause overlap"
                 })
 
         # 4. Detect object-geometry overlap risk
@@ -542,30 +577,32 @@ Please return the complete fixed code, ensuring both layout issues are resolved 
 
                 # Detect text moving directly to geometry object
                 if FixManimCode._is_text_object(
-                        op['object']) and FixManimCode._is_geometry_reference(ref):
+                        op['object']) and FixManimCode._is_geometry_reference(
+                            ref):
                     conflicts.append({
                         'type':
-                            'text_geometry_overlap',
+                        'text_geometry_overlap',
                         'severity':
-                            'high',
+                        'high',
                         'operation':
-                            op,
+                        op,
                         'description':
-                            f"Text object ({op['object']}) moving directly to geometry object ({ref}) position"
+                        f"Text object ({op['object']}) moving directly to geometry object ({ref}) position"
                     })
 
                 # Detect label moving directly to object
                 elif FixManimCode._is_label_object(
-                        op['object']) and not FixManimCode._is_safe_reference(ref):
+                        op['object']
+                ) and not FixManimCode._is_safe_reference(ref):
                     conflicts.append({
                         'type':
-                            'label_object_overlap',
+                        'label_object_overlap',
                         'severity':
-                            'medium',
+                        'medium',
                         'operation':
-                            op,
+                        op,
                         'description':
-                            f"Label object ({op['object']}) may overlap with target object ({ref})"
+                        f"Label object ({op['object']}) may overlap with target object ({ref})"
                     })
 
         return conflicts
@@ -590,20 +627,29 @@ Please return the complete fixed code, ensuring both layout issues are resolved 
         # Multiple move_to to same object
         if len(move_to_ops) > 1:
             conflicts.append({
-                'type': 'multiple_move_to',
-                'severity': 'high',
-                'reference': reference,
-                'operations': move_to_ops,
-                'description': f'Multiple objects moving to same position ({reference})'
+                'type':
+                'multiple_move_to',
+                'severity':
+                'high',
+                'reference':
+                reference,
+                'operations':
+                move_to_ops,
+                'description':
+                f'Multiple objects moving to same position ({reference})'
             })
 
         # Multiple center calls
         if len(center_ops) > 1:
             conflicts.append({
-                'type': 'multiple_center',
-                'severity': 'high',
-                'operations': center_ops,
-                'description': 'Multiple objects using center() positioning'
+                'type':
+                'multiple_center',
+                'severity':
+                'high',
+                'operations':
+                center_ops,
+                'description':
+                'Multiple objects using center() positioning'
             })
 
         return conflicts
@@ -613,8 +659,10 @@ Please return the complete fixed code, ensuring both layout issues are resolved 
         op = conflict.get('operation', {})
         line = op.get('line', '?')
 
-        if conflict['type'] in ['missing_spacing', 'insufficient_spacing',
-                                'text_geometry_overlap', 'label_object_overlap']:
+        if conflict['type'] in [
+                'missing_spacing', 'insufficient_spacing',
+                'text_geometry_overlap', 'label_object_overlap'
+        ]:
             return f"Line {line}: {conflict['description']} - {op.get('code', '')}"
         elif conflict['type'] == 'multiple_move_to':
             objects = [op['object'] for op in conflict['operations']]

@@ -4,12 +4,11 @@ import re
 from dataclasses import dataclass, field
 from typing import List
 
-from omegaconf import DictConfig
-
 from ms_agent.agent import CodeAgent
-from ms_agent.llm import Message, LLM
+from ms_agent.llm import LLM, Message
 from ms_agent.llm.openai_llm import OpenAI
 from ms_agent.utils import get_logger
+from omegaconf import DictConfig
 
 logger = get_logger(__name__)
 
@@ -36,14 +35,36 @@ class Segment(CodeAgent):
 
     @staticmethod
     def create_patterns():
-        patterns = [Pattern(name='formula', pattern=r'<formula>(.*?)</formula>', tags=['<formula>', '</formula>']),
-                    Pattern(name='code', pattern=r'<code>(.*?)</code>', tags=['<code>', '</code>']),
-                    Pattern(name='chart', pattern=r'<chart>(.*?)</chart>', tags=['<chart>', '</chart>']),
-                    Pattern(name='definition', pattern=r'<definition>(.*?)</definition>',
-                            tags=['<definition>', '</definition>']),
-                    Pattern(name='theorem', pattern=r'<theorem>(.*?)</theorem>', tags=['<theorem>', '</theorem>']),
-                    Pattern(name='example', pattern=r'<example>(.*?)</example>', tags=['<example>', '</example>']),
-                    Pattern(name='emphasis', pattern=r'<emphasis>(.*?)</emphasis>', tags=['<emphasis>', '</emphasis>'])]
+        patterns = [
+            Pattern(
+                name='formula',
+                pattern=r'<formula>(.*?)</formula>',
+                tags=['<formula>', '</formula>']),
+            Pattern(
+                name='code',
+                pattern=r'<code>(.*?)</code>',
+                tags=['<code>', '</code>']),
+            Pattern(
+                name='chart',
+                pattern=r'<chart>(.*?)</chart>',
+                tags=['<chart>', '</chart>']),
+            Pattern(
+                name='definition',
+                pattern=r'<definition>(.*?)</definition>',
+                tags=['<definition>', '</definition>']),
+            Pattern(
+                name='theorem',
+                pattern=r'<theorem>(.*?)</theorem>',
+                tags=['<theorem>', '</theorem>']),
+            Pattern(
+                name='example',
+                pattern=r'<example>(.*?)</example>',
+                tags=['<example>', '</example>']),
+            Pattern(
+                name='emphasis',
+                pattern=r'<emphasis>(.*?)</emphasis>',
+                tags=['<emphasis>', '</emphasis>'])
+        ]
         return patterns
 
     async def run(self, inputs, **kwargs):
@@ -73,14 +94,18 @@ class Segment(CodeAgent):
 
         if async_tasks:
             results = await asyncio.gather(*async_tasks)
-            for (index, parent_segment), subsegments in zip(task_indices, results):
+            for (index,
+                 parent_segment), subsegments in zip(task_indices, results):
                 processed_subsegments = []
                 for subseg_dict in subsegments:
                     if subseg_dict['content'].strip():
                         processed_subsegments.append({
-                            'content': subseg_dict['content'].strip(),
-                            'type': 'text',
-                            'parent_segment': parent_segment
+                            'content':
+                            subseg_dict['content'].strip(),
+                            'type':
+                            'text',
+                            'parent_segment':
+                            parent_segment
                         })
                 final_segments[index] = processed_subsegments
 
@@ -95,7 +120,7 @@ class Segment(CodeAgent):
 
     async def split_text_by_punctuation(self, text):
         text = re.sub(r'\s+', ' ', text).strip()
-        prompt = f"""Please intelligently segment the text into sentences, ensuring:
+        prompt = """Please intelligently segment the text into sentences, ensuring:
 1. Each sentence is semantically complete without breaking the logic
 2. Punctuation marks remain at the end of sentences and are not separated
 3. Each sentence has moderate length: at least 10-15 characters, maximum 35-40 characters
@@ -110,7 +135,7 @@ Sentence 3
 
 MANDATORY: Only return split sentences, DO NOT contain any thinking logics or prefixes like `Here is the list...`.
 
-Here is the original text:"""
+Here is the original text:""" # noqa
         messages = [
             Message(role='system', content=prompt),
             Message(role='user', content=text),

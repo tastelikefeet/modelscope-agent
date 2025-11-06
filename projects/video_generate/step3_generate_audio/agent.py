@@ -2,12 +2,11 @@ import os
 from dataclasses import dataclass, field
 from typing import List
 
-from omegaconf import DictConfig, OmegaConf
-
 from ms_agent.agent import CodeAgent
 from ms_agent.llm import LLM
 from ms_agent.llm.openai_llm import OpenAI
 from ms_agent.utils import get_logger
+from omegaconf import DictConfig, OmegaConf
 
 logger = get_logger(__name__)
 
@@ -108,4 +107,3 @@ class GenerateAudio(CodeAgent):
         else:
             await self.create_silent_audio(audio_path, duration=2.0)
             segment['audio_duration'] = 2.0
-

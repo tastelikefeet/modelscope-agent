@@ -2,12 +2,11 @@ import os
 import re
 from typing import List
 
-from PIL import Image, ImageDraw, ImageFont
-from omegaconf import DictConfig
-
 from ms_agent.agent.base import Agent
 from ms_agent.llm import LLM, Message
 from ms_agent.llm.openai_llm import OpenAI
+from omegaconf import DictConfig
+from PIL import Image, ImageDraw, ImageFont
 
 
 class GenerateSubtitle(Agent):
@@ -35,11 +34,12 @@ class GenerateSubtitle(Agent):
                 parts = self._split_subtitles(text, max_chars=30)
                 img_list = []
                 for idx_p, part in enumerate(parts):
-                    subtitle = await self.translate_text(part, self.subtitle_lang)
+                    subtitle = await self.translate_text(
+                        part, self.subtitle_lang)
                     output_file = os.path.join(
                         subtitle_dir,
                         f'bilingual_subtitle_{i + 1}_{idx_p + 1}.png')
-                    _h = self.create_bilingual_subtitle_image(
+                    self.create_bilingual_subtitle_image(
                         source=part,
                         target=subtitle,
                         output_file=output_file,
@@ -47,14 +47,14 @@ class GenerateSubtitle(Agent):
                         height=120)
                     img_list.append(output_file)
                 context['subtitle_segments_list'].append(img_list)
-                context['subtitle_paths'].append(img_list[0] if img_list else None)
+                context['subtitle_paths'].append(
+                    img_list[0] if img_list else None)
             else:
                 text = seg.get('content', '')
                 subtitle = await self.translate_text(text, self.subtitle_lang)
-                output_file = os.path.join(
-                    subtitle_dir,
-                    f'bilingual_subtitle_{i + 1}.png')
-                _h = self.create_bilingual_subtitle_image(
+                output_file = os.path.join(subtitle_dir,
+                                           f'bilingual_subtitle_{i + 1}.png')
+                self.create_bilingual_subtitle_image(
                     source=text,
                     target=subtitle,
                     output_file=output_file,
@@ -97,7 +97,7 @@ class GenerateSubtitle(Agent):
 - Output only the translation result without any explanations.
 
 Now translate:
-"""
+""" # noqa
         messages = [
             Message(role='system', content=prompt),
             Message(role='user', content=text),
@@ -127,7 +127,9 @@ Now translate:
         total_capacity = chars_per_line * max_lines
         if len(text) > total_capacity:
             truncate_pos = total_capacity - 3
-            punctuation = ['。', '！', '？', '；', '，', '、', '.', '!', '?', ';', ',']
+            punctuation = [
+                '。', '！', '？', '；', '，', '、', '.', '!', '?', ';', ','
+            ]
             best_cut = truncate_pos
 
             for i in range(
@@ -209,13 +211,15 @@ Now translate:
         while font_size >= min_font_size:
             if font_size != original_font_size:
                 font = GenerateSubtitle.load_font(font_size)
-            lines = GenerateSubtitle.smart_wrap_text(text, font, width, max_lines=2)
+            lines = GenerateSubtitle.smart_wrap_text(
+                text, font, width, max_lines=2)
             line_height = font_size + 8
             total_text_height = len(lines) * line_height
 
             all_lines_fit = True
             for line in lines:
-                bbox = ImageDraw.Draw(Image.new('RGB', (1, 1))).textbbox((0, 0), line, font=font)
+                bbox = ImageDraw.Draw(Image.new('RGB', (1, 1))).textbbox(
+                    (0, 0), line, font=font)
                 line_width = bbox[2] - bbox[0]
                 if line_width > width * 0.95:
                     all_lines_fit = False
@@ -256,12 +260,12 @@ Now translate:
         zh_font_size = 32
         en_font_size = 22
         zh_en_gap = 6
-        zh_img, zh_height = GenerateSubtitle.create_subtitle_image(source, width, height,
-                                                  zh_font_size, 'black')
+        zh_img, zh_height = GenerateSubtitle.create_subtitle_image(
+            source, width, height, zh_font_size, 'black')
 
         if target.strip():
-            en_img, en_height = GenerateSubtitle.create_subtitle_image(target, width, height,
-                                                      en_font_size, 'gray')
+            en_img, en_height = GenerateSubtitle.create_subtitle_image(
+                target, width, height, en_font_size, 'gray')
             total_height = zh_height + en_height + zh_en_gap
             combined_img = Image.new('RGBA', (width, total_height),
                                      (0, 0, 0, 0))
@@ -275,4 +279,3 @@ Now translate:
 
         final_img.save(output_file)
         return final_height
-

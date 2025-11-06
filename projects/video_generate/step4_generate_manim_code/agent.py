@@ -26,7 +26,7 @@ class GenerateManimCode(CodeAgent):
             content = segment['content']
 
             base_prompt = f"""You are a professional Manim animation expert, creating clear and beautiful educational animations.
-    
+
 **Task**: Create {content_type} type animation
 - Class name: {class_name}
 - Content: {content}
@@ -83,7 +83,8 @@ class GenerateManimCode(CodeAgent):
 
 Please create Manim animation code that meets the above requirements."""
 
-            _response_message = self.llm.generate([Message(role='user', content=prompt)])
+            _response_message = self.llm.generate(
+                [Message(role='user', content=prompt)])
             response = _response_message.content
             if '```python' in response:
                 manim_code = response.split('```python')[1].split('```')[0]
@@ -93,4 +94,3 @@ Please create Manim animation code that meets the above requirements."""
                 manim_code = response
             context['manim_code'].append(manim_code)
         return inputs, context
-
