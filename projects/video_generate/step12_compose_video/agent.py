@@ -1,8 +1,8 @@
 import os
 
-import moviepy.audio.fx.all as afx
-import moviepy.editor as mp
-from moviepy.editor import AudioClip
+import moviepy as afx
+import moviepy as mp
+from moviepy import AudioClip
 from ms_agent.agent.base import Agent
 from ms_agent.utils import get_logger
 from omegaconf import DictConfig

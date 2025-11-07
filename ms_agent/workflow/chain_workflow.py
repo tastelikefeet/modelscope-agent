@@ -87,6 +87,8 @@ class ChainWorkflow(Workflow):
             if isinstance(config, str):
                 init_args['config_dir_or_id'] = os.path.join(
                     self.config.local_dir, config)
+            else:
+                init_args['config'] = config
             init_args['env'] = self.env
             if 'tag' not in init_args:
                 init_args['tag'] = task

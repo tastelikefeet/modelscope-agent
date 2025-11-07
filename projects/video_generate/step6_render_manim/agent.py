@@ -4,7 +4,7 @@ import shutil
 import subprocess
 import tempfile
 
-from moviepy.editor import VideoFileClip
+from moviepy import VideoFileClip
 from ms_agent.agent import CodeAgent
 from ms_agent.llm import LLM
 from ms_agent.llm.openai_llm import OpenAI

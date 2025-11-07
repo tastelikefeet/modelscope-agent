@@ -87,10 +87,14 @@ class AgentLoader:
             subdir = os.path.join(local_dir, subdir)  # noqa
         if local_dir not in sys.path:
             sys.path.insert(0, local_dir)
+        subdir_inserted = False
         if subdir and subdir not in sys.path:
             sys.path.insert(0, subdir)
+            subdir_inserted = True
         if code_file.endswith('.py'):
             code_file = code_file[:-3]
+        if code_file in sys.modules:
+            del sys.modules[code_file]
         code_module = importlib.import_module(code_file)
         module_classes = {
             name: agent_cls
@@ -107,4 +111,6 @@ class AgentLoader:
                     trust_remote_code=config.trust_remote_code)
                 break
         assert agent_instance is not None, f'Cannot find a proper agent class in the external code file: {code_file}'
+        if subdir_inserted:
+            sys.path.pop(0)
         return agent_instance

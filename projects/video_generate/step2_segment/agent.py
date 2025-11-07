@@ -98,10 +98,10 @@ class Segment(CodeAgent):
                  parent_segment), subsegments in zip(task_indices, results):
                 processed_subsegments = []
                 for subseg_dict in subsegments:
-                    if subseg_dict['content'].strip():
+                    if subseg_dict.strip():
                         processed_subsegments.append({
                             'content':
-                            subseg_dict['content'].strip(),
+                            subseg_dict.strip(),
                             'type':
                             'text',
                             'parent_segment':

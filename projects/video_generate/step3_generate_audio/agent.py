@@ -1,9 +1,10 @@
+import asyncio
 import os
 from dataclasses import dataclass, field
 from typing import List
 
 import edge_tts
-from moviepy.editor import AudioClip, AudioFileClip
+from moviepy import AudioClip, AudioFileClip
 from ms_agent.agent import CodeAgent
 from ms_agent.llm import LLM
 from ms_agent.llm.openai_llm import OpenAI
@@ -41,10 +42,15 @@ class GenerateAudio(CodeAgent):
         subtitle_dir = os.path.join(self.work_dir, 'subtitles')
         os.makedirs(subtitle_dir, exist_ok=True)
 
+        tasks = []
+        audio_paths = []
         for i, segment in enumerate(segments):
             audio_path = os.path.join(tts_dir, f'segment_{i + 1}.mp3')
-            await self.generate_audio(segment, audio_path)
-            context['audio_paths'].append(audio_path)
+            audio_paths.append(audio_path)
+            tasks.append(self.generate_audio(segment, audio_path))
+        await asyncio.gather(*tasks)
+
+        context['audio_paths'] = audio_paths
         return segments, context
 
     @staticmethod
@@ -60,15 +66,15 @@ class GenerateAudio(CodeAgent):
 
     @staticmethod
     async def edge_tts_generate(text, output_file, speaker='male'):
-
         text = text.strip()
         if not text:
             return False
 
-        voices = OmegaConf.load(os.path.join(__file__, 'voices.yaml'))
-        voice, params = voices.get(speaker, voices['male'])
-        rate = params.get('rate', '+0%')
-        pitch = params.get('pitch', '+0Hz')
+        voices = OmegaConf.load(os.path.join(os.path.dirname(__file__), 'voices.yaml'))
+        voice_dict = voices.get(speaker, voices['male'])
+        voice = voice_dict.voice
+        rate = voice_dict.get('rate', '+0%')
+        pitch = voice_dict.get('pitch', '+0Hz')
         output_dir = os.path.dirname(output_file) or '.'
         os.makedirs(output_dir, exist_ok=True)
         communicate = edge_tts.Communicate(
@@ -97,6 +103,7 @@ class GenerateAudio(CodeAgent):
 
     async def generate_audio(self, segment, audio_path):
         tts_text = segment.get('content', '')
+        logger.info(f'Generating audio for {tts_text}')
         if tts_text:
             if await self.edge_tts_generate(tts_text, audio_path):
                 segment['audio_duration'] = self.get_audio_duration(audio_path)
