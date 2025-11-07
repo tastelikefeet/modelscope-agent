@@ -128,3 +128,16 @@ class GenerateImages(CodeAgent):
             logger.info(f'Transparent value: {unique_alpha}')
         else:
             logger.warn(f'Output image is not RGBA mode: {output_img.mode}')
+
+    def save_history(self, messages, **kwargs):
+        messages, context = messages
+        self.config.context = context
+        return super().save_history(messages, **kwargs)
+
+    def read_history(self, messages, **kwargs):
+        _config, _messages = super().read_history(messages, **kwargs)
+        if _config is not None:
+            context = _config['context']
+            return _config, (_messages, context)
+        else:
+            return _config, _messages

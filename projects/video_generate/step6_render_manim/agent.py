@@ -5,6 +5,8 @@ import subprocess
 import tempfile
 
 from moviepy import VideoFileClip
+from omegaconf import DictConfig
+
 from ms_agent.agent import CodeAgent
 from ms_agent.llm import LLM
 from ms_agent.llm.openai_llm import OpenAI
@@ -12,8 +14,12 @@ from ms_agent.llm.openai_llm import OpenAI
 
 class RenderManim(CodeAgent):
 
-    def __init__(self, **kwargs):
-        super().__init__(**kwargs)
+    def __init__(self,
+                 config: DictConfig,
+                 tag: str,
+                 trust_remote_code: bool = False,
+                 **kwargs):
+        super().__init__(config, tag, trust_remote_code, **kwargs)
         self.work_dir = getattr(self.config, 'output_dir', 'output')
         self.animation_mode = getattr(self.config, 'animation_code', 'auto')
         self.llm: OpenAI = LLM.from_config(self.config)
@@ -161,3 +167,16 @@ class RenderManim(CodeAgent):
             return scaled_path
         else:
             return video_path
+
+    def save_history(self, messages, **kwargs):
+        messages, context = messages
+        self.config.context = context
+        return super().save_history(messages, **kwargs)
+
+    def read_history(self, messages, **kwargs):
+        _config, _messages = super().read_history(messages, **kwargs)
+        if _config is not None:
+            context = _config['context']
+            return _config, (_messages, context)
+        else:
+            return _config, _messages

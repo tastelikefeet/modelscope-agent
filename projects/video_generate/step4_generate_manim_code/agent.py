@@ -3,6 +3,9 @@ from omegaconf import DictConfig
 from ms_agent.agent import CodeAgent
 from ms_agent.llm import LLM, Message
 from ms_agent.llm.openai_llm import OpenAI
+from ms_agent.utils import get_logger
+
+logger = get_logger()
 
 
 class GenerateManimCode(CodeAgent):
@@ -86,7 +89,7 @@ class GenerateManimCode(CodeAgent):
 • Avoid overly complex structures
 
 Please create Manim animation code that meets the above requirements."""
-
+            logger.info(f'Generating manim code for: {content}')
             _response_message = self.llm.generate(
                 [Message(role='user', content=prompt)])
             response = _response_message.content
@@ -97,7 +100,7 @@ Please create Manim animation code that meets the above requirements."""
             else:
                 manim_code = response
             context['manim_code'].append(manim_code)
-        return inputs, context
+        return messages, context
 
     def save_history(self, messages, **kwargs):
         messages, context = messages

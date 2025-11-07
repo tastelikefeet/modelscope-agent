@@ -94,3 +94,16 @@ class CreateBackground(Agent):
         image.save(self.bg_path)
         context['background_path'] = self.bg_path
         return messages, context
+
+    def save_history(self, messages, **kwargs):
+        messages, context = messages
+        self.config.context = context
+        return super().save_history(messages, **kwargs)
+
+    def read_history(self, messages, **kwargs):
+        _config, _messages = super().read_history(messages, **kwargs)
+        if _config is not None:
+            context = _config['context']
+            return _config, (_messages, context)
+        else:
+            return _config, _messages
