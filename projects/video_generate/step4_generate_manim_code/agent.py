@@ -29,7 +29,7 @@ class GenerateManimCode(CodeAgent):
                 continue
             content_type = segment['type']
             audio_duration = segment['audio_duration']
-            class_name = f'Scene{i}'
+            class_name = f'Scene{i+1}'
             content = segment['content']
 
             base_prompt = f"""You are a professional Manim animation expert, creating clear and beautiful educational animations.

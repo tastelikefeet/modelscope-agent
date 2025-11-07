@@ -29,12 +29,13 @@ class RenderManim(CodeAgent):
         context['foreground_paths'] = []
         segments = context['segments']
         manim_code = context['manim_code']
-        for i, (segment, code) in enumerate(segments, manim_code):
+        for i, (segment, code) in enumerate(zip(segments, manim_code)):
             if segment['type'] == 'text' and self.animation_mode == 'human':
                 context['foreground_paths'].append(None)
                 continue
             scene_name = f'Scene{i + 1}'
             scene_dir = os.path.join(self.work_dir, f'scene_{i + 1}')
+            os.makedirs(scene_dir, exist_ok=True)
             manim_file = self.render_manim_scene(code, scene_name, scene_dir)
             context['foreground_paths'].append(manim_file)
 
