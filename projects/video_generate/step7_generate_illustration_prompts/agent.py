@@ -31,7 +31,7 @@ class GenerateIllustrationPrompts(CodeAgent):
         self.animation_mode = getattr(self.config, 'animation_code', 'auto')
         self.llm: OpenAI = LLM.from_config(self.config)
 
-    async def run(self, inputs, **kwargs):
+    async def execute_code(self, inputs, **kwargs):
         messages, context = inputs
         segments = context['segments']
         text_segments = [seg for seg in segments if seg.get('type') == 'text']

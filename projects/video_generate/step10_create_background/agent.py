@@ -41,7 +41,7 @@ class CreateBackground(Agent):
 
         return ImageFont.load_default()
 
-    async def run(self, inputs, **kwargs):
+    async def execute_code(self, inputs, **kwargs):
         messages, context = inputs
         topic = context.get('topic')
         width, height = 1920, 1080

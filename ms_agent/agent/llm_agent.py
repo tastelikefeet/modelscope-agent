@@ -79,8 +79,6 @@ class LLMAgent(Agent):
             kwargs.get('mcp_config', {}))
         self.mcp_client = kwargs.get('mcp_client', None)
         self.config_handler = self.register_config_handler()
-        self.output_dir = getattr(self.config, 'output_dir',
-                                  DEFAULT_OUTPUT_DIR)
 
     def register_callback(self, callback: Callback):
         """

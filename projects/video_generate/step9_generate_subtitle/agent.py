@@ -21,7 +21,7 @@ class GenerateSubtitle(Agent):
         self.llm: OpenAI = LLM.from_config(self.config)
         self.subtitle_lang = getattr(self.config, 'subtitle_lang', 'English')
 
-    async def run(self, inputs, **kwargs):
+    async def execute_code(self, inputs, **kwargs):
         messages, context = inputs
         segments = context['segments']
         context['subtitle_segments_list'] = []

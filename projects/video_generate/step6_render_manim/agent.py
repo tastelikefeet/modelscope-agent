@@ -18,7 +18,7 @@ class RenderManim(CodeAgent):
         self.animation_mode = getattr(self.config, 'animation_code', 'auto')
         self.llm: OpenAI = LLM.from_config(self.config)
 
-    async def run(self, inputs, **kwargs):
+    async def execute_code(self, inputs, **kwargs):
         messages, context = inputs
         context['foreground_paths'] = []
         segments = context['segments']

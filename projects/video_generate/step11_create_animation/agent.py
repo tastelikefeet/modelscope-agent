@@ -6,7 +6,7 @@ logger = get_logger()
 
 class HumanAnimation(Agent):
 
-    async def run(self, inputs, **kwargs):
+    async def execute_code(self, inputs, **kwargs):
         logger.warn('HumanAnimationMode not supported for now.')
         # TODO
         return inputs

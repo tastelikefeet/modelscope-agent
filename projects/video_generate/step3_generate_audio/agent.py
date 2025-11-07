@@ -33,7 +33,7 @@ class GenerateAudio(CodeAgent):
         self.work_dir = getattr(self.config, 'output_dir', 'output')
         self.llm: OpenAI = LLM.from_config(self.config)
 
-    async def run(self, inputs, **kwargs):
+    async def execute_code(self, inputs, **kwargs):
         messages, context = inputs
         segments = context['segments']
         context['audio_paths'] = []

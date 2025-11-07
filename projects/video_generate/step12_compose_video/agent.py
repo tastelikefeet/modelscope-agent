@@ -264,7 +264,7 @@ class ComposeVideo(Agent):
             if abs(actual_duration - final_video.duration) >= 1.0:
                 raise RuntimeError('Duration not match')
 
-    async def run(self, inputs, **kwargs):
+    async def execute_code(self, inputs, **kwargs):
         messages, context = inputs
         final_name = 'preview_with_placeholders.mp4' if self.animation_mode == 'human' else 'final_video.mp4'
         final_video_path = os.path.join(self.work_dir, final_name)

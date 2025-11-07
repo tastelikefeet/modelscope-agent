@@ -67,7 +67,7 @@ class Segment(CodeAgent):
         ]
         return patterns
 
-    async def run(self, inputs, **kwargs):
+    async def execute_code(self, inputs, **kwargs):
         messages, context = inputs
         script = None
         with open(os.path.join(self.work_dir, 'script.txt'), 'r') as f:

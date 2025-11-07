@@ -16,7 +16,7 @@ class GenerateManimCode(CodeAgent):
         self.llm: OpenAI = LLM.from_config(self.config)
         self.animation_mode = getattr(self.config, 'animation_code', 'auto')
 
-    async def run(self, inputs, **kwargs):
+    async def execute_code(self, inputs, **kwargs):
         messages, context = inputs
         segments = context['segments']
         context['manim_code'] = []

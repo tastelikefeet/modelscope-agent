@@ -1,5 +1,5 @@
 # Copyright (c) Alibaba, Inc. and its affiliates.
-from typing import List, Union
+from typing import List, Union, Any
 
 from omegaconf import DictConfig
 
@@ -32,8 +32,17 @@ class CodeAgent(Agent):
         Returns:
             The messages to output to the next agent
         """
+        _config = None
+        _messages = None
         if self.load_cache:
-            self._load_cache(inputs)
-        return inputs
+            _config, _messages = self.read_history(inputs)
+        if _config is not None and _messages is not None:
+            self.config = _config
+            return _messages
+        messages = await self.execute_code(inputs, **kwargs)
+        self.save_history(messages, **kwargs)
+        return messages
 
-    def save
+    async def execute_code(self, inputs: Union[str, List[Message]],
+                  **kwargs) -> List[Message]:
+        return inputs

@@ -19,7 +19,7 @@ class FixManimCode(CodeAgent):
         self.max_fix_rounds = getattr(self.config, 'max_fix_rounds', 3)
         self.llm: OpenAI = LLM.from_config(self.config)
 
-    async def run(self, inputs, **kwargs):
+    async def execute_code(self, inputs, **kwargs):
         messages, context = inputs
         for i in range(len(context['manim_code'])):
             code = context['manim_code'][i]
