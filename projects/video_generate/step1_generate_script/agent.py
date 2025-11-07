@@ -38,16 +38,19 @@ Please generate an AI knowledge popularization script suitable for short video n
 4. Strictly prohibited: any form of section headers, structural prompts, column names, easter egg hints, interaction prompts, P.S., completion notes, AI assistant self-descriptions, AI identity declarations, AI writing explanations, AI completion notes, "hope you enjoy", acknowledgments, postscripts, footnotes, author's remarks, AI hints, AI supplements, AI notes, AI explanations, AI summaries, AI conclusions, AI postscripts, "continuing from above", "to be continued", casual interactive endings, interactive endings, etc.
 
 5. Word count between 800-1500 words(around 5 mins speech), with fluent language and coherent content.
+    * Consider the history, future, and significance of the query topic, and narrate it like telling a story.
+    * Mention less of "You", "Me", "Hi", to avoid "the teathing vibe", make the watchers feel playing toys.
 
 6. **Core Style Requirements**: Use relatable, accessible language, combining vivid metaphors, cases, fun interactions, light humor, and moderate use of internet culture. For example:
    - Use everyday examples to explain complex concepts (like using "finding a parking spot" to explain search algorithms)
    - Appropriate internet slang and memes (but moderate, without compromising professionalism)
    - Interesting metaphors and analogies (like comparing neural networks to "the brain's circuit board")
-   - Casual interactive tone (like "Have you ever wondered...", "Actually...")
 
-7. Style should be authoritative, approachable, and highly inspiring to spark audience interest.
+7. Style should be authoritative, approachable, and highly inspiring to spark audience interest, think from bottom to top, treat your watchers know nothing at all before watching your video.
+    * Follow the style specified in the query, if no style, be meme-heavy and humorous. Don't sound like an LLM - write it like friends chatting.
+    * The opening of a short video is crucial - you need to pay attention to how engaging your script's intro is.
 
-8. The ending must be complete, do not cut off.
+8. The ending must be complete, do not cut off, your video is not a demo, it's a masterpiece.
 
 9. Output only the script body, no explanations.
 
@@ -56,7 +59,6 @@ Please generate an AI knowledge popularization script suitable for short video n
 11. You must always provide complete, accurate stories. Do not include fake information, incomplete content, or 'to be continued' placeholders, ensuring it's natural, fluent, vivid, and engaging.
 
 Example Style:
-"Hey, speaking of ..., have you ever thought that it's actually like..." (relatable opening)
 "It's just like when you're looking for a restroom in a mall, AI is that super navigator..." (humorous metaphor)
 "Don't let this simple <formula>E=mc²</formula> fool you, the story behind it is actually quite fascinating..." (smooth transition)
 

@@ -1,6 +1,5 @@
 # Copyright (c) Alibaba, Inc. and its affiliates.
 import asyncio
-
 from ms_agent.llm.utils import Tool
 from ms_agent.tools.base import ToolBase
 from ms_agent.utils.utils import escape_yaml_string
@@ -59,14 +58,20 @@ class SplitTask(ToolBase):
         """
         1. LLMAgent will be used to start subtask
         2. config will be inherited from the parent task
+        3. Supports both parallel and sequential execution modes
         """
         from ms_agent.agent import LLMAgent
+
         tasks = tool_args.get('tasks')
+        execution_mode = tool_args.get('execution_mode', 'sequential')  # 'parallel' or 'sequential'
+
         sub_tasks = []
         for i, task in enumerate(tasks):
             system = task['system']
             query = task['query']
             config = DictConfig(self.config)
+            if not hasattr(config, 'prompt'):
+                config.prompt = DictConfig({})
             config.prompt.system = escape_yaml_string(system)
             trust_remote_code = getattr(config, 'trust_remote_code', False)
             agent = LLMAgent(
@@ -77,13 +82,21 @@ class SplitTask(ToolBase):
             sub_tasks.append(agent.run(query))
 
         result = []
-        for i, t in enumerate(sub_tasks):
-            try:
-                r = await t
-            except Exception as e:
-                r = f'Subtask{i} failed with error: {e}'
-            result.append(r)
-        # result = await asyncio.gather(*sub_tasks)
+        if execution_mode == 'parallel':
+            results = await asyncio.gather(*sub_tasks, return_exceptions=True)
+            for i, r in enumerate(results):
+                if isinstance(r, Exception):
+                    result.append(f'Subtask{i} failed with error: {r}')
+                else:
+                    result.append(r)
+        else:  # sequential
+            for i, t in enumerate(sub_tasks):
+                try:
+                    r = await t
+                    result.append(r)
+                except Exception as e:
+                    result.append(f'Subtask{i} failed with error: {e}')
+
         res = []
         for messages in result:
             if isinstance(messages, list):
@@ -91,10 +104,13 @@ class SplitTask(ToolBase):
                 if len(content) > 2048:
                     content = content[:2048]
             else:
-                content = messages
+                content = str(messages)
             res.append(content)
+
         self.round += 1
-        result = ''
+
+        formatted_result = ''
         for i in range(len(res)):
-            result += f'SplitTask{i}:{res[i]}\n'
-        return result
+            formatted_result += f'SplitTask{i}:{res[i]}\n'
+
+        return formatted_result

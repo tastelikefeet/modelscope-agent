@@ -2,6 +2,8 @@
 from abc import ABC, abstractmethod
 from typing import List
 
+from omegaconf import DictConfig
+
 from ms_agent.llm.utils import Message
 
 
@@ -10,6 +12,7 @@ class Memory(ABC):
 
     def __init__(self, config):
         self.config = config
+        self.base_config = None
 
     @abstractmethod
     async def run(self, messages: List[Message]) -> List[Message]:
@@ -22,3 +25,12 @@ class Memory(ABC):
             The output messages
         """
         pass
+
+    def set_base_config(self, config: DictConfig):
+        """Set the config containing all information
+
+        Args:
+            config(`DictConfig`): The config containing all information
+        """
+        self.base_config = config
+
