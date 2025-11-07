@@ -42,7 +42,6 @@ class FixManimCode(CodeAgent):
     @staticmethod
     def optimize_simple_code(code):
         """Fix spacing issues in code"""
-
         lines = code.split('\n')
         optimized_lines = []
 

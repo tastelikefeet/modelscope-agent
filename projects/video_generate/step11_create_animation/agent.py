@@ -1,10 +1,11 @@
-from ms_agent.agent.base import Agent
+from ms_agent.agent import CodeAgent
+
 from ms_agent.utils import get_logger
 
 logger = get_logger()
 
 
-class HumanAnimation(Agent):
+class HumanAnimation(CodeAgent):
 
     async def execute_code(self, inputs, **kwargs):
         logger.warn('HumanAnimationMode not supported for now.')

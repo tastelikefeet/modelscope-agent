@@ -13,9 +13,10 @@ generation_config:
       provider: b
 
 text2image:
-  model: AIUSERS/jianbihua
-  api_key:
-  base_url: https://api-inference.modelscope.cn
+  t2i_model: AIUSERS/jianbihua
+  t2i_api_key:
+  t2i_base_url: https://api-inference.modelscope.cn
+  t2i_num_parallel: 1
 
 max_chat_round: 20
 

@@ -21,6 +21,7 @@ class GenerateImages(CodeAgent):
                  **kwargs):
         super().__init__(config, tag, trust_remote_code, **kwargs)
         self.work_dir = getattr(self.config, 'output_dir', 'output')
+        self.num_parallel = getattr(self.config.text2image, 't2i_num_parallel', 1)
 
     async def execute_code(self, inputs, **kwargs):
         messages, context = inputs
@@ -28,19 +29,30 @@ class GenerateImages(CodeAgent):
         context['illustration_paths'] = []
         images_dir = os.path.join(self.work_dir, 'images')
         os.makedirs(images_dir, exist_ok=True)
-        for i, prompt in enumerate(illustration_prompts):
-            img_path = os.path.join(images_dir,
-                                    f'illustration_{i + 1}_origin.png')
-            black_img_path = os.path.join(images_dir,
-                                          f'illustration_{i + 1}.png')
-            await self.generate_images(prompt, img_path)
-            self.keep_only_black_for_folder(img_path, black_img_path)
-            context['illustration_paths'].append(black_img_path)
+
+        semaphore = asyncio.Semaphore(self.num_parallel)
+
+        async def process_single_illustration(i, prompt):
+            async with semaphore:
+                img_path = os.path.join(images_dir, f'illustration_{i + 1}_origin.png')
+                black_img_path = os.path.join(images_dir, f'illustration_{i + 1}.png')
+                await self.generate_images(prompt, img_path)
+                self.keep_only_black_for_folder(img_path, black_img_path)
+                return i, black_img_path
+
+        tasks = [process_single_illustration(i, prompt)
+                 for i, prompt in enumerate(illustration_prompts)]
+        results = await asyncio.gather(*tasks)
+
+        results.sort(key=lambda x: x[0])
+        context['illustration_paths'] = [path for _, path in results]
+
+        return messages, context
 
     async def generate_images(self, prompt, img_path, negative_prompt=None):
-        base_url = self.config.text2image.base_url
-        api_key = self.config.text2image.api_key
-        model_id = self.config.text2image.model
+        base_url = self.config.text2image.t2i_base_url.strip('/')
+        api_key = self.config.text2image.t2i_api_key
+        model_id = self.config.text2image.t2i_model
         assert api_key is not None
 
         headers = {
@@ -50,7 +62,7 @@ class GenerateImages(CodeAgent):
 
         async with aiohttp.ClientSession() as session:
             async with session.post(
-                    f'{base_url}v1/images/generations',
+                    f'{base_url}/v1/images/generations',
                     headers={
                         **headers, 'X-ModelScope-Async-Mode': 'true'
                     },
@@ -72,7 +84,7 @@ class GenerateImages(CodeAgent):
                 elapsed_time += poll_interval
 
                 async with session.get(
-                        f'{base_url}v1/tasks/{task_id}',
+                        f'{base_url}/v1/tasks/{task_id}',
                         headers={
                             **headers, 'X-ModelScope-Task-Type':
                             'image_generation'

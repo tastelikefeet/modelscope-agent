@@ -3,7 +3,8 @@ import os
 import moviepy as afx
 import moviepy as mp
 from moviepy import AudioClip
-from ms_agent.agent.base import Agent
+
+from ms_agent.agent import CodeAgent
 from ms_agent.utils import get_logger
 from omegaconf import DictConfig
 from PIL import Image
@@ -11,7 +12,7 @@ from PIL import Image
 logger = get_logger()
 
 
-class ComposeVideo(Agent):
+class ComposeVideo(CodeAgent):
 
     def __init__(self,
                  config: DictConfig,
@@ -69,7 +70,7 @@ class ComposeVideo(Agent):
 
             if background_path and os.path.exists(background_path):
                 bg_clip = mp.ImageClip(background_path, duration=duration)
-                bg_clip = bg_clip.resize((1920, 1080))
+                bg_clip = bg_clip.resized((1920, 1080))
                 current_video_clips.append(bg_clip)
 
             if segment.get('type') == 'text' and i < len(
@@ -88,7 +89,7 @@ class ComposeVideo(Agent):
                 if scale < 1.0:
                     new_w = int(original_w * scale)
                     new_h = int(original_h * scale)
-                    illustration_clip = illustration_clip.resize(
+                    illustration_clip = illustration_clip.resized(
                         (new_w, new_h))
                 else:
                     new_w, new_h = original_w, original_h
@@ -115,7 +116,7 @@ class ComposeVideo(Agent):
 
                     return illustration_pos
 
-                illustration_clip = illustration_clip.set_position(
+                illustration_clip = illustration_clip.with_position(
                     illustration_pos_factory(i, (1920 - new_w) // 2, -new_w,
                                              new_h, start_animation_time,
                                              exit_duration))
@@ -152,7 +153,7 @@ class ComposeVideo(Agent):
                         subtitle_w, subtitle_h = subtitle_img.size
                         subtitle_clip = mp.ImageClip(
                             subtitle_path, duration=seg_duration)
-                        subtitle_clip = subtitle_clip.resize(
+                        subtitle_clip = subtitle_clip.resized(
                             (subtitle_w, subtitle_h))
                         subtitle_y = 850
                         subtitle_clip = subtitle_clip.set_position(
@@ -285,6 +286,7 @@ class ComposeVideo(Agent):
             segments=segments,
             output_path=final_video_path,
             subtitle_segments_list=subtitle_segments_list)
+        return messages, context
 
     def save_history(self, messages, **kwargs):
         messages, context = messages

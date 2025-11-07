@@ -1,8 +1,9 @@
 import os
+from copy import deepcopy
 from typing import List
 
 from ms_agent import LLMAgent
-from ms_agent.llm import Message
+from ms_agent.llm import Message, LLM
 from ms_agent.utils import get_logger
 from omegaconf import DictConfig
 
@@ -74,6 +75,13 @@ Now begin:""" # noqa
         super().__init__(config, tag, trust_remote_code, **kwargs)
         self.work_dir = getattr(self.config, 'output_dir', 'output')
         os.makedirs(self.work_dir, exist_ok=True)
+
+    def prepare_llm(self):
+        """Initialize the LLM model from the configuration."""
+        config = deepcopy(self.config)
+        config.generation_config.temperature = 0.6
+        config.generation_config.top_k = 50
+        self.llm: LLM = LLM.from_config(self.config)
 
     def on_task_end(self, messages: List[Message]):
         filename = os.path.join(self.work_dir, 'script.txt')

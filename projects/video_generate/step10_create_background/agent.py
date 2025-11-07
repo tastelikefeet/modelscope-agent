@@ -1,14 +1,14 @@
 import os
 import textwrap
 
-from ms_agent.agent.base import Agent
+from ms_agent.agent import CodeAgent
 from ms_agent.llm import LLM
 from ms_agent.llm.openai_llm import OpenAI
 from omegaconf import DictConfig
 from PIL import Image, ImageDraw, ImageFont
 
 
-class CreateBackground(Agent):
+class CreateBackground(CodeAgent):
 
     def __init__(self,
                  config: DictConfig,

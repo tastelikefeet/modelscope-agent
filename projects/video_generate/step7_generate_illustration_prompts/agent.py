@@ -40,6 +40,7 @@ class GenerateIllustrationPrompts(CodeAgent):
             for segment in text_segments
         ])
         context['illustration_prompts'] = illustration_prompts
+        return messages, context
 
     async def generate_illustration_prompts(self, segment):
         system_prompt = """You is a scene description expert for AI knowledge science stickman videos. Based on the given knowledge point or storyboard, generate a detailed English description for a minimalist black-and-white stickman illustration with an AI/technology theme. Requirements:
@@ -61,7 +62,7 @@ class GenerateIllustrationPrompts(CodeAgent):
 
         prompt = (
             f'Please generate a detailed English scene description for an AI knowledge science stickman '
-            f'illustration based on: {segment}\nRemember: The illustration must depict only ONE scene, '
+            f'illustration based on: {segment["content"]}\nRemember: The illustration must depict only ONE scene, '
             f'not multiple scenes, not comic panels, not split images. Absolutely do NOT use any comic panels, '
             f'split frames, multiple windows, or any kind of visual separation. '
             f'All elements must be solid black or outlined in black, and all faces must use irregular '

@@ -91,7 +91,7 @@ class GenerateManimCode(CodeAgent):
 Please create Manim animation code that meets the above requirements."""
             logger.info(f'Generating manim code for: {content}')
             _response_message = self.llm.generate(
-                [Message(role='user', content=prompt)])
+                [Message(role='user', content=prompt)], temperature=0.3)
             response = _response_message.content
             if '```python' in response:
                 manim_code = response.split('```python')[1].split('```')[0]
