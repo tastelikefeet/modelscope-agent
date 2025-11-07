@@ -6,7 +6,7 @@ from moviepy import AudioClip
 
 from ms_agent.agent import CodeAgent
 from ms_agent.utils import get_logger
-from omegaconf import DictConfig
+from omegaconf import DictConfig, ListConfig
 from PIL import Image
 
 logger = get_logger()
@@ -135,10 +135,10 @@ class ComposeVideo(CodeAgent):
                 if scale < 1.0:
                     new_w = int(original_w * scale)
                     new_h = int(original_h * scale)
-                    fg_clip = fg_clip.resize((new_w, new_h))
+                    fg_clip = fg_clip.resized((new_w, new_h))
 
-                fg_clip = fg_clip.set_position(('center', 'center'))
-                fg_clip = fg_clip.set_duration(duration)
+                fg_clip = fg_clip.with_position(('center', 'center'))
+                fg_clip = fg_clip.with_duration(duration)
                 current_video_clips.append(fg_clip)
 
             if segment.get('type') != 'text' and i < len(
@@ -156,12 +156,14 @@ class ComposeVideo(CodeAgent):
                         subtitle_clip = subtitle_clip.resized(
                             (subtitle_w, subtitle_h))
                         subtitle_y = 850
-                        subtitle_clip = subtitle_clip.set_position(
+                        subtitle_clip = subtitle_clip.with_position(
                             ('center', subtitle_y))
                         subtitle_clip = subtitle_clip.set_start(idx
                                                                 * seg_duration)
                         current_video_clips.append(subtitle_clip)
             else:
+                if isinstance(subtitle_paths[i], (list, ListConfig)):
+                    subtitle_paths[i] = subtitle_paths[i][0]
                 if i < len(subtitle_paths
                            ) and subtitle_paths[i] and os.path.exists(
                                subtitle_paths[i]):
@@ -169,10 +171,10 @@ class ComposeVideo(CodeAgent):
                     subtitle_w, subtitle_h = subtitle_img.size
                     subtitle_clip = mp.ImageClip(
                         subtitle_paths[i], duration=duration)
-                    subtitle_clip = subtitle_clip.resize(
+                    subtitle_clip = subtitle_clip.resized(
                         (subtitle_w, subtitle_h))
                     subtitle_y = 850
-                    subtitle_clip = subtitle_clip.set_position(
+                    subtitle_clip = subtitle_clip.with_position(
                         ('center', subtitle_y))
                     current_video_clips.append(subtitle_clip)
 
@@ -194,8 +196,8 @@ class ComposeVideo(CodeAgent):
                     zip(audio_paths, segment_durations)):
                 if audio_path and os.path.exists(audio_path):
                     audio_clip = mp.AudioFileClip(audio_path)
-                    audio_clip = audio_clip.set_fps(44100)
-                    audio_clip = audio_clip.set_channels(2)
+                    audio_clip = audio_clip.with_fps(44100)
+                    # audio_clip = audio_clip.set_channels(2)
                     if audio_clip.duration > duration:
                         audio_clip = audio_clip.subclip(0, duration)
                     elif audio_clip.duration < duration:
@@ -203,8 +205,8 @@ class ComposeVideo(CodeAgent):
                         silence = AudioClip(
                             lambda t: [0, 0],
                             duration=duration
-                            - audio_clip.duration).set_fps(44100)
-                        silence = silence.set_channels(2)
+                            - audio_clip.duration).with_fps(44100)
+                        # silence = silence.set_channels(2)
                         audio_clip = mp.concatenate_audioclips(
                             [audio_clip, silence])
                     valid_audio_clips.append(audio_clip)
@@ -223,14 +225,31 @@ class ComposeVideo(CodeAgent):
                     final_audio = mp.concatenate_audioclips(
                         [final_audio, silence])
 
-                final_video = final_video.set_audio(final_audio)
+                final_video = final_video.with_audio(final_audio)
 
             bg_music_path = os.path.join(
-                os.path.dirname(__file__), 'asset', 'bg_audio.mp3')
+                os.path.dirname(__file__), 'bg_audio.mp3')
             if os.path.exists(bg_music_path):
                 bg_music = mp.AudioFileClip(bg_music_path)
-                bg_music = afx.audio_loop(
-                    bg_music, duration=final_video.duration)
+                if bg_music.duration < final_video.duration:
+                    repeat_times = int(final_video.duration / bg_music.duration) + 1
+                    bg_music = mp.concatenate_audioclips([bg_music] * repeat_times)
+                    bg_music = bg_music.subclipped(0, final_video.duration)
+                elif bg_music.duration > final_video.duration:
+                    bg_music = bg_music.subclipped(0, final_video.duration)
+                bg_music = bg_music.with_volume_scaled(0.2)
+                if final_video.audio:
+                    tts_audio = final_video.audio.with_duration(
+                        final_video.duration).with_volume_scaled(1.0)
+                    bg_audio = bg_music.with_duration(
+                        final_video.duration).with_volume_scaled(0.15)
+                    mixed_audio = mp.CompositeAudioClip(
+                        [tts_audio,
+                         bg_audio]).with_duration(final_video.duration)
+                else:
+                    mixed_audio = bg_music.with_duration(
+                        final_video.duration).with_volume_scaled(0.3)
+                final_video = final_video.with_audio(mixed_audio)
 
         assert final_video is not None
         logger.info('Rendering final video...')
@@ -251,7 +270,6 @@ class ComposeVideo(CodeAgent):
             temp_audiofile='temp-audio.m4a',
             remove_temp=True,
             logger=None,
-            verbose=False,
             threads=2,
             bitrate='5000k',
             audio_bitrate='192k',
