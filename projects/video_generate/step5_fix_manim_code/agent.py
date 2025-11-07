@@ -678,3 +678,16 @@ Please return the complete fixed code, ensuring both layout issues are resolved 
             return f"Multiple objects using center() positioning: {', '.join(objects)}"
         else:
             return conflict.get('description', 'Unknown conflict')
+
+    def save_history(self, messages, **kwargs):
+        messages, context = messages
+        self.config.context = context
+        return super().save_history(messages, **kwargs)
+
+    def read_history(self, messages, **kwargs):
+        _config, _messages = super().read_history(messages, **kwargs)
+        if _config is not None:
+            context = _config['context']
+            return _config, (_messages, context)
+        else:
+            return _config, _messages

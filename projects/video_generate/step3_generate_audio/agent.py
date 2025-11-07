@@ -113,3 +113,16 @@ class GenerateAudio(CodeAgent):
         else:
             await self.create_silent_audio(audio_path, duration=2.0)
             segment['audio_duration'] = 2.0
+
+    def save_history(self, messages, **kwargs):
+        messages, context = messages
+        self.config.context = context
+        return super().save_history(messages, **kwargs)
+
+    def read_history(self, messages, **kwargs):
+        _config, _messages = super().read_history(messages, **kwargs)
+        if _config is not None:
+            context = _config['context']
+            return _config, (_messages, context)
+        else:
+            return _config, _messages

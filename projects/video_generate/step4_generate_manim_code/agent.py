@@ -98,3 +98,16 @@ Please create Manim animation code that meets the above requirements."""
                 manim_code = response
             context['manim_code'].append(manim_code)
         return inputs, context
+
+    def save_history(self, messages, **kwargs):
+        messages, context = messages
+        self.config.context = context
+        return super().save_history(messages, **kwargs)
+
+    def read_history(self, messages, **kwargs):
+        _config, _messages = super().read_history(messages, **kwargs)
+        if _config is not None:
+            context = _config['context']
+            return _config, (_messages, context)
+        else:
+            return _config, _messages
