@@ -24,7 +24,7 @@ class GenerateManimCode(CodeAgent):
             if segment['type'] == 'text' and self.animation_mode == 'human':
                 context['manim_code'].append(None)
                 continue
-            content_type = segment['content_type']
+            content_type = segment['type']
             audio_duration = segment['audio_duration']
             class_name = f'Scene{i}'
             content = segment['content']

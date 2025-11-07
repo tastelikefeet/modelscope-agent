@@ -1,6 +1,8 @@
 import re
 from typing import Dict, List
 
+from omegaconf import DictConfig
+
 from ms_agent.agent import CodeAgent
 from ms_agent.llm import LLM, Message
 from ms_agent.llm.openai_llm import OpenAI
@@ -8,8 +10,12 @@ from ms_agent.llm.openai_llm import OpenAI
 
 class FixManimCode(CodeAgent):
 
-    def __init__(self, **kwargs):
-        super().__init__(**kwargs)
+    def __init__(self,
+                 config: DictConfig,
+                 tag: str,
+                 trust_remote_code: bool = False,
+                 **kwargs):
+        super().__init__(config, tag, trust_remote_code, **kwargs)
         self.max_fix_rounds = getattr(self.config, 'max_fix_rounds', 3)
         self.llm: OpenAI = LLM.from_config(self.config)
 

@@ -51,7 +51,7 @@ class GenerateAudio(CodeAgent):
         await asyncio.gather(*tasks)
 
         context['audio_paths'] = audio_paths
-        return segments, context
+        return messages, context
 
     @staticmethod
     async def create_silent_audio(output_path, duration=5.0):
