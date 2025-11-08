@@ -117,8 +117,8 @@ class ComposeVideo(CodeAgent):
                         return illustration_opacity
 
                     illustration_clip = illustration_clip.with_position(('center', (1080 - new_h) // 2))
-                    illustration_clip = illustration_clip.with_effects(
-                        [afx.MultiplyOpacity(illustration_opacity_factory(start_animation_time, exit_duration))]
+                    illustration_clip = illustration_clip.with_opacity(
+                        lambda t: illustration_opacity_factory(start_animation_time, exit_duration)(t)
                     )
                 elif self.transition == 'slide':
                     # Default slide left animation

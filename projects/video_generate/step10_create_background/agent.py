@@ -6,6 +6,9 @@ from ms_agent.llm import LLM
 from ms_agent.llm.openai_llm import OpenAI
 from omegaconf import DictConfig
 from PIL import Image, ImageDraw, ImageFont
+from ms_agent.utils import get_logger
+
+logger = get_logger(__name__)
 
 
 class CreateBackground(CodeAgent):

@@ -6,6 +6,9 @@ from omegaconf import DictConfig
 from ms_agent.agent import CodeAgent
 from ms_agent.llm import LLM, Message
 from ms_agent.llm.openai_llm import OpenAI
+from ms_agent.utils import get_logger
+
+logger = get_logger(__name__)
 
 
 class FixManimCode(CodeAgent):

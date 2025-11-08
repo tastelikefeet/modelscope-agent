@@ -43,6 +43,8 @@ class GenerateImages(CodeAgent):
                 logger.info(f'Generating image for: {prompt}.')
                 img_path = os.path.join(images_dir, f'illustration_{i + 1}_origin.png')
                 output_path = os.path.join(images_dir, f'illustration_{i + 1}.png')
+                if os.path.exists(output_path):
+                    return i, output_path
                 await self.generate_images(prompt, img_path)
                 self.fusion(img_path, output_path)
                 return i, output_path
@@ -76,7 +78,8 @@ class GenerateImages(CodeAgent):
                     json={
                         'model': model_id,
                         'prompt': prompt,
-                        'negative_prompt': negative_prompt or ''
+                        'negative_prompt': negative_prompt or '',
+                        'size': '1664x1664'
                     }) as resp:
                 resp.raise_for_status()
                 task_id = (await resp.json())['task_id']
@@ -149,7 +152,7 @@ class GenerateImages(CodeAgent):
             logger.warn(f'Output image is not RGBA mode: {output_img.mode}')
 
     @staticmethod
-    def edge_fade(input_image, output_image, fade_width=0.2, fade_power=2.0):
+    def edge_fade(input_image, output_image, fade_width=0.4, fade_power=0.3):
         from PIL import Image
         import numpy as np
         img = Image.open(input_image).convert('RGBA')

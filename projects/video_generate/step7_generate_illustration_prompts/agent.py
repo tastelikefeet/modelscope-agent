@@ -48,6 +48,8 @@ class GenerateIllustrationPrompts(CodeAgent):
 - The scene can include rich, relevant, and layered minimalist tech/AI/futuristic elements (e.g., computer, chip, data stream, AI icon, screen, etc.), and simple decorative elements to enhance atmosphere, but do not let elements overlap or crowd together.
 - All elements should be relevant to the main theme and the meaning of the current subtitle segment.
 - You must use the specified style, for example, 'comic', 'realistic', 'line-art'
+- The image output should be a square, and its background should be **pure white**
+- Image content should be simple and uncluttered, with clear individual elements, suitable for embedding into backgrounds with edge fading.
 - Output 80-120 words in English, only the scene description, no style keywords, and only use English text in the image if it is truly needed for the scene."""  # noqa
 
     def __init__(self,
