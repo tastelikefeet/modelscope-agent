@@ -83,7 +83,7 @@ class ComposeVideo(CodeAgent):
                 illustration_clip = mp.ImageClip(
                     illustration_paths[i], duration=duration)
                 original_w, original_h = illustration_clip.size
-                available_w, available_h = 1920, 800
+                available_w, available_h = 1920, 1080
                 scale_w = available_w / original_w
                 scale_h = available_h / original_h
                 scale = min(scale_w, scale_h, 1.0)

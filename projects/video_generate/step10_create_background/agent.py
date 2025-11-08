@@ -26,6 +26,7 @@ class CreateBackground(CodeAgent):
             self.config, 'fonts',
             ['SimHei', 'WenQuanYi Micro Hei', 'Heiti TC', 'Microsoft YaHei'])
         self.slogan = getattr(self.config, 'slogan', [])
+        self.style = getattr(self.config.text2image, 't2i_style', 'realistic')
 
     def get_font(self, size):
         import matplotlib.font_manager as fm
@@ -46,6 +47,8 @@ class CreateBackground(CodeAgent):
 
     async def execute_code(self, inputs, **kwargs):
         messages, context = inputs
+        if self.style != 'line-art':
+            return messages, context
         logger.info(f'Creating background.')
         topic = context.get('topic')
         width, height = 1920, 1080

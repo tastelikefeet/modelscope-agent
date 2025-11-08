@@ -17,9 +17,8 @@ text2image:
   t2i_api_key:
   t2i_base_url: https://api-inference.modelscope.cn
   t2i_num_parallel: 1
-  t2i_transition: fade-in-fade-out
-  t2i_fusion: edge-fade
-  t2i_style: comic
+  t2i_transition: ken-burns-effect
+  t2i_style: realistic
 
 
 max_chat_round: 20
