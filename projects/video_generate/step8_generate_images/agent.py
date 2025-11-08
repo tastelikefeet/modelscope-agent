@@ -34,11 +34,13 @@ class GenerateImages(CodeAgent):
         context['illustration_paths'] = []
         images_dir = os.path.join(self.work_dir, 'images')
         os.makedirs(images_dir, exist_ok=True)
+        logger.info(f'Generating images.')
 
         semaphore = asyncio.Semaphore(self.num_parallel)
 
         async def process_single_illustration(i, prompt):
             async with semaphore:
+                logger.info(f'Generating image for: {prompt}.')
                 img_path = os.path.join(images_dir, f'illustration_{i + 1}_origin.png')
                 output_path = os.path.join(images_dir, f'illustration_{i + 1}.png')
                 await self.generate_images(prompt, img_path)

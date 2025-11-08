@@ -23,6 +23,7 @@ class GenerateManimCode(CodeAgent):
         messages, context = inputs
         segments = context['segments']
         context['manim_code'] = []
+        logger.info(f'Generating manim code.')
         for i, segment in enumerate(segments):
             if segment['type'] == 'text' and self.animation_mode == 'human':
                 context['manim_code'].append(None)

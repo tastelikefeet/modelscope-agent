@@ -28,6 +28,7 @@ class GenerateSubtitle(CodeAgent):
         context['subtitle_paths'] = []
         subtitle_dir = os.path.join(self.work_dir, 'subtitles')
         os.makedirs(subtitle_dir, exist_ok=True)
+        logger.info(f'Generating subtitles.')
         for i, seg in enumerate(segments):
             if seg.get('type') != 'text':
                 text = seg.get('content', '')

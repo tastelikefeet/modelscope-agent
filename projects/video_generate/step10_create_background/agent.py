@@ -43,6 +43,7 @@ class CreateBackground(CodeAgent):
 
     async def execute_code(self, inputs, **kwargs):
         messages, context = inputs
+        logger.info(f'Creating background.')
         topic = context.get('topic')
         width, height = 1920, 1080
         background_color = (255, 255, 255)

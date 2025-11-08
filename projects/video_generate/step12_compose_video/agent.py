@@ -29,6 +29,7 @@ class ComposeVideo(CodeAgent):
                             segments, output_path, subtitle_segments_list):
         segment_durations = []
         total_duration = 0
+        logger.info(f'Composing the final video.')
 
         for i, audio_path in enumerate(audio_paths):
             actual_duration = 3.0

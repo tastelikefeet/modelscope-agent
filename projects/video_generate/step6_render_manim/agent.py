@@ -34,12 +34,14 @@ class RenderManim(CodeAgent):
         context['foreground_paths'] = []
         segments = context['segments']
         manim_code = context['manim_code']
+        logger.info(f'Rendering manim code.')
 
         async def process_segment(i, segment, code):
             if segment['type'] == 'text' and self.animation_mode == 'human':
                 return None
 
             scene_name = f'Scene{i + 1}'
+            logger.info(f'Rendering manim code for: {scene_name}')
             scene_dir = os.path.join(self.work_dir, f'scene_{i + 1}')
             os.makedirs(scene_dir, exist_ok=True)
             manim_file = await self.render_manim_scene(code, scene_name, scene_dir)

@@ -21,6 +21,7 @@ class FixManimCode(CodeAgent):
 
     async def execute_code(self, inputs, **kwargs):
         messages, context = inputs
+        logger.info(f'Fixing manim code.')
         for i in range(len(context['manim_code'])):
             code = context['manim_code'][i]
             code = self.fix_colors_in_code(code)

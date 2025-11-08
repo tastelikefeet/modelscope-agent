@@ -47,6 +47,7 @@ class GenerateAudio(CodeAgent):
         tasks = []
         audio_paths = []
         for i, segment in enumerate(segments):
+            logger.info(f'Generating audio for: {segment.get("content")}')
             audio_path = os.path.join(tts_dir, f'segment_{i + 1}.mp3')
             audio_paths.append(audio_path)
             tasks.append(self.generate_audio(segment, audio_path))

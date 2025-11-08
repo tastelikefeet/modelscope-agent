@@ -67,6 +67,7 @@ class GenerateIllustrationPrompts(CodeAgent):
         messages, context = inputs
         segments = context['segments']
         text_segments = [seg for seg in segments if seg.get('type') == 'text']
+        logger.info(f'Generating illustration prompts.')
         illustration_prompts = await asyncio.gather(*[
             self.generate_illustration_prompts(segment)
             for segment in text_segments
@@ -89,7 +90,7 @@ class GenerateIllustrationPrompts(CodeAgent):
             f'All elements must be together in one open space.')
         colorful_query = f'The style is: {self.style}, illustration based on: {segment["content"]}'
         prompt = line_art_query if self.style == 'line-art' else colorful_query
-
+        logger.info(f'Generating illustration prompt for : {segment["content"]}.')
         inputs = [
             Message(role='system', content=self.system),
             Message(role='user', content=prompt),
