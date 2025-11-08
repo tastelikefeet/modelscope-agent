@@ -100,14 +100,19 @@ class ComposeVideo(CodeAgent):
                 start_animation_time = max(duration - exit_duration, 0)
 
                 if self.transition == 'fade-in-fade-out':
-                    # Fade-in-fade-out animation
+                    # Fade-in-fade-out animation using CrossFadeIn/Out for transparency
                     fade_in_duration = 0.5
                     fade_out_duration = 1.0
                     
+                    # Position the clip
                     illustration_clip = illustration_clip.with_position(
                         ('center', (1080 - new_h) // 2))
-                    illustration_clip = illustration_clip.with_effects(
-                        [vfx.FadeIn(fade_in_duration), vfx.FadeOut(fade_out_duration)])
+                    
+                    # Apply cross-fade effects for smooth transparency transitions
+                    illustration_clip = illustration_clip.with_effects([
+                        vfx.CrossFadeIn(fade_in_duration),
+                        vfx.CrossFadeOut(fade_out_duration)
+                    ])
                 elif self.transition == 'slide':
                     # Default slide left animation
                     def illustration_pos_factory(idx, start_x, end_x, new_h,
