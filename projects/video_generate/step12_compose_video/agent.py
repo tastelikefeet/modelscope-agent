@@ -22,7 +22,7 @@ class ComposeVideo(CodeAgent):
         super().__init__(config, tag, trust_remote_code, **kwargs)
         self.work_dir = getattr(self.config, 'output_dir', 'output')
         self.animation_mode = getattr(self.config, 'animation_code', 'auto')
-        self.transition = getattr(self.config, 't2i_transition', 'fade-in-fade-out')
+        self.transition = getattr(self.config, 't2i_transition', 'ken-burns-effect')
 
     def compose_final_video(self, background_path, foreground_paths,
                             audio_paths, subtitle_paths, illustration_paths,
@@ -99,20 +99,70 @@ class ComposeVideo(CodeAgent):
                 exit_duration = 1.0
                 start_animation_time = max(duration - exit_duration, 0)
 
-                if self.transition == 'fade-in-fade-out':
-                    # Fade-in-fade-out animation using CrossFadeIn/Out for transparency
-                    fade_in_duration = 0.5
-                    fade_out_duration = 1.0
+                if self.transition == 'ken-burns-effect':
+                    # Ken Burns effect: slow zoom-in with pan
+                    zoom_factor = 1.2  # Zoom from 1.0 to 1.2x
                     
-                    # Position the clip
-                    illustration_clip = illustration_clip.with_position(
-                        ('center', (1080 - new_h) // 2))
+                    def ken_burns_factory(idx, new_w, new_h, duration, zoom_factor):
+                        def resize_effect(get_frame, t):
+                            # Calculate zoom progress (0 to 1)
+                            progress = t / duration
+                            current_zoom = 1.0 + (zoom_factor - 1.0) * progress
+                            
+                            # Get original frame
+                            frame = get_frame(t)
+                            from PIL import Image
+                            import numpy as np
+                            
+                            # Convert to PIL for easier manipulation
+                            img = Image.fromarray(frame)
+                            orig_w, orig_h = img.size
+                            
+                            # Calculate zoomed size
+                            zoomed_w = int(orig_w * current_zoom)
+                            zoomed_h = int(orig_h * current_zoom)
+                            
+                            # Resize image - use LANCZOS for better quality
+                            try:
+                                # Try newer Pillow API first
+                                img_zoomed = img.resize((zoomed_w, zoomed_h), Image.Resampling.LANCZOS)
+                            except AttributeError:
+                                # Fallback to older Pillow API (numeric constant)
+                                img_zoomed = img.resize((zoomed_w, zoomed_h), 1)  # 1 = LANCZOS
+                            
+                            # Calculate pan offset (pan from center-left to center-right)
+                            pan_progress = progress
+                            max_offset_x = zoomed_w - orig_w
+                            max_offset_y = zoomed_h - orig_h
+                            
+                            offset_x = int(max_offset_x * pan_progress * 0.5)  # Pan 50% of available space
+                            offset_y = int(max_offset_y * 0.5)  # Center vertically
+                            
+                            # Crop to original size
+                            img_cropped = img_zoomed.crop((
+                                offset_x,
+                                offset_y,
+                                offset_x + orig_w,
+                                offset_y + orig_h
+                            ))
+                            
+                            return np.array(img_cropped)
+                        
+                        return resize_effect
                     
-                    # Apply cross-fade effects for smooth transparency transitions
+                    # Apply Ken Burns effect
+                    illustration_clip = illustration_clip.transform(
+                        ken_burns_factory(i, new_w, new_h, duration, zoom_factor)
+                    )
+                    illustration_clip = illustration_clip.with_position('center')
+                    
+                    # Add fade in/out effects for smooth transitions
+                    fade_duration = min(0.5, duration / 4)
                     illustration_clip = illustration_clip.with_effects([
-                        vfx.CrossFadeIn(fade_in_duration),
-                        vfx.CrossFadeOut(fade_out_duration)
+                        vfx.CrossFadeIn(fade_duration),
+                        vfx.CrossFadeOut(fade_duration)
                     ])
+                    
                 elif self.transition == 'slide':
                     # Default slide left animation
                     def illustration_pos_factory(idx, start_x, end_x, new_h,

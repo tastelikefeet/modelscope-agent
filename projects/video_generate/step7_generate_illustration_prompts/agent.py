@@ -49,7 +49,8 @@ class GenerateIllustrationPrompts(CodeAgent):
 - All elements should be relevant to the main theme and the meaning of the current subtitle segment.
 - You must use the specified style, for example, 'comic', 'realistic', 'line-art'
 - The image output should be a square, and its background should be **pure white**
-- Image content should be simple and uncluttered, with clear individual elements, suitable for embedding into backgrounds with edge fading.
+- Image content should be uncluttered, with clear individual elements
+- The images need to accurately convey the meaning expressed by the text. Later, these images will be combined with text to create educational/knowledge-based videos
 - Output 80-120 words in English, only the scene description, no style keywords, and only use English text in the image if it is truly needed for the scene."""  # noqa
 
     def __init__(self,
