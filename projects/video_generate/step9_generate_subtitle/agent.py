@@ -48,7 +48,7 @@ class GenerateSubtitle(CodeAgent):
                         target=subtitle,
                         output_file=output_file,
                         width=1720,
-                        height=120)
+                        height=180)
                     img_list.append(output_file)
                 context['subtitle_segments_list'].append(img_list)
                 context['subtitle_paths'].append(
@@ -63,7 +63,7 @@ class GenerateSubtitle(CodeAgent):
                     target=subtitle,
                     output_file=output_file,
                     width=1720,
-                    height=120)
+                    height=180)
                 context['subtitle_segments_list'].append(output_file)
                 context['subtitle_paths'].append([output_file])
         return messages, context
@@ -208,8 +208,8 @@ Now translate:
                               text_color='black',
                               bg_color='rgba(0,0,0,0)'):
         font = GenerateSubtitle.load_font(font_size)
-        min_font_size = 18
-        max_height = 400
+        min_font_size = 24
+        max_height = 500
         original_font_size = font_size
         lines = []
         while font_size >= min_font_size:
@@ -260,10 +260,10 @@ Now translate:
                                         output_file,
                                         target='',
                                         width=1720,
-                                        height=120):
-        zh_font_size = 32
-        en_font_size = 22
-        zh_en_gap = 6
+                                        height=180):
+        zh_font_size = 48
+        en_font_size = 32
+        zh_en_gap = 10
         zh_img, zh_height = GenerateSubtitle.create_subtitle_image(
             source, width, height, zh_font_size, 'black')
 

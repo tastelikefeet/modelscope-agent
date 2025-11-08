@@ -38,7 +38,7 @@ Please generate an AI knowledge popularization script suitable for short video n
 
 4. Strictly prohibited: any form of section headers, structural prompts, column names, easter egg hints, interaction prompts, P.S., completion notes, AI assistant self-descriptions, AI identity declarations, AI writing explanations, AI completion notes, "hope you enjoy", acknowledgments, postscripts, footnotes, author's remarks, AI hints, AI supplements, AI notes, AI explanations, AI summaries, AI conclusions, AI postscripts, "continuing from above", "to be continued", casual interactive endings, interactive endings, etc.
 
-5. Word count between 800-1500 words(around 5 mins speech), with fluent language and coherent content.
+5. Word count between 200 words words(around 1 mins speech), with fluent language and coherent content.
     * Consider the history, future, and significance of the query topic, and narrate it like telling a story.
     * Mention less of "You", "Me", "Hi", to avoid "the teathing vibe", make the watchers feel playing toys.
 
