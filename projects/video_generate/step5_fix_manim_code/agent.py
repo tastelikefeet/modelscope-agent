@@ -23,6 +23,7 @@ class FixManimCode(CodeAgent):
         messages, context = inputs
         for i in range(len(context['manim_code'])):
             code = context['manim_code'][i]
+            code = self.fix_colors_in_code(code)
             if code is None:
                 continue
             for _ in range(self.max_fix_rounds):
@@ -56,6 +57,30 @@ class FixManimCode(CodeAgent):
             optimized_lines.append(line)
 
         return '\n'.join(optimized_lines)
+
+    def fix_colors_in_code(self, code: str) -> str:
+        lines = code.split('\n')
+        fixed_lines = []
+
+        for line in lines:
+            if any(cls in line for cls in ['Text(', 'MathTex(', 'Tex(', 'TexText(']):
+                if 'color=' not in line:
+                    if ')' in line:
+                        parts = line.rsplit(')', 1)
+                        if len(parts) == 2:
+                            if parts[0].strip().endswith(','):
+                                line = parts[0] + ' color=BLACK)' + parts[1]
+                            else:
+                                line = parts[0] + ', color=BLACK)' + parts[1]
+                else:
+                    line = re.sub(r'color=\w+', 'color=BLACK', line)
+                    line = re.sub(r'color=\[.*?\]', 'color=BLACK', line)
+            fixed_lines.append(line)
+        fixed_code = '\n'.join(fixed_lines)
+        if 'BLACK' in fixed_code and 'from manim import' not in fixed_code:
+            fixed_code = 'from manim import *\n\n' + fixed_code
+
+        return fixed_code
 
     async def fix_code(self, analysis):
         fix_prompt = analysis['fix_prompt']

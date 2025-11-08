@@ -40,6 +40,13 @@ class GenerateManimCode(CodeAgent):
 - Duration: {audio_duration} seconds
 - Code language: **Python**
 
+**Color Requirements (CRITICAL)**:
+• ALL text must use BLACK color: Text(..., color=BLACK)
+• ALL math formulas must use BLACK color: MathTex(..., color=BLACK)
+• Do NOT use random colors or color gradients
+• Keep consistent BLACK color throughout the animation
+• Use color=BLACK explicitly for every Text, MathTex, Tex object
+
 **Spatial Constraints (Important)**:
 • Safe area: x∈(-6.5, 6.5), y∈(-3.5, 3.5) (0.5 units from edge)
 • Element spacing: Use buff=0.3 or larger (avoid overlap)
