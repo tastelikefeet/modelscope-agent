@@ -54,6 +54,14 @@ class GenerateManimCode(CodeAgent):
 • Relative positioning: Prioritize next_to(), align_to(), shift()
 • Avoid multiple elements using the same reference point
 
+**Box/Rectangle Size Standards (CRITICAL)**:
+• For diagram boxes: Use consistent dimensions, e.g., width=2.5, height=1.5
+• For labels/text boxes: width=1.5~3.0, height=0.8~1.2
+• For emphasis boxes: width=3.0~4.0, height=1.5~2.0
+• Always specify both width AND height explicitly: Rectangle(width=2.5, height=1.5)
+• Avoid using default sizes - always set explicit dimensions
+• Maintain consistent box sizes within the same diagram level/category
+
 **Layout Suggestions**:
 """
 

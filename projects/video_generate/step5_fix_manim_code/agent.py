@@ -46,7 +46,7 @@ class FixManimCode(CodeAgent):
 
     @staticmethod
     def optimize_simple_code(code):
-        """Fix spacing issues in code"""
+        """Fix spacing issues and normalize box sizes in code"""
         lines = code.split('\n')
         optimized_lines = []
 
@@ -57,6 +57,19 @@ class FixManimCode(CodeAgent):
 
             # Increase buff if too small
             line = re.sub(r'buff=0\.[012](?!\d)', 'buff=0.3', line)
+            
+            # Normalize Rectangle/Square sizes - ensure explicit width and height
+            if 'Rectangle(' in line and 'width=' not in line:
+                # Add default width and height if not specified
+                line = line.replace('Rectangle(', 'Rectangle(width=2.5, height=1.5, ')
+            
+            if 'Square(' in line and 'side_length=' not in line:
+                # Add default side_length if not specified
+                line = line.replace('Square(', 'Square(side_length=1.5, ')
+            
+            # Ensure RoundedRectangle has size specifications
+            if 'RoundedRectangle(' in line and 'width=' not in line:
+                line = line.replace('RoundedRectangle(', 'RoundedRectangle(width=2.5, height=1.5, ')
 
             optimized_lines.append(line)
 
@@ -350,6 +363,25 @@ Please return the complete fixed code, ensuring both layout issues are resolved 
             crowding_issues.append(
                 f'Too many display elements ({total_elements}), may appear crowded'
             )
+        
+        # Check for boxes/rectangles without explicit size specifications
+        size_issues = []
+        for i, line in enumerate(lines, 1):
+            if 'Rectangle(' in line and 'width=' not in line:
+                size_issues.append(
+                    f'Line {i}: Rectangle without explicit width/height - {line.strip()}'
+                )
+            if 'Square(' in line and 'side_length=' not in line:
+                size_issues.append(
+                    f'Line {i}: Square without explicit side_length - {line.strip()}'
+                )
+            if 'RoundedRectangle(' in line and 'width=' not in line:
+                size_issues.append(
+                    f'Line {i}: RoundedRectangle without explicit dimensions - {line.strip()}'
+                )
+        
+        if size_issues:
+            crowding_issues.extend(size_issues)
 
         if crowding_issues:
             issues.append('Layout Crowding:')
