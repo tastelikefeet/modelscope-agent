@@ -121,20 +121,20 @@ class Segment(CodeAgent):
 
     async def split_text_by_punctuation(self, text):
         text = re.sub(r'\s+', ' ', text).strip()
-        prompt = """Please intelligently segment the text into sentences, ensuring:
-1. Each sentence is semantically complete without breaking the logic
-2. Punctuation marks remain at the end of sentences and are not separated
-3. Each sentence has moderate length: at least 10-15 characters, maximum 35-40 characters
-4. Prioritize splitting at natural semantic boundaries (such as before/after conjunctions like: therefore, so, but, moreover, etc.)
-5. Preserve the original meaning
+        prompt = """Split the segment into small paragraphs, where each paragraph will independently have an image, video, or chart. The final images, videos, etc. will be stitched together into a complete short video. Ensuring:
+
+1. Each paragraph is semantically complete without breaking the logic.
+2. Ensure that each paragraph can be clearly explained with a single image, video, chart, or formula, later your paragraph will be used to generate images or chats.
+3. Preserve the original meaning.
+4. Each paragraph takes at most 10 seconds to read aloud at normal speaking speed.
 
 Return a list of sentences, separated by lines, for example:
-Sentence 1
-Sentence 2
-Sentence 3
+Paragraph 1
+Paragraph 2
+Paragraph 3
 ...
 
-MANDATORY: Only return split sentences, DO NOT contain any thinking logics or prefixes like `Here is the list...`.
+MANDATORY: Only return split paragraphs, DO NOT contain any thinking logics or prefixes like `Here is the list...`.
 
 Here is the original text:""" # noqa
         messages = [
