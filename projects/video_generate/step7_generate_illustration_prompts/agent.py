@@ -38,7 +38,7 @@ class GenerateIllustrationPrompts(CodeAgent):
 - All elements should be relevant to the main theme and the meaning of the current subtitle segment.
 - Output 80-120 words in English, only the scene description, no style keywords, and only use English text in the image if it is truly needed for the scene. """  # noqa
 
-    color_prompt: """You are a scene description expert for AI knowledge science videos. Based on the given knowledge point or storyboard, generate a detailed English description for creating an appropriately styled illustration with an AI/technology theme. Requirements:
+    color_prompt = """You are a scene description expert for AI knowledge science videos. Based on the given knowledge point or storyboard, generate a detailed English description for creating an appropriately styled illustration with an AI/technology theme. Requirements:
 
 - The illustration must depict only ONE scene, not multiple scenes, not comic panels, not split images. Absolutely do NOT use any comic panels, split frames, multiple windows, or any kind of visual separation. Each image is a single, unified scene.
 - All elements must appear together in the same space, with no borders, no frames, and no visual separation.
