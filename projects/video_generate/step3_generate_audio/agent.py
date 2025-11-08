@@ -9,7 +9,7 @@ from ms_agent.agent import CodeAgent
 from ms_agent.llm import LLM
 from ms_agent.llm.openai_llm import OpenAI
 from ms_agent.utils import get_logger
-from omegaconf import DictConfig, OmegaConf
+from omegaconf import DictConfig
 
 logger = get_logger(__name__)
 
@@ -32,6 +32,7 @@ class GenerateAudio(CodeAgent):
         super().__init__(config, tag, trust_remote_code, **kwargs)
         self.work_dir = getattr(self.config, 'output_dir', 'output')
         self.llm: OpenAI = LLM.from_config(self.config)
+        self.voices = self.config.voices
 
     async def execute_code(self, inputs, **kwargs):
         messages, context = inputs
@@ -41,6 +42,7 @@ class GenerateAudio(CodeAgent):
         os.makedirs(tts_dir, exist_ok=True)
         subtitle_dir = os.path.join(self.work_dir, 'subtitles')
         os.makedirs(subtitle_dir, exist_ok=True)
+        logger.info(f'Generating audios.')
 
         tasks = []
         audio_paths = []
@@ -64,14 +66,12 @@ class GenerateAudio(CodeAgent):
         audio.write_audiofile(output_path, verbose=False, logger=None)
         audio.close()
 
-    @staticmethod
-    async def edge_tts_generate(text, output_file, speaker='male'):
+    async def edge_tts_generate(self, text, output_file, speaker='aunt'):
         text = text.strip()
         if not text:
             return False
 
-        voices = OmegaConf.load(os.path.join(os.path.dirname(__file__), 'voices.yaml'))
-        voice_dict = voices.get(speaker, voices['male'])
+        voice_dict = self.voices.get(speaker)
         voice = voice_dict.voice
         rate = voice_dict.get('rate', '+0%')
         pitch = voice_dict.get('pitch', '+0Hz')
@@ -105,7 +105,7 @@ class GenerateAudio(CodeAgent):
         tts_text = segment.get('content', '')
         logger.info(f'Generating audio for {tts_text}')
         if tts_text:
-            if await self.edge_tts_generate(tts_text, audio_path):
+            if await self.edge_tts_generate(tts_text, audio_path, self.config.voice):
                 segment['audio_duration'] = self.get_audio_duration(audio_path)
             else:
                 await self.create_silent_audio(audio_path, duration=3.0)

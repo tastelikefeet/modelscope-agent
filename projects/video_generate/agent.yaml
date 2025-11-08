@@ -21,6 +21,37 @@ text2image:
   t2i_fusion: edge-fade
   t2i_style: comic
 
+voice: aunt
+
+voices:
+  male:
+    voice: zh-CN-YunjianNeural
+    rate: '+0%'
+    pitch: '+0Hz'
+
+  female:
+    voice: zh-CN-XiaoxiaoNeural
+    rate: '+5%'
+    pitch: '+30Hz'
+
+  narrator:
+    voice: zh-CN-YunyangNeural
+    rate: '-5%'
+    pitch: '-20Hz'
+
+  uncle:
+    voice: zh-CN-YunyeNeural
+    rate: '-5%'
+    pitch: '-50Hz'
+
+  news:
+    voice: zh-CN-XiaochenMultilingualNeural
+    rate: '+0%'
+
+  aunt:
+    voice: zh-CN-XiaoqiuNeural
+    rate: '+0%'
+
 
 max_chat_round: 20
 

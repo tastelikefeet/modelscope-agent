@@ -10,7 +10,7 @@ from ms_agent.llm.openai_llm import OpenAI
 from ms_agent.utils import get_logger
 from omegaconf import DictConfig
 
-logger = get_logger(__name__)
+logger = get_logger()
 
 
 @dataclass
@@ -73,6 +73,7 @@ class Segment(CodeAgent):
         with open(os.path.join(self.work_dir, 'script.txt'), 'r') as f:
             script = f.read()
         assert script is not None
+        logger.info(f'Segmenting script to sentences.')
         segments = await self.generate_segments(script)
         context['segments'] = segments
         return messages, context
