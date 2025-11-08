@@ -29,8 +29,6 @@ class RenderManim(CodeAgent):
         self.llm: OpenAI = LLM.from_config(self.config)
         self.fix_history = ''
 
-    import asyncio
-
     async def execute_code(self, inputs, **kwargs):
         messages, context = inputs
         context['foreground_paths'] = []

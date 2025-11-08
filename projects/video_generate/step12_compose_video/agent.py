@@ -22,6 +22,7 @@ class ComposeVideo(CodeAgent):
         super().__init__(config, tag, trust_remote_code, **kwargs)
         self.work_dir = getattr(self.config, 'output_dir', 'output')
         self.animation_mode = getattr(self.config, 'animation_code', 'auto')
+        self.transition = getattr(self.config, 't2i_transition', 'fade-in-fade-out')
 
     def compose_final_video(self, background_path, foreground_paths,
                             audio_paths, subtitle_paths, illustration_paths,
@@ -97,29 +98,53 @@ class ComposeVideo(CodeAgent):
                 exit_duration = 1.0
                 start_animation_time = max(duration - exit_duration, 0)
 
-                def illustration_pos_factory(idx, start_x, end_x, new_h,
-                                             start_animation_time,
-                                             exit_duration):
+                if self.transition == 'fade-in-fade-out':
+                    # Fade out animation
+                    def illustration_opacity_factory(start_animation_time,
+                                                     exit_duration):
 
-                    def illustration_pos(t):
-                        y = (1080 - new_h) // 2
-                        if t < start_animation_time:
-                            x = start_x
-                        elif t < start_animation_time + exit_duration:
-                            progress = (t
-                                        - start_animation_time) / exit_duration
-                            progress = min(max(progress, 0), 1)
-                            x = start_x + (end_x - start_x) * progress
-                        else:
-                            x = end_x
-                        return x, y
+                        def illustration_opacity(t):
+                            if t < start_animation_time:
+                                return 1.0
+                            elif t < start_animation_time + exit_duration:
+                                progress = (t - start_animation_time) / exit_duration
+                                progress = min(max(progress, 0), 1)
+                                return 1.0 - progress
+                            else:
+                                return 0.0
 
-                    return illustration_pos
+                        return illustration_opacity
 
-                illustration_clip = illustration_clip.with_position(
-                    illustration_pos_factory(i, (1920 - new_w) // 2, -new_w,
-                                             new_h, start_animation_time,
-                                             exit_duration))
+                    illustration_clip = illustration_clip.with_position(('center', (1080 - new_h) // 2))
+                    illustration_clip = illustration_clip.with_effects(
+                        [afx.MultiplyOpacity(illustration_opacity_factory(start_animation_time, exit_duration))]
+                    )
+                elif self.transition == 'slide':
+                    # Default slide left animation
+                    def illustration_pos_factory(idx, start_x, end_x, new_h,
+                                                 start_animation_time,
+                                                 exit_duration):
+
+                        def illustration_pos(t):
+                            y = (1080 - new_h) // 2
+                            if t < start_animation_time:
+                                x = start_x
+                            elif t < start_animation_time + exit_duration:
+                                progress = (t
+                                            - start_animation_time) / exit_duration
+                                progress = min(max(progress, 0), 1)
+                                x = start_x + (end_x - start_x) * progress
+                            else:
+                                x = end_x
+                            return x, y
+
+                        return illustration_pos
+
+                    illustration_clip = illustration_clip.with_position(
+                        illustration_pos_factory(i, (1920 - new_w) // 2, -new_w,
+                                                 new_h, start_animation_time,
+                                                 exit_duration))
+                
                 current_video_clips.append(illustration_clip)
 
             elif segment.get('type') != 'text' and i < len(
