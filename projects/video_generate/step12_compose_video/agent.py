@@ -2,7 +2,7 @@ import os
 
 import moviepy as afx
 import moviepy as mp
-from moviepy import AudioClip
+from moviepy import AudioClip, vfx
 
 from ms_agent.agent import CodeAgent
 from ms_agent.utils import get_logger
@@ -100,26 +100,14 @@ class ComposeVideo(CodeAgent):
                 start_animation_time = max(duration - exit_duration, 0)
 
                 if self.transition == 'fade-in-fade-out':
-                    # Fade out animation
-                    def illustration_opacity_factory(start_animation_time,
-                                                     exit_duration):
-
-                        def illustration_opacity(t):
-                            if t < start_animation_time:
-                                return 1.0
-                            elif t < start_animation_time + exit_duration:
-                                progress = (t - start_animation_time) / exit_duration
-                                progress = min(max(progress, 0), 1)
-                                return 1.0 - progress
-                            else:
-                                return 0.0
-
-                        return illustration_opacity
-
-                    illustration_clip = illustration_clip.with_position(('center', (1080 - new_h) // 2))
-                    illustration_clip = illustration_clip.with_opacity(
-                        lambda t: illustration_opacity_factory(start_animation_time, exit_duration)(t)
-                    )
+                    # Fade-in-fade-out animation
+                    fade_in_duration = 0.5
+                    fade_out_duration = 1.0
+                    
+                    illustration_clip = illustration_clip.with_position(
+                        ('center', (1080 - new_h) // 2))
+                    illustration_clip = illustration_clip.with_effects(
+                        [vfx.FadeIn(fade_in_duration), vfx.FadeOut(fade_out_duration)])
                 elif self.transition == 'slide':
                     # Default slide left animation
                     def illustration_pos_factory(idx, start_x, end_x, new_h,
