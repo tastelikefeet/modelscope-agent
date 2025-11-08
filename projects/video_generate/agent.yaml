@@ -5,18 +5,22 @@ llm:
   openai_base_url: https://dashscope.aliyuncs.com/compatible-mode/v1
 
 generation_config:
-  temperature: 0.6
-  top_k: 80
+  temperature: 0.3
+  top_k: 50
   max_tokens: 64000
   extra_body:
     dashscope_extend_params:
       provider: b
 
 text2image:
-  t2i_model: AIUSERS/jianbihua
+  t2i_model: MusePublic/Qwen-image
   t2i_api_key:
   t2i_base_url: https://api-inference.modelscope.cn
   t2i_num_parallel: 1
+  t2i_transition: fade-in-fade-out
+  t2i_fusion: edge-fade
+  t2i_style: comic
+
 
 max_chat_round: 20
 

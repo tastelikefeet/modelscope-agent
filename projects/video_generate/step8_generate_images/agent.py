@@ -22,6 +22,11 @@ class GenerateImages(CodeAgent):
         super().__init__(config, tag, trust_remote_code, **kwargs)
         self.work_dir = getattr(self.config, 'output_dir', 'output')
         self.num_parallel = getattr(self.config.text2image, 't2i_num_parallel', 1)
+        self.style = getattr(self.config.text2image, 't2i_style', 'realistic')
+        if self.style == 'line-art':
+            self.fusion = self.keep_only_black_for_folder
+        else:
+            self.fusion = self.edge_fade
 
     async def execute_code(self, inputs, **kwargs):
         messages, context = inputs
@@ -35,10 +40,10 @@ class GenerateImages(CodeAgent):
         async def process_single_illustration(i, prompt):
             async with semaphore:
                 img_path = os.path.join(images_dir, f'illustration_{i + 1}_origin.png')
-                black_img_path = os.path.join(images_dir, f'illustration_{i + 1}.png')
+                output_path = os.path.join(images_dir, f'illustration_{i + 1}.png')
                 await self.generate_images(prompt, img_path)
-                self.keep_only_black_for_folder(img_path, black_img_path)
-                return i, black_img_path
+                self.fusion(img_path, output_path)
+                return i, output_path
 
         tasks = [process_single_illustration(i, prompt)
                  for i, prompt in enumerate(illustration_prompts)]
@@ -140,6 +145,24 @@ class GenerateImages(CodeAgent):
             logger.info(f'Transparent value: {unique_alpha}')
         else:
             logger.warn(f'Output image is not RGBA mode: {output_img.mode}')
+
+    @staticmethod
+    def edge_fade(input_image, output_image, fade_width=0.2, fade_power=2.0):
+        from PIL import Image
+        import numpy as np
+        img = Image.open(input_image).convert('RGBA')
+        width, height = img.size
+        img_array = np.array(img, dtype=np.float32)
+        y_indices, x_indices = np.ogrid[:height, :width]
+        x_dist = np.minimum(x_indices, width - 1 - x_indices) / (width / 2)
+        y_dist = np.minimum(y_indices, height - 1 - y_indices) / (height / 2)
+        edge_dist = np.minimum(x_dist, y_dist)
+        alpha_mask = np.clip(edge_dist / fade_width, 0, 1)
+        alpha_mask = np.power(alpha_mask, 1.0 / fade_power)
+        img_array[:, :, 3] *= alpha_mask
+        result = Image.fromarray(img_array.astype(np.uint8), mode='RGBA')
+        result.save(output_image)
+        return result
 
     def save_history(self, messages, **kwargs):
         messages, context = messages
