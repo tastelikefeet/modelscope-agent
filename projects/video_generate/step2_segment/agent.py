@@ -126,7 +126,7 @@ class Segment(CodeAgent):
 1. Each paragraph is semantically complete without breaking the logic.
 2. Ensure that each paragraph can be clearly explained with a single image, video, chart, or formula, later your paragraph will be used to generate images or chats.
 3. Preserve the original meaning.
-4. Each paragraph takes at most 20 seconds to read aloud at normal speaking speed.
+4. Each paragraph takes at most 10 seconds to read aloud at normal speaking speed.
 5. There will be certain pause intervals between the split paragraphs after they are read aloud, so you need to ensure that your segmentation doesn't create a sense of awkward pauses in the narration.
 
 Return a list of sentences, separated by lines, for example:

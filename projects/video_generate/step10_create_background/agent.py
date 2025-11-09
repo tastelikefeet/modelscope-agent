@@ -47,8 +47,6 @@ class CreateBackground(CodeAgent):
 
     async def execute_code(self, inputs, **kwargs):
         messages, context = inputs
-        if self.style != 'line-art':
-            return messages, context
         logger.info(f'Creating background.')
         topic = context.get('topic')
         width, height = 1920, 1080

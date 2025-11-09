@@ -100,14 +100,16 @@ class ComposeVideo(CodeAgent):
                 start_animation_time = max(duration - exit_duration, 0)
 
                 if self.transition == 'ken-burns-effect':
-                    # Ken Burns effect: slow zoom-in with pan
-                    zoom_factor = 1.2  # Zoom from 1.0 to 1.2x
+                    # Ken Burns effect: smooth and stable zoom-in
+                    zoom_factor = 1.08  # Gentle zoom from 1.0 to 1.08x (reduced from 1.2x)
                     
                     def ken_burns_factory(idx, new_w, new_h, duration, zoom_factor):
                         def resize_effect(get_frame, t):
-                            # Calculate zoom progress (0 to 1)
+                            # Calculate zoom progress with easing (0 to 1)
                             progress = t / duration
-                            current_zoom = 1.0 + (zoom_factor - 1.0) * progress
+                            # Ease-in-out function for smoother animation
+                            eased_progress = progress * progress * (3.0 - 2.0 * progress)
+                            current_zoom = 1.0 + (zoom_factor - 1.0) * eased_progress
                             
                             # Get original frame
                             frame = get_frame(t)
@@ -130,13 +132,13 @@ class ComposeVideo(CodeAgent):
                                 # Fallback to older Pillow API (numeric constant)
                                 img_zoomed = img.resize((zoomed_w, zoomed_h), 1)  # 1 = LANCZOS
                             
-                            # Calculate pan offset (pan from center-left to center-right)
-                            pan_progress = progress
+                            # Keep image centered - no horizontal pan to avoid shake
                             max_offset_x = zoomed_w - orig_w
                             max_offset_y = zoomed_h - orig_h
                             
-                            offset_x = int(max_offset_x * pan_progress * 0.5)  # Pan 50% of available space
-                            offset_y = int(max_offset_y * 0.5)  # Center vertically
+                            # Center the crop area (no panning movement)
+                            offset_x = max_offset_x // 2
+                            offset_y = max_offset_y // 2
                             
                             # Crop to original size
                             img_cropped = img_zoomed.crop((
@@ -157,7 +159,7 @@ class ComposeVideo(CodeAgent):
                     illustration_clip = illustration_clip.with_position('center')
                     
                     # Add fade in/out effects for smooth transitions
-                    fade_duration = min(0.5, duration / 4)
+                    fade_duration = min(0.8, duration / 3)
                     illustration_clip = illustration_clip.with_effects([
                         vfx.CrossFadeIn(fade_duration),
                         vfx.CrossFadeOut(fade_duration)
