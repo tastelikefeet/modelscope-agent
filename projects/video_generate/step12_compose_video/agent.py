@@ -100,70 +100,25 @@ class ComposeVideo(CodeAgent):
                 start_animation_time = max(duration - exit_duration, 0)
 
                 if self.transition == 'ken-burns-effect':
-                    # Ken Burns effect: smooth and stable zoom-in
-                    zoom_factor = 1.08  # Gentle zoom from 1.0 to 1.08x (reduced from 1.2x)
+                    # Ken Burns effect: smooth zoom-in with stable center position
+                    zoom_start = 1.0  # Initial scale
+                    zoom_end = 1.15   # Final scale (15% zoom)
                     
-                    def ken_burns_factory(idx, new_w, new_h, duration, zoom_factor):
-                        def resize_effect(get_frame, t):
-                            # Calculate zoom progress with easing (0 to 1)
-                            progress = t / duration
-                            # Ease-in-out function for smoother animation
-                            eased_progress = progress * progress * (3.0 - 2.0 * progress)
-                            current_zoom = 1.0 + (zoom_factor - 1.0) * eased_progress
-                            
-                            # Get original frame
-                            frame = get_frame(t)
-                            from PIL import Image
-                            import numpy as np
-                            
-                            # Convert to PIL for easier manipulation
-                            img = Image.fromarray(frame)
-                            orig_w, orig_h = img.size
-                            
-                            # Calculate zoomed size
-                            zoomed_w = int(orig_w * current_zoom)
-                            zoomed_h = int(orig_h * current_zoom)
-                            
-                            # Resize image - use LANCZOS for better quality
-                            try:
-                                # Try newer Pillow API first
-                                img_zoomed = img.resize((zoomed_w, zoomed_h), Image.Resampling.LANCZOS)
-                            except AttributeError:
-                                # Fallback to older Pillow API (numeric constant)
-                                img_zoomed = img.resize((zoomed_w, zoomed_h), 1)  # 1 = LANCZOS
-                            
-                            # Keep image centered - no horizontal pan to avoid shake
-                            max_offset_x = zoomed_w - orig_w
-                            max_offset_y = zoomed_h - orig_h
-                            
-                            # Center the crop area (no panning movement)
-                            offset_x = max_offset_x // 2
-                            offset_y = max_offset_y // 2
-                            
-                            # Crop to original size
-                            img_cropped = img_zoomed.crop((
-                                offset_x,
-                                offset_y,
-                                offset_x + orig_w,
-                                offset_y + orig_h
-                            ))
-                            
-                            return np.array(img_cropped)
-                        
-                        return resize_effect
+                    def make_ken_burns(t):
+                        """Create smooth zoom-in effect with easing"""
+                        # Smooth easing function (ease-in-out)
+                        progress = t / duration
+                        # Cubic easing for smooth acceleration/deceleration
+                        eased_progress = progress * progress * (3.0 - 2.0 * progress)
+                        # Calculate current zoom level
+                        current_zoom = zoom_start + (zoom_end - zoom_start) * eased_progress
+                        # Return the new size at time t as a tuple (width, height)
+                        return (int(new_w * current_zoom), int(new_h * current_zoom))
                     
-                    # Apply Ken Burns effect
-                    illustration_clip = illustration_clip.transform(
-                        ken_burns_factory(i, new_w, new_h, duration, zoom_factor)
-                    )
+                    # Apply the zoom effect with resizing over time
+                    illustration_clip = illustration_clip.resized(make_ken_burns)
+                    # Keep image centered and stable throughout the animation
                     illustration_clip = illustration_clip.with_position('center')
-                    
-                    # Add fade in/out effects for smooth transitions
-                    fade_duration = min(0.8, duration / 3)
-                    illustration_clip = illustration_clip.with_effects([
-                        vfx.CrossFadeIn(fade_duration),
-                        vfx.CrossFadeOut(fade_duration)
-                    ])
                     
                 elif self.transition == 'slide':
                     # Default slide left animation
