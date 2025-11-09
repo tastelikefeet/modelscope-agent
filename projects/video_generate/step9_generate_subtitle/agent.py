@@ -113,16 +113,16 @@ Now translate:
     @staticmethod
     def load_font(font_size):
         try:
-            font = ImageFont.truetype('msyh.ttc', font_size)
+            font = ImageFont.truetype('Alibaba-PuHuiTi-Medium.otf', font_size)
         except OSError or ValueError:
             try:
                 font = ImageFont.truetype('arial.ttf', font_size)
             except OSError or ValueError:
-                font = ImageFont.load_default()
+                font = ImageFont.load_default(font_size)
         return font
 
     @staticmethod
-    def smart_wrap_text(text, font, max_width, max_lines=2, chars_per_line=15):
+    def smart_wrap_text(text, font, max_width, max_lines=2, chars_per_line=50):
         """Smart text wrapping with character-based line breaks.
         
         Args:
@@ -130,66 +130,129 @@ Now translate:
             font: PIL ImageFont object
             max_width: Maximum width in pixels
             max_lines: Maximum number of lines
-            chars_per_line: Target characters per line (default 15)
+            chars_per_line: Target characters per line (default 20)
         """
-        lines = []
+        import string
         
-        # Split text into chunks of ~15 characters, respecting punctuation
-        punctuation = ['。', '！', '？', '；', '，', '、', '.', '!', '?', ';', ',']
+        # Define punctuation marks (both Chinese and English)
+        punctuation = string.punctuation + '。！？；，、：""''《》【】（）'
         
-        current_line = ''
-        char_count = 0
+        def is_only_punctuation(s):
+            """Check if string contains only punctuation and whitespace"""
+            return all(c in punctuation or c.isspace() for c in s)
         
-        for i, char in enumerate(text):
-            current_line += char
-            char_count += 1
+        def strip_line_punctuation(s):
+            """Remove punctuation from start and end of line"""
+            punctuation = string.punctuation + '。！？；，、：""''《》【】（）'
+            # Strip trailing punctuation
+            while s and s[-1] in punctuation:
+                s = s[:-1]
+            return s
+        
+        def is_chinese(char):
+            """Check if character is Chinese"""
+            return '\u4e00' <= char <= '\u9fff'
+        
+        def can_break_here(text, pos):
+            """Check if we can break at this position"""
+            if pos >= len(text):
+                return True
+            # Can break at space
+            if text[pos].isspace():
+                return True
+            # Can break after punctuation
+            if pos > 0 and text[pos - 1] in punctuation:
+                return True
+            # Can break between Chinese characters
+            if pos > 0 and is_chinese(text[pos - 1]):
+                return True
+            return False
+        
+        def break_line(text, max_chars):
+            """Break text into lines with smart word breaking"""
+            if len(text) <= max_chars:
+                return [text]
             
-            # Check if we should break the line
-            should_break = False
+            lines = []
+            current_pos = 0
             
-            # Break at punctuation near target length
-            if char in punctuation and char_count >= chars_per_line - 3:
-                should_break = True
-            # Force break at target length if no punctuation found
-            elif char_count >= chars_per_line:
-                should_break = True
-            # Break at punctuation if line is getting long
-            elif char in punctuation and char_count >= chars_per_line * 0.8:
-                should_break = True
-            
-            # Also verify pixel width
-            if should_break or i == len(text) - 1:
-                bbox = ImageDraw.Draw(Image.new('RGB', (1, 1))).textbbox(
-                    (0, 0), current_line, font=font)
-                line_width = bbox[2] - bbox[0]
+            while current_pos < len(text):
+                remaining = text[current_pos:]
                 
-                # If line is too wide, force break earlier
-                if line_width > max_width * 0.95 and len(current_line) > 1:
-                    # Try to break at last punctuation
-                    for j in range(len(current_line) - 1, 0, -1):
-                        if current_line[j] in punctuation:
-                            lines.append(current_line[:j+1].strip())
-                            current_line = current_line[j+1:]
-                            char_count = len(current_line)
-                            break
-                    else:
-                        # No punctuation found, hard break
-                        lines.append(current_line[:-1].strip())
-                        current_line = current_line[-1]
-                        char_count = 1
-                elif should_break:
-                    lines.append(current_line.strip())
-                    current_line = ''
-                    char_count = 0
-                
-                if len(lines) >= max_lines:
+                if len(remaining) <= max_chars:
+                    lines.append(remaining)
                     break
+                
+                # Try to find a good break point
+                break_pos = max_chars
+                found_break = False
+                
+                # Look backward for a natural break point
+                for i in range(max_chars, max(0, max_chars - 10), -1):
+                    if can_break_here(remaining, i):
+                        break_pos = i
+                        found_break = True
+                        break
+                
+                # If no natural break found and we're in a word, add hyphen
+                if not found_break and break_pos < len(remaining):
+                    # Check if we're breaking in the middle of an English word
+                    if (break_pos > 0 and 
+                        remaining[break_pos - 1].isalpha() and 
+                        break_pos < len(remaining) and 
+                        remaining[break_pos].isalpha() and
+                        not is_chinese(remaining[break_pos - 1]) and
+                        not is_chinese(remaining[break_pos])):
+                        # Add hyphen for word break
+                        line = remaining[:break_pos - 1] + '-'
+                        lines.append(line)
+                        current_pos += break_pos - 1
+                        continue
+                
+                # Extract the line
+                line = remaining[:break_pos].rstrip()
+                lines.append(line)
+                current_pos += break_pos
+                
+                # Skip any leading whitespace for the next line
+                while current_pos < len(text) and text[current_pos].isspace():
+                    current_pos += 1
+            
+            return lines
         
-        # Add remaining text
-        if current_line.strip() and len(lines) < max_lines:
-            lines.append(current_line.strip())
+        # Break text into initial lines
+        raw_lines = break_line(text.strip(), chars_per_line)
         
-        return lines[:max_lines]
+        # Post-process lines
+        processed_lines = []
+        for line in raw_lines:
+            # Strip leading/trailing whitespace
+            line = line.strip()
+            
+            # Skip empty lines
+            if not line:
+                continue
+            
+            # Skip lines with only punctuation
+            if is_only_punctuation(line):
+                continue
+            
+            # Remove punctuation from start and end
+            cleaned_line = strip_line_punctuation(line)
+            
+            # Only add non-empty cleaned lines
+            if cleaned_line.strip():
+                processed_lines.append(cleaned_line.strip())
+        
+        # Limit to max_lines
+        if len(processed_lines) > max_lines:
+            processed_lines = processed_lines[:max_lines]
+        
+        # If no valid lines, return original text as fallback
+        if not processed_lines:
+            processed_lines = [text.strip()]
+        
+        return processed_lines
 
     @staticmethod
     def create_subtitle_image(text,
@@ -198,9 +261,9 @@ Now translate:
                               font_size=28,
                               text_color='black',
                               bg_color='rgba(0,0,0,0)',
-                              chars_per_line=15):
+                              chars_per_line=50):
         font = GenerateSubtitle.load_font(font_size)
-        min_font_size = 28  # Increased from 24 to maintain larger minimum size
+        min_font_size = 18
         max_height = 500
         original_font_size = font_size
         lines = []
@@ -209,7 +272,7 @@ Now translate:
                 font = GenerateSubtitle.load_font(font_size)
             lines = GenerateSubtitle.smart_wrap_text(
                 text, font, width, max_lines=2, chars_per_line=chars_per_line)
-            line_height = font_size + 15  # Increased spacing from 8 to 15
+            line_height = font_size + 8
             total_text_height = len(lines) * line_height
 
             all_lines_fit = True
@@ -228,12 +291,12 @@ Now translate:
             else:
                 font_size = int(font_size * 0.9)
 
-        line_height = font_size + 15  # Increased spacing
+        line_height = font_size + 8
         total_text_height = len(lines) * line_height
-        actual_height = total_text_height + 20  # Increased padding from 16 to 20
+        actual_height = total_text_height + 16
         img = Image.new('RGBA', (width, actual_height), bg_color)
         draw = ImageDraw.Draw(img)
-        y_start = 10  # Increased from 8 to 10
+        y_start = 8
         for i, line in enumerate(lines):
             if not line.strip():
                 continue
@@ -253,18 +316,17 @@ Now translate:
                                         target='',
                                         width=1720,
                                         height=180):
-        # Significantly increased font sizes for better readability
-        zh_font_size = 68  # Increased from 48 to 68
-        en_font_size = 44  # Increased from 32 to 44
-        zh_en_gap = 12  # Increased gap from 10 to 12
-        chars_per_line = 15  # Target 15 characters per line
+        zh_font_size = 32
+        en_font_size = 22
+        zh_en_gap = 6
+        chars_per_line = 50
         
         zh_img, zh_height = GenerateSubtitle.create_subtitle_image(
             source, width, height, zh_font_size, 'black', chars_per_line=chars_per_line)
 
         if target.strip():
             # For English, allow more characters per line due to narrower chars
-            en_chars_per_line = 25
+            en_chars_per_line = 100
             en_img, en_height = GenerateSubtitle.create_subtitle_image(
                 target, width, height, en_font_size, 'gray', chars_per_line=en_chars_per_line)
             total_height = zh_height + en_height + zh_en_gap
