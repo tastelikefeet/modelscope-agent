@@ -122,83 +122,74 @@ Now translate:
         return font
 
     @staticmethod
-    def smart_wrap_text(text, font, max_width, max_lines=2):
+    def smart_wrap_text(text, font, max_width, max_lines=2, chars_per_line=15):
+        """Smart text wrapping with character-based line breaks.
+        
+        Args:
+            text: Text to wrap
+            font: PIL ImageFont object
+            max_width: Maximum width in pixels
+            max_lines: Maximum number of lines
+            chars_per_line: Target characters per line (default 15)
+        """
         lines = []
-
-        sample_char_width = ImageDraw.Draw(Image.new('RGB', (1, 1))).textbbox(
-            (0, 0), '中', font=font)[2]
-        chars_per_line = int((max_width * 0.9) // sample_char_width)
-        total_capacity = chars_per_line * max_lines
-        if len(text) > total_capacity:
-            truncate_pos = total_capacity - 3
-            punctuation = [
-                '。', '！', '？', '；', '，', '、', '.', '!', '?', ';', ','
-            ]
-            best_cut = truncate_pos
-
-            for i in range(
-                    min(len(text), truncate_pos), max(0, truncate_pos - 20),
-                    -1):
-                if text[i] in punctuation:
-                    best_cut = i + 1
-                    break
-            text = text[:best_cut]
-
-        sentences = re.split(r'([。！？；，、.!?;,])', text)
+        
+        # Split text into chunks of ~15 characters, respecting punctuation
+        punctuation = ['。', '！', '？', '；', '，', '、', '.', '!', '?', ';', ',']
+        
         current_line = ''
-        for part in sentences:
-            if not part.strip():
-                continue
-
-            test_line = current_line + part
-            bbox = ImageDraw.Draw(Image.new('RGB', (1, 1))).textbbox((0, 0),
-                                                                     test_line,
-                                                                     font=font)
-            line_width = bbox[2] - bbox[0]
-            if line_width <= max_width * 0.9 and len(lines) < max_lines:
-                current_line = test_line
-            else:
-                if current_line.strip() and len(lines) < max_lines:
+        char_count = 0
+        
+        for i, char in enumerate(text):
+            current_line += char
+            char_count += 1
+            
+            # Check if we should break the line
+            should_break = False
+            
+            # Break at punctuation near target length
+            if char in punctuation and char_count >= chars_per_line - 3:
+                should_break = True
+            # Force break at target length if no punctuation found
+            elif char_count >= chars_per_line:
+                should_break = True
+            # Break at punctuation if line is getting long
+            elif char in punctuation and char_count >= chars_per_line * 0.8:
+                should_break = True
+            
+            # Also verify pixel width
+            if should_break or i == len(text) - 1:
+                bbox = ImageDraw.Draw(Image.new('RGB', (1, 1))).textbbox(
+                    (0, 0), current_line, font=font)
+                line_width = bbox[2] - bbox[0]
+                
+                # If line is too wide, force break earlier
+                if line_width > max_width * 0.95 and len(current_line) > 1:
+                    # Try to break at last punctuation
+                    for j in range(len(current_line) - 1, 0, -1):
+                        if current_line[j] in punctuation:
+                            lines.append(current_line[:j+1].strip())
+                            current_line = current_line[j+1:]
+                            char_count = len(current_line)
+                            break
+                    else:
+                        # No punctuation found, hard break
+                        lines.append(current_line[:-1].strip())
+                        current_line = current_line[-1]
+                        char_count = 1
+                elif should_break:
                     lines.append(current_line.strip())
-                    current_line = part
-                elif len(lines) >= max_lines:
+                    current_line = ''
+                    char_count = 0
+                
+                if len(lines) >= max_lines:
                     break
+        
+        # Add remaining text
         if current_line.strip() and len(lines) < max_lines:
             lines.append(current_line.strip())
-        final_lines = []
-        for line in lines:
-            if len(final_lines) >= max_lines:
-                break
-
-            bbox = ImageDraw.Draw(Image.new('RGB', (1, 1))).textbbox((0, 0),
-                                                                     line,
-                                                                     font=font)
-            line_width = bbox[2] - bbox[0]
-            if line_width <= max_width * 0.9:
-                final_lines.append(line)
-            else:
-                chars = list(line)
-                temp_line = ''
-                for char in chars:
-                    if len(final_lines) >= max_lines:
-                        break
-
-                    test_line = temp_line + char
-                    bbox = ImageDraw.Draw(Image.new('RGB', (1, 1))).textbbox(
-                        (0, 0), test_line, font=font)
-                    test_width = bbox[2] - bbox[0]
-
-                    if test_width <= max_width * 0.9:
-                        temp_line = test_line
-                    else:
-                        if temp_line and len(final_lines) < max_lines:
-                            final_lines.append(temp_line)
-                        temp_line = char
-
-                if temp_line and len(final_lines) < max_lines:
-                    final_lines.append(temp_line)
-
-        return final_lines[:max_lines]
+        
+        return lines[:max_lines]
 
     @staticmethod
     def create_subtitle_image(text,
@@ -206,9 +197,10 @@ Now translate:
                               height=120,
                               font_size=28,
                               text_color='black',
-                              bg_color='rgba(0,0,0,0)'):
+                              bg_color='rgba(0,0,0,0)',
+                              chars_per_line=15):
         font = GenerateSubtitle.load_font(font_size)
-        min_font_size = 24
+        min_font_size = 28  # Increased from 24 to maintain larger minimum size
         max_height = 500
         original_font_size = font_size
         lines = []
@@ -216,8 +208,8 @@ Now translate:
             if font_size != original_font_size:
                 font = GenerateSubtitle.load_font(font_size)
             lines = GenerateSubtitle.smart_wrap_text(
-                text, font, width, max_lines=2)
-            line_height = font_size + 8
+                text, font, width, max_lines=2, chars_per_line=chars_per_line)
+            line_height = font_size + 15  # Increased spacing from 8 to 15
             total_text_height = len(lines) * line_height
 
             all_lines_fit = True
@@ -236,12 +228,12 @@ Now translate:
             else:
                 font_size = int(font_size * 0.9)
 
-        line_height = font_size + 8
+        line_height = font_size + 15  # Increased spacing
         total_text_height = len(lines) * line_height
-        actual_height = total_text_height + 16
+        actual_height = total_text_height + 20  # Increased padding from 16 to 20
         img = Image.new('RGBA', (width, actual_height), bg_color)
         draw = ImageDraw.Draw(img)
-        y_start = 8
+        y_start = 10  # Increased from 8 to 10
         for i, line in enumerate(lines):
             if not line.strip():
                 continue
@@ -261,15 +253,20 @@ Now translate:
                                         target='',
                                         width=1720,
                                         height=180):
-        zh_font_size = 48
-        en_font_size = 32
-        zh_en_gap = 10
+        # Significantly increased font sizes for better readability
+        zh_font_size = 68  # Increased from 48 to 68
+        en_font_size = 44  # Increased from 32 to 44
+        zh_en_gap = 12  # Increased gap from 10 to 12
+        chars_per_line = 15  # Target 15 characters per line
+        
         zh_img, zh_height = GenerateSubtitle.create_subtitle_image(
-            source, width, height, zh_font_size, 'black')
+            source, width, height, zh_font_size, 'black', chars_per_line=chars_per_line)
 
         if target.strip():
+            # For English, allow more characters per line due to narrower chars
+            en_chars_per_line = 25
             en_img, en_height = GenerateSubtitle.create_subtitle_image(
-                target, width, height, en_font_size, 'gray')
+                target, width, height, en_font_size, 'gray', chars_per_line=en_chars_per_line)
             total_height = zh_height + en_height + zh_en_gap
             combined_img = Image.new('RGBA', (width, total_height),
                                      (0, 0, 0, 0))

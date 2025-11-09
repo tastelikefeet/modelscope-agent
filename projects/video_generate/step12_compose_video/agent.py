@@ -32,15 +32,16 @@ class ComposeVideo(CodeAgent):
         logger.info(f'Composing the final video.')
 
         for i, audio_path in enumerate(audio_paths):
-            actual_duration = 3.0
+            actual_duration = 2.0  # Reduced minimum duration from 3.0 to 2.0 seconds
 
             if audio_path and os.path.exists(audio_path):
                 try:
                     audio_clip = mp.AudioFileClip(audio_path)
-                    actual_duration = max(audio_clip.duration, 3.0)
+                    # Use actual audio duration + small pause, no minimum enforcement
+                    actual_duration = audio_clip.duration + 0.3  # Add 0.3s natural pause between sentences
                     audio_clip.close()
                 except:  # noqa
-                    actual_duration = 3.0
+                    actual_duration = 2.0
 
             if i < len(foreground_paths
                        ) and foreground_paths[i] and os.path.exists(
