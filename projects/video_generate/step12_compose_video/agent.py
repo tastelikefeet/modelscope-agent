@@ -87,15 +87,14 @@ class ComposeVideo(CodeAgent):
                 available_w, available_h = 1920, 1080
                 scale_w = available_w / original_w
                 scale_h = available_h / original_h
-                scale = min(scale_w, scale_h, 1.0)
+                # Use max instead of min to fill the entire screen (cover mode)
+                scale = max(scale_w, scale_h)
 
-                if scale < 1.0:
-                    new_w = int(original_w * scale)
-                    new_h = int(original_h * scale)
-                    illustration_clip = illustration_clip.resized(
-                        (new_w, new_h))
-                else:
-                    new_w, new_h = original_w, original_h
+                # Always resize to fill the screen
+                new_w = int(original_w * scale)
+                new_h = int(original_h * scale)
+                illustration_clip = illustration_clip.resized(
+                    (new_w, new_h))
 
                 exit_duration = 1.0
                 start_animation_time = max(duration - exit_duration, 0)
