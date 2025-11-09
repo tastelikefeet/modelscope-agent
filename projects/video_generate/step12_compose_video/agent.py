@@ -76,11 +76,7 @@ class ComposeVideo(CodeAgent):
                 bg_clip = bg_clip.resized((1920, 1080))
                 current_video_clips.append(bg_clip)
 
-            if segment.get('type') == 'text' and i < len(
-                    illustration_paths
-            ) and illustration_paths[i] and os.path.exists(
-                    illustration_paths[i]):
-
+            if i < len(illustration_paths) and illustration_paths[i] and os.path.exists(illustration_paths[i]):
                 illustration_clip = mp.ImageClip(
                     illustration_paths[i], duration=duration)
                 original_w, original_h = illustration_clip.size
@@ -148,9 +144,7 @@ class ComposeVideo(CodeAgent):
                 
                 current_video_clips.append(illustration_clip)
 
-            elif segment.get('type') != 'text' and i < len(
-                    foreground_paths
-            ) and foreground_paths[i] and os.path.exists(foreground_paths[i]):
+            if i < len(foreground_paths) and foreground_paths[i] and os.path.exists(foreground_paths[i]):
                 fg_clip = mp.VideoFileClip(foreground_paths[i], has_mask=True)
                 original_w, original_h = fg_clip.size
                 available_w, available_h = 1920, 800
@@ -167,7 +161,7 @@ class ComposeVideo(CodeAgent):
                 fg_clip = fg_clip.with_duration(duration)
                 current_video_clips.append(fg_clip)
 
-            if segment.get('type') != 'text' and i < len(
+            if i < len(
                     subtitle_segments_list):
                 subtitle_imgs = subtitle_segments_list[i]
                 if subtitle_imgs and isinstance(
@@ -225,7 +219,7 @@ class ComposeVideo(CodeAgent):
                     audio_clip = audio_clip.with_fps(44100)
                     # audio_clip = audio_clip.set_channels(2)
                     if audio_clip.duration > duration:
-                        audio_clip = audio_clip.subclip(0, duration)
+                        audio_clip = audio_clip.subclipped(0, duration)
                     elif audio_clip.duration < duration:
 
                         silence = AudioClip(
@@ -243,7 +237,7 @@ class ComposeVideo(CodeAgent):
                     f'Audio composing done: {final_audio.duration:.1f} seconds.'
                 )
                 if final_audio.duration > final_video.duration:
-                    final_audio = final_audio.subclip(0, final_video.duration)
+                    final_audio = final_audio.subclipped(0, final_video.duration)
                 elif final_audio.duration < final_video.duration:
                     silence = AudioClip(
                         lambda t: [0, 0],

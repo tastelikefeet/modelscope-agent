@@ -18,7 +18,7 @@ text2image:
   t2i_base_url: https://api-inference.modelscope.cn
   t2i_num_parallel: 1
   t2i_transition: ken-burns-effect
-  t2i_style: realistic
+  t2i_style: Simple hand drawn style, with several clear object
 
 voice: male
 

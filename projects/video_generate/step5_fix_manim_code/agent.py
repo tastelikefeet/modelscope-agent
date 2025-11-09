@@ -27,6 +27,8 @@ class FixManimCode(CodeAgent):
         logger.info(f'Fixing manim code.')
         for i in range(len(context['manim_code'])):
             code = context['manim_code'][i]
+            if code is None:
+                continue
             code = self.fix_colors_in_code(code)
             if code is None:
                 continue

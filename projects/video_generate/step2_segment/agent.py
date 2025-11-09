@@ -1,4 +1,5 @@
 import asyncio
+import json
 import os
 import re
 from dataclasses import dataclass, field
@@ -74,126 +75,54 @@ class Segment(CodeAgent):
             script = f.read()
         assert script is not None
         logger.info(f'Segmenting script to sentences.')
-        segments = await self.generate_segments(script)
+        topic = context['topic']
+        segments = await self.generate_segments(topic, script)
         context['segments'] = segments
+        for segment in segments:
+            assert 'content' in segment
+            assert 'background' in segment
         return messages, context
 
-    async def generate_segments(self, script) -> list:
-        segments = self.parse_structured_content(script)
-        final_segments = []
-        async_tasks = []
-        task_indices = []
+    async def generate_segments(self, topic, script) -> list:
+        segments = self.split_scene(topic, script)
+        return segments
 
-        for segment in segments:
-            if segment['type'] == 'text' and len(segment['content']) > 100:
-                task = self.split_text_by_punctuation(segment['content'])
-                async_tasks.append(task)
-                task_indices.append((len(final_segments), segment))
-                final_segments.append(None)
-            else:
-                final_segments.append(segment)
+    def split_scene(self, topic, script):
+        system = """你是一个动画分镜设计师，现在有一个短视频场景需要设计分镜。分镜需要满足条件：
 
-        if async_tasks:
-            results = await asyncio.gather(*async_tasks)
-            for (index,
-                 parent_segment), subsegments in zip(task_indices, results):
-                processed_subsegments = []
-                for subseg_dict in subsegments:
-                    if subseg_dict.strip():
-                        processed_subsegments.append({
-                            'content':
-                            subseg_dict.strip(),
-                            'type':
-                            'text',
-                            'parent_segment':
-                            parent_segment
-                        })
-                final_segments[index] = processed_subsegments
+1. 每个分镜会携带一段旁白、（最多）一个manim技术动画、一个生成的图片背景和一个字幕
+    * 你可以自由决定manim动画是否存在，如果manim动画不需要，在返回值中可以没有manim这个key
+2. 你的每个分镜如果按正常语速朗读约20秒左右，太短会造成切换的频繁感，太长会显得过于定格
+3. 你需要给每个分镜写出具体的旁白、技术动画的要求，以及背景图片的**细节**要求
+4. 你会被给与一段源台本，你的分镜设计需要根据台本进行，你也可以额外增加一些你觉得有用的信息
+5. 你的返回格式是json格式
 
-        flattened_segments = []
-        for item in final_segments:
-            if isinstance(item, list):
-                flattened_segments.extend(item)
-            else:
-                flattened_segments.append(item)
+一个例子：
+```json
+[
+    {
+        "content": "下面我们来讲解...",
+        "background": "背景图片需要满足色调... 人物... 背景... 视角...",
+        "manim": "图表需要满足... 位置在... ",
+    },
+    ...
+]
+```
 
-        return flattened_segments
-
-    async def split_text_by_punctuation(self, text):
-        text = re.sub(r'\s+', ' ', text).strip()
-        prompt = """Split the segment into small paragraphs, where each paragraph will independently have an image, video, or chart. The final images, videos, etc. will be stitched together into a complete short video. Ensuring:
-
-1. Each paragraph is semantically complete without breaking the logic.
-2. Ensure that each paragraph can be clearly explained with a single image, video, chart, or formula, later your paragraph will be used to generate images or chats.
-3. Preserve the original meaning.
-4. Each paragraph takes at most 10 seconds to read aloud at normal speaking speed.
-5. There will be certain pause intervals between the split paragraphs after they are read aloud, so you need to ensure that your segmentation doesn't create a sense of awkward pauses in the narration.
-
-Return a list of sentences, separated by lines, for example:
-Paragraph 1
-Paragraph 2
-Paragraph 3
-...
-
-MANDATORY: Only return split paragraphs, DO NOT contain any thinking logics or prefixes like `Here is the list...`.
-
-Here is the original text:""" # noqa
-        messages = [
-            Message(role='system', content=prompt),
-            Message(role='user', content=text),
+现在开始：
+"""
+        query = f'原始需求：\n\n{topic}\n\n，原始脚本：\n\n{script}\n\n请根据脚本完成你的设计:'
+        inputs = [
+            Message(role='system', content=system),
+            Message(role='user', content=query),
         ]
-
-        _response_message = self.llm.generate(messages)
-        segments = _response_message.content.split('\n')
-        segments = [s.strip() for s in segments if s.strip()]
-        return segments
-
-    def parse_structured_content(self, script):
-        segments = []
-        current_pos = 0
-
-        all_matches = []
-        for item in self.patterns:
-            for match in re.finditer(item.pattern, script, re.DOTALL):
-                all_matches.append({
-                    'start': match.start(),
-                    'end': match.end(),
-                    'type': item.name,
-                    'content': match.group(1).strip(),
-                    'full_match': match.group(0)
-                })
-
-        all_matches.sort(key=lambda x: x['start'])
-
-        for i, match in enumerate(all_matches):
-            if match['start'] > current_pos:
-                normal_text = script[current_pos:match['start']].strip()
-                if normal_text:
-                    segments.append({'type': 'text', 'content': normal_text})
-
-            context_start = max(0, match['start'] - 100)
-            context_end = min(len(script), match['end'] + 100)
-            surrounding_text = script[context_start:context_end]
-
-            # TODO
-            context_info = None
-
-            segments.append({
-                'type': match['type'],
-                'content': match['content'],
-                'surrounding_text': surrounding_text,
-                'context_info': context_info,
-                'position_in_script': match['start'] / len(script)
-            })
-
-            current_pos = match['end']
-
-        if current_pos < len(script):
-            remaining_text = script[current_pos:].strip()
-            if remaining_text:
-                segments.append({'type': 'text', 'content': remaining_text})
-
-        return segments
+        _response_message = self.llm.generate(inputs)
+        response = _response_message.content
+        if '```json' in response:
+            response = response.split('```json')[1].split('```')[0]
+        elif '```' in response:
+            response = response.split('```')[1].split('```')[0]
+        return json.loads(response)
 
     def save_history(self, messages, **kwargs):
         messages, context = messages

@@ -68,7 +68,7 @@ class GenerateIllustrationPrompts(CodeAgent):
     async def execute_code(self, inputs, **kwargs):
         messages, context = inputs
         segments = context['segments']
-        text_segments = [seg for seg in segments if seg.get('type') == 'text']
+        text_segments = segments
         logger.info(f'Generating illustration prompts.')
         illustration_prompts = await asyncio.gather(*[
             self.generate_illustration_prompts(segment)
@@ -90,7 +90,10 @@ class GenerateIllustrationPrompts(CodeAgent):
             f'are decorative elements floating around or near the stickman, not separate scenes or frames. '
             f'For example, do NOT draw any boxes, lines, or frames that separate parts of the image. '
             f'All elements must be together in one open space.')
-        colorful_query = f'The style is: {self.style}, illustration based on: {segment["content"]}'
+        background = segment['background']
+        colorful_query = (f'The style is: {self.style}, '
+                          f'illustration based on: {segment["content"]}'
+                          f'Requirements from the designer: {background}')
         prompt = line_art_query if self.style == 'line-art' else colorful_query
         logger.info(f'Generating illustration prompt for : {segment["content"]}.')
         inputs = [

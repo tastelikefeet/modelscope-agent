@@ -33,39 +33,18 @@ class GenerateSubtitle(CodeAgent):
         os.makedirs(subtitle_dir, exist_ok=True)
         logger.info(f'Generating subtitles.')
         for i, seg in enumerate(segments):
-            if seg.get('type') != 'text':
-                text = seg.get('content', '')
-                parts = self._split_subtitles(text, max_chars=30)
-                img_list = []
-                for idx_p, part in enumerate(parts):
-                    subtitle = await self.translate_text(
-                        part, self.subtitle_lang)
-                    output_file = os.path.join(
-                        subtitle_dir,
-                        f'bilingual_subtitle_{i + 1}_{idx_p + 1}.png')
-                    self.create_bilingual_subtitle_image(
-                        source=part,
-                        target=subtitle,
-                        output_file=output_file,
-                        width=1720,
-                        height=180)
-                    img_list.append(output_file)
-                context['subtitle_segments_list'].append(img_list)
-                context['subtitle_paths'].append(
-                    img_list[0] if img_list else None)
-            else:
-                text = seg.get('content', '')
-                subtitle = await self.translate_text(text, self.subtitle_lang)
-                output_file = os.path.join(subtitle_dir,
-                                           f'bilingual_subtitle_{i + 1}.png')
-                self.create_bilingual_subtitle_image(
-                    source=text,
-                    target=subtitle,
-                    output_file=output_file,
-                    width=1720,
-                    height=180)
-                context['subtitle_segments_list'].append(output_file)
-                context['subtitle_paths'].append([output_file])
+            text = seg.get('content', '')
+            subtitle = await self.translate_text(text, self.subtitle_lang)
+            output_file = os.path.join(subtitle_dir,
+                                       f'bilingual_subtitle_{i + 1}.png')
+            self.create_bilingual_subtitle_image(
+                source=text,
+                target=subtitle,
+                output_file=output_file,
+                width=1720,
+                height=180)
+            context['subtitle_segments_list'].append(output_file)
+            context['subtitle_paths'].append([output_file])
         return messages, context
 
     @staticmethod

@@ -1,3 +1,5 @@
+import asyncio
+
 from omegaconf import DictConfig
 
 from ms_agent.agent import CodeAgent
@@ -24,20 +26,28 @@ class GenerateManimCode(CodeAgent):
         segments = context['segments']
         context['manim_code'] = []
         logger.info(f'Generating manim code.')
+        tasks = []
         for i, segment in enumerate(segments):
-            if segment['type'] == 'text' and self.animation_mode == 'human':
-                context['manim_code'].append(None)
-                continue
-            content_type = segment['type']
-            audio_duration = segment['audio_duration']
-            class_name = f'Scene{i+1}'
-            content = segment['content']
+            manim_requirement = segment.get('manim')
+            if manim_requirement is not None:
+                tasks.append(self.generate_manim_code(segment, i))
+            else:
+                tasks.append(asyncio.sleep(0, result=None))
+        context['manim_code'] = await asyncio.gather(*tasks)
+        return messages, context
 
-            base_prompt = f"""You are a professional Manim animation expert, creating clear and beautiful educational animations.
+    async def generate_manim_code(self, segment, i):
+        audio_duration = segment['audio_duration']
+        class_name = f'Scene{i + 1}'
+        content = segment['content']
+        manim_requirement = segment.get('manim')
 
-**Task**: Create {content_type} type animation
+        prompt = f"""You are a professional Manim animation expert, creating clear and beautiful educational animations.
+
+**Task**: Create animation
 - Class name: {class_name}
 - Content: {content}
+- Extra requirement: {manim_requirement}
 - Duration: {audio_duration} seconds
 - Code language: **Python**
 
@@ -63,34 +73,29 @@ class GenerateManimCode(CodeAgent):
 • Maintain consistent box sizes within the same diagram level/category
 
 **Layout Suggestions**:
-"""
 
-            # Add specific layout strategy based on type
-            if content_type == 'definition':
-                layout_strategy = """• Title centered and slightly up (UP*2~3)
-                    • Definition content in center area
-                    • Examples or supplementary notes below
-                    • Use clear visual hierarchy"""
+• Content clearly layered
+• Key information highlighted
+• Reasonable use of space
+• Maintain visual balance
 
-            elif content_type == 'example':
-                layout_strategy = """• Example title at top
-                    • Core example in center
-                    • Step-by-step display from top to bottom
-                    • Comparison content arranged left and right"""
+- If rendering a definition:
+    • Title centered and slightly up (UP*2~3)
+    • Definition content in center area
+    • Examples or supplementary notes below
+    • Use clear visual hierarchy
 
-            elif content_type == 'emphasis':
-                layout_strategy = """• Core information centered and prominent
-                    • Supporting content displayed around it
-                    • Use color and size to emphasize key points
-                    • Animation effects enhance expression"""
+- If rendering an example:
+    • Example title at top
+    • Core example in center
+    • Step-by-step display from top to bottom
+    • Comparison content arranged left and right
 
-            else:
-                layout_strategy = """• Content clearly layered
-                    • Key information highlighted
-                    • Reasonable use of space
-                    • Maintain visual balance"""
-
-            prompt = base_prompt + layout_strategy + """
+- If rendering an emphasis:
+    • Core information centered and prominent
+    • Supporting content displayed around it
+    • Use color and size to emphasize key points
+    • Animation effects enhance expression
 
 **Animation Requirements**:
 • Concise and smooth animation effects
@@ -105,18 +110,18 @@ class GenerateManimCode(CodeAgent):
 • Avoid overly complex structures
 
 Please create Manim animation code that meets the above requirements."""
-            logger.info(f'Generating manim code for: {content}')
-            _response_message = self.llm.generate(
-                [Message(role='user', content=prompt)], temperature=0.3)
-            response = _response_message.content
-            if '```python' in response:
-                manim_code = response.split('```python')[1].split('```')[0]
-            elif '```' in response:
-                manim_code = response.split('```')[1].split('```')[0]
-            else:
-                manim_code = response
-            context['manim_code'].append(manim_code)
-        return messages, context
+
+        logger.info(f'Generating manim code for: {content}')
+        _response_message = self.llm.generate(
+            [Message(role='user', content=prompt)], temperature=0.3)
+        response = _response_message.content
+        if '```python' in response:
+            manim_code = response.split('```python')[1].split('```')[0]
+        elif '```' in response:
+            manim_code = response.split('```')[1].split('```')[0]
+        else:
+            manim_code = response
+        return manim_code
 
     def save_history(self, messages, **kwargs):
         messages, context = messages

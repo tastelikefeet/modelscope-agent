@@ -36,14 +36,14 @@ class RenderManim(CodeAgent):
         logger.info(f'Rendering manim code.')
 
         async def process_segment(i, segment, code):
-            if segment['type'] == 'text' and self.animation_mode == 'human':
-                return None
-
             scene_name = f'Scene{i + 1}'
             logger.info(f'Rendering manim code for: {scene_name}')
             scene_dir = os.path.join(self.work_dir, f'scene_{i + 1}')
             os.makedirs(scene_dir, exist_ok=True)
-            manim_file = await self.render_manim_scene(code, scene_name, scene_dir, segment, i)
+            if 'manim' in segment:
+                manim_file = await self.render_manim_scene(code, scene_name, scene_dir, segment, i)
+            else:
+                manim_file = None
             return manim_file
 
         tasks = [
@@ -59,13 +59,15 @@ class RenderManim(CodeAgent):
         class_match = re.search(r'class\s+(\w+)\s*\(Scene\)', code)
         actual_scene_name = class_match.group(1) if class_match else scene_name
         output_path = os.path.join(output_dir, f'{scene_name}.mov')
-        content_type = segment['type']
         audio_duration = segment['audio_duration']
+        manim_requirement = segment.get('manim')
         class_name = f'Scene{i + 1}'
         content = segment['content']
         final_file_path = None
         if os.path.exists(output_path):
             return output_path
+        if manim_requirement is None:
+            return None
         logger.info(f'Rendering scene {actual_scene_name}')
         self.fix_history = ''
         for i in range(5):
@@ -105,7 +107,7 @@ class RenderManim(CodeAgent):
                 ]
 
                 if any([error_indicator in output_text for error_indicator in real_error_indicators]):
-                    code = self.fix_manim_code(output_text, code, content_type, class_name, content, audio_duration)
+                    code = self.fix_manim_code(output_text, code, manim_requirement, class_name, content, audio_duration)
                     continue
 
             for root, dirs, files in os.walk(output_dir):
@@ -127,7 +129,7 @@ class RenderManim(CodeAgent):
                             shutil.copy2(scaled_path, output_path)
                         final_file_path = output_path
             if not final_file_path:
-                code = self.fix_manim_code(output_text, code, content_type, class_name, content, audio_duration)
+                code = self.fix_manim_code(output_text, code, manim_requirement, class_name, content, audio_duration)
             else:
                 break
         if final_file_path:
@@ -135,7 +137,7 @@ class RenderManim(CodeAgent):
         else:
             raise FileNotFoundError
 
-    def fix_manim_code(self, error_log, manim_code, content_type, class_name, content, audio_duration):
+    def fix_manim_code(self, error_log, manim_code, manim_requirement, class_name, content, audio_duration):
         fix_request = f"""You are a professional code debugging specialist. You need to help me fix issues in the code. Error messages will be passed directly to you. You need to carefully examine the problems and provide the correct, complete code.
 {error_log}
 
@@ -146,9 +148,10 @@ class RenderManim(CodeAgent):
 
 {self.fix_history}
 
-**Original code task**: Create {content_type} type manim animation
+**Original code task**: Create manim animation
 - Class name: {class_name}
 - Content: {content}
+- Extra requirement: {manim_requirement}
 - Duration: {audio_duration} seconds
 - Code language: **Python**
 
@@ -219,7 +222,7 @@ Please precisely fix the detected issues while maintaining the richness and crea
         scale_factor = min(scale_x, scale_y, 1.0)
 
         if scale_factor < 0.95:
-            scaled_clip = clip.resize(scale_factor)
+            scaled_clip = clip.resized(scale_factor)
 
             base_path, ext = os.path.splitext(video_path)
             scaled_path = f'{base_path}_scaled{ext}'
