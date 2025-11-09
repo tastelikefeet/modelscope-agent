@@ -1,5 +1,6 @@
 import asyncio
 import os
+import shutil
 from io import BytesIO
 
 import aiohttp
@@ -26,7 +27,7 @@ class GenerateImages(CodeAgent):
         if self.style == 'line-art':
             self.fusion = self.keep_only_black_for_folder
         else:
-            self.fusion = self.edge_fade
+            self.fusion = self.copy
 
     async def execute_code(self, inputs, **kwargs):
         messages, context = inputs
@@ -115,6 +116,10 @@ class GenerateImages(CodeAgent):
                             f'Generate image failed because of error: {data}')
 
                 poll_interval = min(poll_interval * 1.5, max_poll_interval)
+
+    @staticmethod
+    def copy(input_image, output_image):
+        shutil.copy2(input_image, output_image)
 
     @staticmethod
     def keep_only_black_for_folder(input_image, output_image, threshold=80):

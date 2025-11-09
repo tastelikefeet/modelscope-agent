@@ -44,7 +44,7 @@ class RenderManim(CodeAgent):
             logger.info(f'Rendering manim code for: {scene_name}')
             scene_dir = os.path.join(self.work_dir, f'scene_{i + 1}')
             os.makedirs(scene_dir, exist_ok=True)
-            manim_file = await self.render_manim_scene(code, scene_name, scene_dir)
+            manim_file = await self.render_manim_scene(code, scene_name, scene_dir, segment, i)
             return manim_file
 
         tasks = [
@@ -55,11 +55,16 @@ class RenderManim(CodeAgent):
         context['foreground_paths'] = await asyncio.gather(*tasks)
         return messages, context
 
-    async def render_manim_scene(self, code, scene_name, output_dir):
+    async def render_manim_scene(self, code, scene_name, output_dir, segment, i):
         code_file = os.path.join(output_dir, f'{scene_name}.py')
         class_match = re.search(r'class\s+(\w+)\s*\(Scene\)', code)
         actual_scene_name = class_match.group(1) if class_match else scene_name
         output_path = os.path.join(output_dir, f'{scene_name}.mov')
+        content_type = segment['type']
+        audio_duration = segment['audio_duration']
+        class_name = f'Scene{i + 1}'
+        content = segment['content']
+        final_file_path = None
         if os.path.exists(output_path):
             return output_path
         logger.info(f'Rendering scene {actual_scene_name}')
@@ -68,67 +73,70 @@ class RenderManim(CodeAgent):
             with open(code_file, 'w') as f:
                 f.write(code)
 
-            with tempfile.TemporaryDirectory() as temp_dir:
-                env = os.environ.copy()
-                env['PYTHONWARNINGS'] = 'ignore'
-                env['MANIM_DISABLE_OPENCACHING'] = '1'
-                env['PYTHONIOENCODING'] = 'utf-8'
-                env['LANG'] = 'zh_CN.UTF-8'
-                env['LC_ALL'] = 'zh_CN.UTF-8'
+            env = os.environ.copy()
+            env['PYTHONWARNINGS'] = 'ignore'
+            env['MANIM_DISABLE_OPENCACHING'] = '1'
+            env['PYTHONIOENCODING'] = 'utf-8'
+            env['LANG'] = 'zh_CN.UTF-8'
+            env['LC_ALL'] = 'zh_CN.UTF-8'
 
-                cmd = [
-                    'manim', 'render', '-ql', '--transparent', '--format=mov',
-                    '--resolution=1280,720', '--disable_caching',
-                    os.path.basename(code_file), actual_scene_name
+            cmd = [
+                'manim', 'render', '-ql', '--transparent', '--format=mov',
+                '--resolution=1280,720', '--disable_caching',
+                os.path.basename(code_file), actual_scene_name
+            ]
+
+            result = subprocess.run(
+                cmd,
+                cwd=output_dir,
+                capture_output=True,
+                text=True,
+                encoding='utf-8',
+                errors='ignore',
+                timeout=300,
+                env=env)
+
+            output_text = (result.stdout or '') + (result.stderr or '')
+            if result.returncode == 1:
+                real_error_indicators = [
+                    'SyntaxError', 'NameError', 'ImportError',
+                    'AttributeError', 'TypeError', 'ValueError',
+                    'ModuleNotFoundError', 'Traceback', 'Error:',
+                    'Failed to render'
                 ]
 
-                result = subprocess.run(
-                    cmd,
-                    cwd=output_dir,
-                    capture_output=True,
-                    text=True,
-                    encoding='utf-8',
-                    errors='ignore',
-                    timeout=300,
-                    env=env)
+                if any([error_indicator in output_text for error_indicator in real_error_indicators]):
+                    code = self.fix_manim_code(output_text, code, content_type, class_name, content, audio_duration)
+                    continue
 
-                output_text = (result.stdout or '') + (result.stderr or '')
-                if result.returncode == 1:
-                    real_error_indicators = [
-                        'SyntaxError', 'NameError', 'ImportError',
-                        'AttributeError', 'TypeError', 'ValueError',
-                        'ModuleNotFoundError', 'Traceback', 'Error:',
-                        'Failed to render'
-                    ]
+            for root, dirs, files in os.walk(output_dir):
+                for file in files:
+                    if file == f'{actual_scene_name}.mov':
+                        found_file = os.path.join(root, file)
+                        if not RenderManim.verify_and_fix_mov_file(
+                                found_file):
+                            fixed_path = RenderManim.convert_mov_to_compatible(
+                                found_file)
+                            if fixed_path:
+                                found_file = fixed_path
 
-                    has_error = False
-                    if any([error_indicator in output_text for error_indicator in real_error_indicators]):
-                        has_error = True
-                        code = self.fix_manim_code(output_text, code)
-                    if not has_error:
-                        break
+                        shutil.copy2(found_file, output_path)
+                        scaled_path = RenderManim.scale_video_to_fit(
+                            output_path, target_size=(1280, 720))
+                        if scaled_path and scaled_path != output_path:
+                            shutil.rmtree(output_path, ignore_errors=True)
+                            shutil.copy2(scaled_path, output_path)
+                        final_file_path = output_path
+            if not final_file_path:
+                code = self.fix_manim_code(output_text, code, content_type, class_name, content, audio_duration)
+            else:
+                break
+        if final_file_path:
+            return final_file_path
+        else:
+            raise FileNotFoundError
 
-        for root, dirs, files in os.walk(output_dir):
-            for file in files:
-                if file == f'{actual_scene_name}.mov':
-                    found_file = os.path.join(root, file)
-                    if not RenderManim.verify_and_fix_mov_file(
-                            found_file):
-                        fixed_path = RenderManim.convert_mov_to_compatible(
-                            found_file)
-                        if fixed_path:
-                            found_file = fixed_path
-
-                    shutil.copy2(found_file, output_path)
-                    scaled_path = RenderManim.scale_video_to_fit(
-                        output_path, target_size=(1280, 720))
-                    if scaled_path and scaled_path != output_path:
-                        shutil.rmtree(output_path, ignore_errors=True)
-                        shutil.copy2(scaled_path, output_path)
-                    return output_path
-        raise FileNotFoundError
-
-    def fix_manim_code(self, error_log, manim_code):
+    def fix_manim_code(self, error_log, manim_code, content_type, class_name, content, audio_duration):
         fix_request = f"""You are a professional code debugging specialist. You need to help me fix issues in the code. Error messages will be passed directly to you. You need to carefully examine the problems and provide the correct, complete code.
 {error_log}
 
@@ -139,9 +147,14 @@ class RenderManim(CodeAgent):
 
 {self.fix_history}
 
+**Original code task**: Create {content_type} type manim animation
+- Class name: {class_name}
+- Content: {content}
+- Duration: {audio_duration} seconds
+- Code language: **Python**
+
 - Please focus on solving the detected issues
 - If you find other issues, fix them too
-    * 
 - Keep the good parts, do minimum change, only fix problematic areas
 - Ensure no new layout issues are introduced
 - If some issues are difficult to solve, prioritize the most impactful ones
