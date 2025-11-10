@@ -56,8 +56,8 @@ class GenerateManimCode(CodeAgent):
 • Element spacing: Use buff=0.3 or larger (avoid overlap)
 • Relative positioning: Prioritize next_to(), align_to(), shift()
 • Avoid multiple elements using the same reference point
-• Absolutely prevent element spatial overlap or elements going out of bounds.
-• Connection lines between boxes/text are of proper length, with both endpoints attached to the objects.
+• [CRITICAL]Absolutely prevent element spatial overlap or elements going out of bounds.
+• [CRITICAL]Connection lines between boxes/text are of proper length, with both endpoints attached to the objects.
 
 **Box/Rectangle Size Standards**:
 • For diagram boxes: Use consistent dimensions, e.g., Rectangle(width=2.5, height=1.5)
