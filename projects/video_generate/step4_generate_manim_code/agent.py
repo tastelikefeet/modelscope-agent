@@ -127,13 +127,6 @@ class GenerateManimCode(CodeAgent):
 • Clear comments and explanations
 • Avoid overly complex structures
 
-**Critical API Usage Rules**:
-• NEVER use scale_tips parameter - it doesn't exist in Manim
-• Use scale() method without any scale_tips argument
-• Arrow scaling: arrow.scale(2) is correct, arrow.scale(2, scale_tips=True) is WRONG
-• Do NOT pass scale_tips to any scale() method call
-• For tip size changes, use tip_length in Arrow constructor instead
-
 Please create Manim animation code that meets the above requirements."""
 
         logger.info(f'Generating manim code for: {content}')
@@ -146,29 +139,7 @@ Please create Manim animation code that meets the above requirements."""
             manim_code = response.split('```')[1].split('```')[0]
         else:
             manim_code = response
-        
-        # Clean up invalid API usage
-        manim_code = self.clean_invalid_api_usage(manim_code)
-        
         return manim_code
-    
-    @staticmethod
-    def clean_invalid_api_usage(code: str) -> str:
-        """
-        Remove invalid Manim API usage patterns that cause errors.
-        """
-        import re
-        
-        # Remove scale_tips parameter from scale() calls
-        # Matches: .scale(factor, scale_tips=True/False)
-        code = re.sub(r'\.scale\(([^)]+),\s*scale_tips\s*=\s*(?:True|False)\s*\)', r'.scale(\1)', code)
-        
-        # Also handle cases where scale_tips is the only parameter besides the factor
-        # Matches: scale(2, scale_tips=True) -> scale(2)
-        code = re.sub(r'\.scale\(([^,)]+),?\s*scale_tips\s*=\s*(?:True|False)\s*\)', r'.scale(\1)', code)
-        
-        logger.info('Cleaned invalid API usage from generated code')
-        return code
 
     def save_history(self, messages, **kwargs):
         messages, context = messages
