@@ -1,25 +1,14 @@
-import asyncio
 import json
 import os
-import re
-from dataclasses import dataclass, field
-from typing import List, Any, Tuple
+
+from omegaconf import DictConfig
 
 from ms_agent.agent import CodeAgent
 from ms_agent.llm import LLM, Message
 from ms_agent.llm.openai_llm import OpenAI
 from ms_agent.utils import get_logger
-from omegaconf import DictConfig
 
 logger = get_logger()
-
-
-@dataclass
-class Pattern:
-
-    name: str
-    pattern: str
-    tags: List[str] = field(default_factory=list)
 
 
 class Segment(CodeAgent):
@@ -31,42 +20,7 @@ class Segment(CodeAgent):
                  **kwargs):
         super().__init__(config, tag, trust_remote_code, **kwargs)
         self.work_dir = getattr(self.config, 'output_dir', 'output')
-        self.patterns = self.create_patterns()
         self.llm: OpenAI = LLM.from_config(self.config)
-
-    @staticmethod
-    def create_patterns():
-        patterns = [
-            Pattern(
-                name='formula',
-                pattern=r'<formula>(.*?)</formula>',
-                tags=['<formula>', '</formula>']),
-            Pattern(
-                name='code',
-                pattern=r'<code>(.*?)</code>',
-                tags=['<code>', '</code>']),
-            Pattern(
-                name='chart',
-                pattern=r'<chart>(.*?)</chart>',
-                tags=['<chart>', '</chart>']),
-            Pattern(
-                name='definition',
-                pattern=r'<definition>(.*?)</definition>',
-                tags=['<definition>', '</definition>']),
-            Pattern(
-                name='theorem',
-                pattern=r'<theorem>(.*?)</theorem>',
-                tags=['<theorem>', '</theorem>']),
-            Pattern(
-                name='example',
-                pattern=r'<example>(.*?)</example>',
-                tags=['<example>', '</example>']),
-            Pattern(
-                name='emphasis',
-                pattern=r'<emphasis>(.*?)</emphasis>',
-                tags=['<emphasis>', '</emphasis>'])
-        ]
-        return patterns
 
     async def execute_code(self, inputs, **kwargs):
         messages, context = inputs
@@ -88,32 +42,37 @@ class Segment(CodeAgent):
         return segments
 
     def split_scene(self, topic, script):
-        system = """你是一个动画分镜设计师，现在有一个短视频场景需要设计分镜。分镜需要满足条件：
+        system = """You are an animation storyboard designer. Now there is a short video scene that needs storyboard design. The storyboard needs to meet the following conditions:
 
-1. 每个分镜会携带一段旁白、（最多）一个manim技术动画、一个生成的图片背景和一个字幕
-    * 你可以自由决定manim动画是否存在，如果manim动画不需要，在返回值中可以没有manim这个key
-2. 你的每个分镜如果按正常语速朗读约10秒~20秒左右，太短会造成切换的频繁感，太长会显得过于定格
-    * 如果有manim动画时间可以到20s，如果只有一个图片展示，最长不要超过5s到10s
-3. 你需要给每个分镜写出具体的旁白、技术动画的要求，以及背景图片的**细节**要求
-4. 你会被给与一段源台本，你的分镜设计需要根据台本进行，你也可以额外增加一些你觉得有用的信息
-5. 你的返回格式是json格式
-6. 你需要注意，不要使用中文引号，使用[]来代替它，例如[attention]
+1. Each storyboard panel will carry a piece of narration, (at most) one manim technical animation, one generated image background, and one subtitle
+    * You can freely decide whether the manim animation exists. If the manim animation is not needed, the manim key can be omitted from the return value
+2. Each of your storyboard panels should take about 10 seconds to 20 seconds to read at normal speaking speed. Too short will cause a sense of frequent switching, and too long will appear too static
+    * If a storyboard panel has no manim animation, it should not exceed 5s to 10s at most
+    * Pay attention to the coordination between the background image and the manim animation. If a manim animation exists, the background image should not be too flashy. Else the background image will become the main focus, and the image details should be richer
+    * If a storyboard panel has manim animation, the image should be more concise, with a stronger supporting role
+3. You need to write specific narration for each storyboard panel, technical animation requirements, and **detailed** background image requirements
+    * You need to specify your expected manim animation content, presentation details, position and size, etc., and remind the large model generating manim of technical requirements, and **absolutely prevent size overflow and animation position overlap**
+    * You must specify the color scheme for the manim animation, and this color scheme must be coordinated with the background color scheme. For example, if the background color scheme is light-colored, then the text, boxes, arrows, etc. in the manim animation should generally use dark colors. If the background is dark-colored, then the elements of the manim animation should use light colors.
+    * You can estimate the reading duration of this storyboard panel to estimate the duration of the manim animation. The actual duration will be completely determined in the next step of voice generation
+    * The video resolution is around 1920*1080. Lines that are too thin are easily difficult to see clearly. You need to explicitly specify the line thickness of the manim animation, emphasis elements should use thicker lines
+4. You will be given a script. Your storyboard design needs to be based on the script. You can also add some additional information you think is useful
+5. Your return format is JSON format
+6. You need to pay attention not to use Chinese quotation marks. Use [] to replace them, for example [attention]
 
-一个例子：
+An example:
 ```json
 [
     {
-        "content": "下面我们来讲解...",
-        "background": "背景图片需要满足色调... 人物... 背景... 视角...",
-        "manim": "图表需要满足... 位置在... ",
+        "content": "Now let's explain...",
+        "background": "An image describe... color ... (your detailed requirements here)",
+        "manim": "The animation should ... line thick... element color ... position ... (your detailed requirements here)",
     },
     ...
 ]
 ```
 
-现在开始：
-"""
-        query = f'原始需求：\n\n{topic}\n\n，原始脚本：\n\n{script}\n\n请根据脚本完成你的设计:'
+Now begin:"""
+        query = f'Original topic: \n\n{topic}\n\n，original script：\n\n{script}\n\nPlease finish your animation storyboard design:\n'
         inputs = [
             Message(role='system', content=system),
             Message(role='user', content=query),

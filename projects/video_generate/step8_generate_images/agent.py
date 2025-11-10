@@ -120,43 +120,20 @@ class GenerateImages(CodeAgent):
 
     @staticmethod
     def fade(input_image, output_image, segment):
-        """
-        Fade/lighten the background image to prevent it from overwhelming Manim animations.
-        If Manim animation exists, reduce the image intensity and increase brightness.
-        """
         manim = segment.get('manim')
-        
         img = Image.open(input_image).convert('RGBA')
-        
-        # If Manim animation exists, apply fade effect to reduce visual prominence
         if manim:
             logger.info(f'Applying fade effect to background image (Manim animation present)')
-            
-            # Convert to numpy array for processing
             arr = np.array(img, dtype=np.float32)
-            
-            # Reduce overall intensity by lightening the image
-            # This makes the background less prominent so Manim animations stand out
             fade_factor = 0.5  # Reduce color intensity to 50%
-            brightness_boost = 80  # Add brightness to lighten the image
-            
-            # Apply fade: reduce color intensity and increase brightness
-            # RGB channels (0, 1, 2)
+            brightness_boost = 60  # Add brightness to lighten the image
             arr[..., :3] = arr[..., :3] * fade_factor + brightness_boost
-            
-            # Ensure values stay in valid range [0, 255]
             arr[..., :3] = np.clip(arr[..., :3], 0, 255)
-            
-            # Optionally reduce opacity slightly for more subtlety
-            arr[..., 3] = arr[..., 3] * 0.85  # Reduce opacity to 85%
-            
-            # Convert back to image
+            arr[..., 3] = arr[..., 3] * 0.7  # Reduce opacity to 70%
             result = Image.fromarray(arr.astype(np.uint8), mode='RGBA')
             result.save(output_image, 'PNG')
-            
             logger.info(f'Faded background saved to: {output_image}')
         else:
-            # No Manim animation, keep original image
             logger.info(f'No Manim animation - keeping original background')
             shutil.copy(input_image, output_image)
 

@@ -40,8 +40,6 @@ class GenerateAudio(CodeAgent):
         context['audio_paths'] = []
         tts_dir = os.path.join(self.work_dir, 'audio')
         os.makedirs(tts_dir, exist_ok=True)
-        subtitle_dir = os.path.join(self.work_dir, 'subtitles')
-        os.makedirs(subtitle_dir, exist_ok=True)
         logger.info(f'Generating audios.')
 
         tasks = []
@@ -67,11 +65,7 @@ class GenerateAudio(CodeAgent):
         audio.write_audiofile(output_path, verbose=False, logger=None)
         audio.close()
 
-    async def edge_tts_generate(self, text, output_file, speaker='aunt'):
-        text = text.strip()
-        if not text:
-            return False
-
+    async def edge_tts_generate(self, text, output_file, speaker='male'):
         voice_dict = self.voices.get(speaker)
         voice = voice_dict.voice
         rate = voice_dict.get('rate', '+0%')
@@ -88,12 +82,9 @@ class GenerateAudio(CodeAgent):
                 audio_data += chunk['data']
                 chunk_count += 1
 
-        if len(audio_data) > 0:
-            with open(output_file, 'wb') as f:
-                f.write(audio_data)
-            return True
-        else:
-            return False
+        assert len(audio_data) > 0
+        with open(output_file, 'wb') as f:
+            f.write(audio_data)
 
     @staticmethod
     def get_audio_duration(audio_path):
@@ -103,14 +94,11 @@ class GenerateAudio(CodeAgent):
         return duration
 
     async def generate_audio(self, segment, audio_path):
-        tts_text = segment.get('content', '')
+        tts_text = segment.get('content', '').strip()
         logger.info(f'Generating audio for {tts_text}')
         if tts_text:
-            if await self.edge_tts_generate(tts_text, audio_path, self.config.voice):
-                segment['audio_duration'] = self.get_audio_duration(audio_path)
-            else:
-                await self.create_silent_audio(audio_path, duration=3.0)
-                segment['audio_duration'] = 3.0
+            await self.edge_tts_generate(tts_text, audio_path, self.config.voice)
+            segment['audio_duration'] = self.get_audio_duration(audio_path)
         else:
             await self.create_silent_audio(audio_path, duration=2.0)
             segment['audio_duration'] = 2.0

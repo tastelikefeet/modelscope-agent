@@ -23,6 +23,8 @@ class GenerateSubtitle(CodeAgent):
         self.work_dir = getattr(self.config, 'output_dir', 'output')
         self.llm: OpenAI = LLM.from_config(self.config)
         self.subtitle_lang = getattr(self.config, 'subtitle_lang', 'English')
+        subtitle_dir = os.path.join(self.work_dir, 'subtitles')
+        os.makedirs(subtitle_dir, exist_ok=True)
 
     async def execute_code(self, inputs, **kwargs):
         messages, context = inputs
@@ -101,16 +103,7 @@ Now translate:
         return font
 
     @staticmethod
-    def smart_wrap_text(text, font, max_width, max_lines=2, chars_per_line=50):
-        """Smart text wrapping with character-based line breaks.
-        
-        Args:
-            text: Text to wrap
-            font: PIL ImageFont object
-            max_width: Maximum width in pixels
-            max_lines: Maximum number of lines
-            chars_per_line: Target characters per line (default 20)
-        """
+    def smart_wrap_text(text, max_lines=2, chars_per_line=50):
         import string
         
         # Define punctuation marks (both Chinese and English)
@@ -121,10 +114,10 @@ Now translate:
             return all(c in punctuation or c.isspace() for c in s)
         
         def strip_line_punctuation(s):
-            """Remove punctuation from start and end of line"""
-            punctuation = string.punctuation + '。！？；，、：""''《》【】（）'
+            """Remove punctuation from the end of line"""
+            _punctuation = string.punctuation + '。！？；，、：""''《》【】（）'
             # Strip trailing punctuation
-            while s and s[-1] in punctuation:
+            while s and s[-1] in _punctuation:
                 s = s[:-1]
             return s
         
@@ -250,7 +243,7 @@ Now translate:
             if font_size != original_font_size:
                 font = GenerateSubtitle.load_font(font_size)
             lines = GenerateSubtitle.smart_wrap_text(
-                text, font, width, max_lines=2, chars_per_line=chars_per_line)
+                text, max_lines=2, chars_per_line=chars_per_line)
             line_height = font_size + 8
             total_text_height = len(lines) * line_height
 

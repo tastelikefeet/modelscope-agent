@@ -1,13 +1,12 @@
 import os
 
-import moviepy as afx
 import moviepy as mp
-from moviepy import AudioClip, vfx
+from PIL import Image
+from moviepy import AudioClip
+from omegaconf import DictConfig, ListConfig
 
 from ms_agent.agent import CodeAgent
 from ms_agent.utils import get_logger
-from omegaconf import DictConfig, ListConfig
-from PIL import Image
 
 logger = get_logger()
 
@@ -115,7 +114,6 @@ class ComposeVideo(CodeAgent):
                     effect_process = {
                         'eased_progress': 0.0
                     }
-                    last_eased_progress = 0.0
                     
                     def make_ken_burns(t):
                         """Create smooth zoom-in effect with easing"""
@@ -298,7 +296,7 @@ class ComposeVideo(CodeAgent):
                     bg_music = bg_music.subclipped(0, final_video.duration)
                 elif bg_music.duration > final_video.duration:
                     bg_music = bg_music.subclipped(0, final_video.duration)
-                bg_music = bg_music.with_volume_scaled(0.2)
+                bg_music = bg_music.with_volume_scaled(0.4)
                 if final_video.audio:
                     tts_audio = final_video.audio.with_duration(
                         final_video.duration).with_volume_scaled(1.0)

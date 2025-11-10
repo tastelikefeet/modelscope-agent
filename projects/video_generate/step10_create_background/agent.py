@@ -24,25 +24,19 @@ class CreateBackground(CodeAgent):
         self.llm: OpenAI = LLM.from_config(self.config)
         self.fonts = getattr(
             self.config, 'fonts',
-            ['SimHei', 'WenQuanYi Micro Hei', 'Heiti TC', 'Microsoft YaHei'])
+            ['Alibaba-PuHuiTi-Medium.otf', 'SimHei', 'WenQuanYi Micro Hei', 'Heiti TC', 'Microsoft YaHei'])
         self.slogan = getattr(self.config, 'slogan', [])
         self.style = getattr(self.config.text2image, 't2i_style', 'realistic')
 
     def get_font(self, size):
         import matplotlib.font_manager as fm
-        local_font = os.path.join(
-            os.path.dirname(__file__), '字小魂扶摇手书(商用需授权).ttf')
-        try:
-            return ImageFont.truetype(local_font, size)
-        except OSError or ValueError:
-            for font_name in self.fonts:
-                try:
-                    font_path = fm.findfont(
-                        fm.FontProperties(family=font_name))
-                    return ImageFont.truetype(font_path, size)
-                except OSError or ValueError:
-                    continue
-
+        for font_name in self.fonts:
+            try:
+                font_path = fm.findfont(
+                    fm.FontProperties(family=font_name))
+                return ImageFont.truetype(font_path, size)
+            except OSError or ValueError:
+                continue
         return ImageFont.load_default()
 
     async def execute_code(self, inputs, **kwargs):

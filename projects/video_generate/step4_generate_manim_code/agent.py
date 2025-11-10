@@ -19,7 +19,6 @@ class GenerateManimCode(CodeAgent):
                  **kwargs):
         super().__init__(config, tag, trust_remote_code, **kwargs)
         self.llm: OpenAI = LLM.from_config(self.config)
-        self.animation_mode = getattr(self.config, 'animation_code', 'auto')
 
     async def execute_code(self, inputs, **kwargs):
         messages, context = inputs
@@ -47,43 +46,29 @@ class GenerateManimCode(CodeAgent):
 **Task**: Create animation
 - Class name: {class_name}
 - Content: {content}
-- Extra requirement: {manim_requirement}
+- Requirement from the storyboard designer: {manim_requirement}
 - Duration: {audio_duration} seconds
 - Code language: **Python**
 
-**Color Requirements (CRITICAL)**:
-• ALL text must use BLACK color: Text(..., color=BLACK)
-• ALL math formulas must use BLACK color: MathTex(..., color=BLACK)
-• Do NOT use random colors or color gradients
-• Keep consistent BLACK color throughout the animation
-• Use color=BLACK explicitly for every Text, MathTex, Tex object
-
-**Line Thickness & Stroke Requirements (CRITICAL)**:
-• ALL shapes (Rectangle, Circle, Arrow, Line, etc.) must use THICK strokes: stroke_width=4
-• For emphasis or important diagrams: stroke_width=5 or 6
-• For subtle elements: minimum stroke_width=3
-• Arrows must be prominent: Arrow(..., stroke_width=5, buff=0.15)
-• Always explicitly specify stroke_width for every shape
-• Never use default thin strokes - they are too thin for visibility
-
-**Spatial Constraints (Important)**:
+**Spatial Constraints (CRITICAL)**:
 • Safe area: x∈(-6.5, 6.5), y∈(-3.5, 3.5) (0.5 units from edge)
 • Element spacing: Use buff=0.3 or larger (avoid overlap)
 • Relative positioning: Prioritize next_to(), align_to(), shift()
 • Avoid multiple elements using the same reference point
+• Absolutely prevent element spatial overlap or elements going out of bounds.
 
-**Box/Rectangle Size Standards (CRITICAL)**:
-• For diagram boxes: Use consistent dimensions, e.g., Rectangle(width=2.5, height=1.5, stroke_width=4)
-• For labels/text boxes: width=1.5~3.0, height=0.8~1.2, stroke_width=4
-• For emphasis boxes: width=3.0~4.0, height=1.5~2.0, stroke_width=5
-• Always specify both width AND height explicitly: Rectangle(width=2.5, height=1.5, stroke_width=4)
+**Box/Rectangle Size Standards**:
+• For diagram boxes: Use consistent dimensions, e.g., Rectangle(width=2.5, height=1.5)
+• For labels/text boxes: width=1.5~3.0, height=0.8~1.2
+• For emphasis boxes: width=3.0~4.0, height=1.5~2.0
+• Always specify both width AND height explicitly: Rectangle(width=2.5, height=1.5)
 • Avoid using default sizes - always set explicit dimensions
 • Maintain consistent box sizes within the same diagram level/category
 • All boxes must have thick strokes for clear visibility
 
 **Visual Quality Enhancement**:
-• Use thick, clear strokes for all shapes (stroke_width=4 minimum)
-• Make arrows bold and prominent (stroke_width=5, tip_length=0.25)
+• Use thick, clear strokes for all shapes
+• Make arrows bold and prominent
 • Add rounded corners for modern aesthetics: RoundedRectangle(corner_radius=0.15)
 • Use subtle fill colors with transparency when appropriate: fill_opacity=0.1
 • Ensure high contrast between elements for clarity
@@ -94,24 +79,6 @@ class GenerateManimCode(CodeAgent):
 • Key information highlighted
 • Reasonable use of space
 • Maintain visual balance
-
-- If rendering a definition:
-    • Title centered and slightly up (UP*2~3)
-    • Definition content in center area
-    • Examples or supplementary notes below
-    • Use clear visual hierarchy
-
-- If rendering an example:
-    • Example title at top
-    • Core example in center
-    • Step-by-step display from top to bottom
-    • Comparison content arranged left and right
-
-- If rendering an emphasis:
-    • Core information centered and prominent
-    • Supporting content displayed around it
-    • Use color and size to emphasize key points
-    • Animation effects enhance expression
 
 **Animation Requirements**:
 • Concise and smooth animation effects
