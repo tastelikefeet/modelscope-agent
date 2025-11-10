@@ -39,8 +39,8 @@ class RenderManim(CodeAgent):
             scene_name = f'Scene{i + 1}'
             logger.info(f'Rendering manim code for: {scene_name}')
             scene_dir = os.path.join(self.work_dir, f'scene_{i + 1}')
-            os.makedirs(scene_dir, exist_ok=True)
             if 'manim' in segment:
+                os.makedirs(scene_dir, exist_ok=True)
                 manim_file = await self.render_manim_scene(code, scene_name, scene_dir, segment, i)
             else:
                 manim_file = None
