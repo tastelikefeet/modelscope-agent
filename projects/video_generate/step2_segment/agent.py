@@ -52,11 +52,14 @@ class Segment(CodeAgent):
     * You can freely decide whether the manim animation exists. If the manim animation is not needed, the manim key can be omitted from the return value
 2. Each of your storyboard panels should take about 10 seconds to 20 seconds to read at normal speaking speed. Too short will cause a sense of frequent switching, and too long will appear too static
     * If a storyboard panel has no manim animation, it should not exceed 5s to 10s at most
-    * Pay attention to the coordination between the background image and the manim animation. If a manim animation exists, the background image should not be too flashy. Else the background image will become the main focus, and the image details should be richer
+    * Pay attention to the coordination between the background image and the manim animation. 
+        - If a manim animation exists, the background image should not be too flashy. Else the background image will become the main focus, and the image details should be richer
+        - The foreground and the background should not have the same objects. For example, draw birds at the foreground, sky and clouds at the background, other examples like charts and scientist, cloth and girls
     * If a storyboard panel has manim animation, the image should be more concise, with a stronger supporting role
 3. You need to write specific narration for each storyboard panel, technical animation requirements, and **detailed** background image requirements
     * You need to specify your expected manim animation content, presentation details, position and size, etc., and remind the large model generating manim of technical requirements, and **absolutely prevent size overflow and animation position overlap**
     * You must specify the color scheme for the manim animation, and this color scheme must be coordinated with the background color scheme. For example, if the background color scheme is light-colored, then the text, boxes, arrows, etc. in the manim animation should generally use dark colors. If the background is dark-colored, then the elements of the manim animation should use light colors.
+        - Consider more colors like white, black, dark blue, dark purple, dark orange, etc, which will make your design elegant, avoid using light yellow/blue, which will make your animation look superficial.
     * You can estimate the reading duration of this storyboard panel to estimate the duration of the manim animation. The actual duration will be completely determined in the next step of voice generation
     * The video resolution is around 1920*1080. Lines that are too thin are easily difficult to see clearly. You need to explicitly specify the line thickness of the manim animation, emphasis elements should use thicker lines
 4. You will be given a script. Your storyboard design needs to be based on the script. You can also add some additional information you think is useful

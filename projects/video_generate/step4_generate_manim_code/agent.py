@@ -68,6 +68,7 @@ class GenerateManimCode(CodeAgent):
 
 **Visual Quality Enhancement**:
 • Use thick, clear strokes for all shapes
+    - 4~6 strokes is recommended
 • Make arrows bold and prominent
 • Add rounded corners for modern aesthetics: RoundedRectangle(corner_radius=0.15)
 • Use subtle fill colors with transparency when appropriate: fill_opacity=0.1
@@ -93,6 +94,12 @@ class GenerateManimCode(CodeAgent):
 • Use VGroup appropriately to organize related elements
 • Clear comments and explanations
 • Avoid overly complex structures
+
+**Color Suggestions**:
+• You need to explicitly specify element colors and make these colors coordinated and elegant in style. 
+• Consider the advices from the storyboard designer. 
+• Don't use light yellow, light blue, etc., as this will make the animation look superficial. 
+• Consider more colors like white, black, dark blue, dark purple, dark orange, etc.
 
 Please create Manim animation code that meets the above requirements."""
 
