@@ -234,6 +234,7 @@ The following issues have been detected and need fixing:
 • Consistency: Maintain uniform stroke widths throughout related elements
 
 **Boundary Control**:
+• Canvas size: (1280, 700) (width x height) which is the top 3/4 of screen, bottom is left for subtitles
 • Safe area: x ∈ (-6.5, 6.5), y ∈ (-3.5, 3.5)
 • Font size: Recommended 12-48, titles can be larger but not exceeding 60
 • Use relative positioning: to_edge(), next_to(), align_to() instead of absolute coordinates

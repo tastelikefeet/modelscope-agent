@@ -189,7 +189,11 @@ class ComposeVideo(CodeAgent):
                         fg_clip.close()
                         continue
 
-                fg_clip = fg_clip.with_position(('center', 'center'))
+                # Position in the center of the top 3/4 area
+                # Center horizontally, vertically centered in top 810px region
+                # Y coordinate: (810 / 2) - (clip_height / 2) = center of top 3/4
+                top_area_center_y = 800 // 2  # 405px from top
+                fg_clip = fg_clip.with_position(('center', top_area_center_y))
                 fg_clip = fg_clip.with_duration(duration)
                 current_video_clips.append(fg_clip)
 

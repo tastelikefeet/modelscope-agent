@@ -17,6 +17,8 @@ logger = get_logger()
 
 class RenderManim(CodeAgent):
 
+    window_size = (1280, 700)
+
     def __init__(self,
                  config: DictConfig,
                  tag: str,
@@ -80,10 +82,10 @@ class RenderManim(CodeAgent):
             env['PYTHONIOENCODING'] = 'utf-8'
             env['LANG'] = 'zh_CN.UTF-8'
             env['LC_ALL'] = 'zh_CN.UTF-8'
-
+            window_size = ','.join([str(i) for i in self.window_size])
             cmd = [
                 'manim', 'render', '-ql', '--transparent', '--format=mov',
-                '--resolution=1280,720', '--disable_caching',
+                f'--resolution={window_size}', '--disable_caching',
                 os.path.basename(code_file), actual_scene_name
             ]
 
@@ -141,7 +143,7 @@ class RenderManim(CodeAgent):
 
                         shutil.copy2(found_file, output_path)
                         scaled_path = RenderManim.scale_video_to_fit(
-                            output_path, target_size=(1280, 720))
+                            output_path, target_size=self.window_size)
                         if scaled_path and scaled_path != output_path:
                             shutil.rmtree(output_path, ignore_errors=True)
                             shutil.copy2(scaled_path, output_path)
@@ -225,7 +227,9 @@ Please precisely fix the detected issues while maintaining the richness and crea
             return None
 
     @staticmethod
-    def scale_video_to_fit(video_path, target_size=(1280, 720)):
+    def scale_video_to_fit(video_path, target_size=None):
+        if target_size is None:
+            target_size = RenderManim.window_size
         if not os.path.exists(video_path):
             return video_path
 
