@@ -38,7 +38,7 @@ class Segment(CodeAgent):
             logger.info(f'\nScene {i}\n'
                         f'Content: {segment["content"]}\n'
                         f'Image requirement: {segment["background"]}\n'
-                        f'Manim requirement: {segment.get("background")}')
+                        f'Manim requirement: {segment.get("manim", "No manim")}')
         return messages, context
 
     async def generate_segments(self, topic, script) -> list:
