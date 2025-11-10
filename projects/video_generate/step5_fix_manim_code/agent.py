@@ -31,9 +31,6 @@ class FixManimCode(CodeAgent):
                 return i, None
             
             code = self.fix_colors_in_code(code)
-            if code is None:
-                return i, None
-            
             for _ in range(self.max_fix_rounds):
                 analysis = self.analyze_and_score(code)
                 if not analysis['needs_fix'] or analysis['layout_score'] >= 90:
@@ -61,7 +58,7 @@ class FixManimCode(CodeAgent):
 
     @staticmethod
     def optimize_simple_code(code):
-        """Fix spacing issues, normalize box sizes, and add stroke width in code"""
+        """Fix spacing issues and normalize box sizes in code"""
         lines = code.split('\n')
         optimized_lines = []
 
@@ -73,52 +70,18 @@ class FixManimCode(CodeAgent):
             # Increase buff if too small
             line = re.sub(r'buff=0\.[012](?!\d)', 'buff=0.3', line)
             
-            # Add stroke_width to shapes if not present
-            shape_patterns = [
-                ('Rectangle(', 'stroke_width=4'),
-                ('Square(', 'stroke_width=4'),
-                ('Circle(', 'stroke_width=4'),
-                ('RoundedRectangle(', 'stroke_width=4'),
-                ('Ellipse(', 'stroke_width=4'),
-                ('Polygon(', 'stroke_width=4'),
-                ('Line(', 'stroke_width=4'),
-                ('Arrow(', 'stroke_width=5'),
-                ('DoubleArrow(', 'stroke_width=5'),
-            ]
-            
-            for shape, default_stroke in shape_patterns:
-                if shape in line and 'stroke_width=' not in line:
-                    # Add stroke_width after the opening parenthesis
-                    line = line.replace(shape, f'{shape}{default_stroke}, ')
-            
             # Normalize Rectangle/Square sizes - ensure explicit width and height
             if 'Rectangle(' in line and 'width=' not in line:
                 # Add default width and height if not specified
-                if 'stroke_width=' in line:
-                    line = line.replace('stroke_width=', 'width=2.5, height=1.5, stroke_width=')
-                else:
-                    line = line.replace('Rectangle(', 'Rectangle(width=2.5, height=1.5, ')
+                line = line.replace('Rectangle(', 'Rectangle(width=2.5, height=1.5, ')
             
             if 'Square(' in line and 'side_length=' not in line:
                 # Add default side_length if not specified
-                if 'stroke_width=' in line:
-                    line = line.replace('stroke_width=', 'side_length=1.5, stroke_width=')
-                else:
-                    line = line.replace('Square(', 'Square(side_length=1.5, ')
+                line = line.replace('Square(', 'Square(side_length=1.5, ')
             
-            # Ensure RoundedRectangle has size specifications and rounded corners
-            if 'RoundedRectangle(' in line:
-                if 'width=' not in line:
-                    if 'stroke_width=' in line:
-                        line = line.replace('stroke_width=', 'width=2.5, height=1.5, stroke_width=')
-                    else:
-                        line = line.replace('RoundedRectangle(', 'RoundedRectangle(width=2.5, height=1.5, ')
-                if 'corner_radius=' not in line:
-                    line = line.replace('RoundedRectangle(', 'RoundedRectangle(corner_radius=0.15, ')
-            
-            # Enhance Arrow appearance
-            if 'Arrow(' in line and 'tip_length=' not in line:
-                line = line.replace('Arrow(', 'Arrow(tip_length=0.25, ')
+            # Ensure RoundedRectangle has size specifications
+            if 'RoundedRectangle(' in line and 'width=' not in line:
+                line = line.replace('RoundedRectangle(', 'RoundedRectangle(width=2.5, height=1.5, ')
 
             optimized_lines.append(line)
 
