@@ -80,6 +80,12 @@ class ComposeVideo(CodeAgent):
                 illustration_clip = mp.ImageClip(
                     illustration_paths[i], duration=duration)
                 original_w, original_h = illustration_clip.size
+                
+                # Validate image dimensions
+                if original_w <= 0 or original_h <= 0:
+                    logger.error(f'Invalid illustration dimensions: {original_w}x{original_h} for {illustration_paths[i]}')
+                    continue
+                
                 available_w, available_h = 1920, 1080
                 scale_w = available_w / original_w
                 scale_h = available_h / original_h
@@ -89,6 +95,12 @@ class ComposeVideo(CodeAgent):
                 # Always resize to fill the screen
                 new_w = int(original_w * scale)
                 new_h = int(original_h * scale)
+                
+                # Ensure dimensions are positive
+                if new_w <= 0 or new_h <= 0:
+                    logger.error(f'Invalid scaled dimensions: {new_w}x{new_h}')
+                    continue
+                
                 illustration_clip = illustration_clip.resized(
                     (new_w, new_h))
 
@@ -99,17 +111,33 @@ class ComposeVideo(CodeAgent):
                     # Ken Burns effect: smooth zoom-in with stable center position
                     zoom_start = 1.0  # Initial scale
                     zoom_end = 1.15   # Final scale (15% zoom)
+
+                    effect_process = {
+                        'eased_progress': 0.0
+                    }
+                    last_eased_progress = 0.0
                     
                     def make_ken_burns(t):
                         """Create smooth zoom-in effect with easing"""
                         # Smooth easing function (ease-in-out)
-                        progress = t / duration
+                        progress = t / duration if duration > 0 else 0
                         # Cubic easing for smooth acceleration/deceleration
                         eased_progress = progress * progress * (3.0 - 2.0 * progress)
+                        if eased_progress < effect_process['eased_progress']:
+                            eased_progress = effect_process['eased_progress']
+                        if eased_progress > 1.0:
+                            eased_progress = 1.0
+                        effect_process['eased_progress'] = eased_progress
                         # Calculate current zoom level
                         current_zoom = zoom_start + (zoom_end - zoom_start) * eased_progress
+                        # Calculate new dimensions with validation
+                        zoom_w = int(new_w * current_zoom)
+                        zoom_h = int(new_h * current_zoom)
+                        # Ensure dimensions are always positive and at least 1
+                        zoom_w = max(new_w, zoom_w)
+                        zoom_h = max(new_h, zoom_h)
                         # Return the new size at time t as a tuple (width, height)
-                        return (int(new_w * current_zoom), int(new_h * current_zoom))
+                        return zoom_w, zoom_h
                     
                     # Apply the zoom effect with resizing over time
                     illustration_clip = illustration_clip.resized(make_ken_burns)
@@ -155,22 +183,30 @@ class ComposeVideo(CodeAgent):
                 if scale < 1.0:
                     new_w = int(original_w * scale)
                     new_h = int(original_h * scale)
-                    fg_clip = fg_clip.resized((new_w, new_h))
+                    # Ensure dimensions are positive
+                    if new_w > 0 and new_h > 0:
+                        fg_clip = fg_clip.resized((new_w, new_h))
+                    else:
+                        logger.error(f'Invalid scaled foreground dimensions: {new_w}x{new_h}')
+                        fg_clip.close()
+                        continue
 
                 fg_clip = fg_clip.with_position(('center', 'center'))
                 fg_clip = fg_clip.with_duration(duration)
                 current_video_clips.append(fg_clip)
 
-            if i < len(
-                    subtitle_segments_list):
-                subtitle_imgs = subtitle_segments_list[i]
+            if i < len(subtitle_segments_list):
+                subtitle_imgs = [subtitle_segments_list[i]]
                 if subtitle_imgs and isinstance(
                         subtitle_imgs, list) and len(subtitle_imgs) > 0:
                     n = len(subtitle_imgs)
                     seg_duration = duration / n
                     for idx, subtitle_path in enumerate(subtitle_imgs):
+                        if not os.path.exists(subtitle_path):
+                            continue
                         subtitle_img = Image.open(subtitle_path)
                         subtitle_w, subtitle_h = subtitle_img.size
+                        
                         subtitle_clip = mp.ImageClip(
                             subtitle_path, duration=seg_duration)
                         subtitle_clip = subtitle_clip.resized(
@@ -178,7 +214,7 @@ class ComposeVideo(CodeAgent):
                         subtitle_y = 850
                         subtitle_clip = subtitle_clip.with_position(
                             ('center', subtitle_y))
-                        subtitle_clip = subtitle_clip.set_start(idx
+                        subtitle_clip = subtitle_clip.with_start(idx
                                                                 * seg_duration)
                         current_video_clips.append(subtitle_clip)
             else:
@@ -189,14 +225,19 @@ class ComposeVideo(CodeAgent):
                                subtitle_paths[i]):
                     subtitle_img = Image.open(subtitle_paths[i])
                     subtitle_w, subtitle_h = subtitle_img.size
-                    subtitle_clip = mp.ImageClip(
-                        subtitle_paths[i], duration=duration)
-                    subtitle_clip = subtitle_clip.resized(
-                        (subtitle_w, subtitle_h))
-                    subtitle_y = 850
-                    subtitle_clip = subtitle_clip.with_position(
-                        ('center', subtitle_y))
-                    current_video_clips.append(subtitle_clip)
+                    
+                    # Validate subtitle dimensions
+                    if subtitle_w <= 0 or subtitle_h <= 0:
+                        logger.error(f'Invalid subtitle dimensions: {subtitle_w}x{subtitle_h} for {subtitle_paths[i]}')
+                    else:
+                        subtitle_clip = mp.ImageClip(
+                            subtitle_paths[i], duration=duration)
+                        subtitle_clip = subtitle_clip.resized(
+                            (subtitle_w, subtitle_h))
+                        subtitle_y = 850
+                        subtitle_clip = subtitle_clip.with_position(
+                            ('center', subtitle_y))
+                        current_video_clips.append(subtitle_clip)
 
             if current_video_clips:
                 segment_video = mp.CompositeVideoClip(
