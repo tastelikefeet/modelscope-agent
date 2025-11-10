@@ -248,6 +248,7 @@ The following issues have been detected and need fixing:
 • Element layering: Title → Main content → Supplementary information visual hierarchy
 • Space utilization: Distribute reasonably, avoid concentrated clustering
 • Dynamic adjustment: Adaptive layout based on content volume
+• Use more horizontal layouts to leverage the wider space and minimize positional conflicts between animation components.
 
 **Maintain Animation Richness**:
 • Diverse effects: Mix Write, Create, FadeIn, Transform, Indicate, etc.

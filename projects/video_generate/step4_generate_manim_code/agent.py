@@ -57,6 +57,7 @@ class GenerateManimCode(CodeAgent):
 • Relative positioning: Prioritize next_to(), align_to(), shift()
 • Avoid multiple elements using the same reference point
 • Absolutely prevent element spatial overlap or elements going out of bounds.
+• Connection lines between boxes/text are of proper length, with both endpoints attached to the objects.
 
 **Box/Rectangle Size Standards**:
 • For diagram boxes: Use consistent dimensions, e.g., Rectangle(width=2.5, height=1.5)
@@ -81,6 +82,7 @@ class GenerateManimCode(CodeAgent):
 • Key information highlighted
 • Reasonable use of space
 • Maintain visual balance
+• Use more horizontal layouts to leverage the wider space and minimize positional conflicts between animation components.
 
 **Animation Requirements**:
 • Concise and smooth animation effects

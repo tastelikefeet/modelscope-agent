@@ -61,7 +61,8 @@ class Segment(CodeAgent):
     * You must specify the color scheme for the manim animation, and this color scheme must be coordinated with the background color scheme. For example, if the background color scheme is light-colored, then the text, boxes, arrows, etc. in the manim animation should generally use dark colors. If the background is dark-colored, then the elements of the manim animation should use light colors.
         - Consider more colors like white, black, dark blue, dark purple, dark orange, etc, which will make your design elegant, avoid using light yellow/blue, which will make your animation look superficial.
     * You can estimate the reading duration of this storyboard panel to estimate the duration of the manim animation. The actual duration will be completely determined in the next step of voice generation
-    * The video resolution is around 1920*1080. Lines that are too thin are easily difficult to see clearly. You need to explicitly specify the line thickness of the manim animation, emphasis elements should use thicker lines
+    * The video resolution is around 1920*1080(bottom 1920*300 for subtitles only). Lines that are too thin are easily difficult to see clearly. You need to explicitly specify the line thickness of the manim animation, emphasis elements should use thicker lines
+    * Use more horizontal layouts to leverage the wider space and minimize positional conflicts between animation components.
 4. You will be given a script. Your storyboard design needs to be based on the script. You can also add some additional information you think is useful
 5. Your return format is JSON format
 6. You need to pay attention not to use Chinese quotation marks. Use [] to replace them, for example [attention]
