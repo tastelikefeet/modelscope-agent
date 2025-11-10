@@ -20,8 +20,12 @@ class Diversity(Memory):
 1. The keywords you provide should be terms, such as "security", "independent module", "aesthetics", "style", "examples", etc.
 2. The keywords you provide should have varying degrees of relevance to the original requirement, ranging from 100% relevant to 1% relevant
 3. Keywords should cover all aspects, including technical, non-technical, design, scalability, scenarios, and more
-4. You need to provide a total of 10 keywords, separated by commas and wrapped in <result></result> tags
-5. Your keywords must be in the same language as the original requirement
+4. You need to carefully consider the keywords of the workflow, as this is very helpful for completing tasks. For example:
+    * in software development: requirements analysis, test cases, etc.; 
+    * in search algorithms: depth-first traversal, wide-first traversal, etc.; 
+    * in article writing: difficult word explanations, reverse flashback, etc.
+5. You need to provide a total of 10 keywords, separated by commas and wrapped in <result></result> tags
+6. Your keywords must be in the same language as the original requirement
 
 Here is the original query:
 """
@@ -30,8 +34,12 @@ Here is the original query:
 
 1. For example, if given "website security", you can associate it with "password encryption", "horizontal vulnerabilities", "vertical vulnerabilities", "injection attacks", etc. "Attractiveness" can be associated with "humor", "memes", "accessibility", "examples", etc. "Explanation" can be associated with "audience", "origin", "principles", etc.
 2. The words you provide should have varying degrees of relevance to the input keywords, ranging from 100% relevant to 1% relevant
-3. You need to provide a total of 20 words (i.e., if the input is 25, you provide 20 words), separated by commas and wrapped in <result></result> tags
-4. Your keywords must be in the same language as the input keywords
+3. You need to carefully consider the keywords of the workflow, as this is very helpful for completing tasks. For example:
+    * in software development: requirements analysis, test cases, etc.; 
+    * in search algorithms: depth-first traversal, wide-first traversal, etc.; 
+    * in article writing: difficult word explanations, reverse flashback, etc.
+4. You need to provide a total of 20 words (i.e., if the input is 25, you provide 20 words), separated by commas and wrapped in <result></result> tags
+5. Your keywords must be in the same language as the input keywords
 
 Here are the keywords:
 """

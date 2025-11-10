@@ -24,7 +24,7 @@ class CreateBackground(CodeAgent):
         self.llm: OpenAI = LLM.from_config(self.config)
         self.fonts = getattr(
             self.config, 'fonts',
-            ['Alibaba-PuHuiTi-Medium.otf', 'SimHei', 'WenQuanYi Micro Hei', 'Heiti TC', 'Microsoft YaHei'])
+            ['阿里巴巴普惠体', 'SimHei', 'WenQuanYi Micro Hei', 'Heiti TC', 'Microsoft YaHei'])
         self.slogan = getattr(self.config, 'slogan', [])
         self.style = getattr(self.config.text2image, 't2i_style', 'realistic')
 
