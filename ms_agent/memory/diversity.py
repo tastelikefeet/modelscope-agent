@@ -20,10 +20,10 @@ class Diversity(Memory):
 1. The keywords you provide should be terms, such as "security", "independent module", "aesthetics", "style", "examples", etc.
 2. The keywords you provide should have varying degrees of relevance to the original requirement, ranging from 100% relevant to 1% relevant
 3. Keywords should cover all aspects, including technical, non-technical, design, scalability, scenarios, and more
-4. You need to carefully consider the keywords of the workflow, as this is very helpful for completing tasks. For example:
-    * in software development: requirements analysis, test cases, etc.; 
-    * in search algorithms: depth-first traversal, wide-first traversal, etc.; 
-    * in article writing: difficult word explanations, reverse flashback, etc.
+4. You need to carefully consider both the task itself and the topic, as this is very helpful for completing tasks. 
+    For example:
+    * Make a video of LLM: consider both how to make video and the LLM
+    * Make a website of cloth, consider both the solution of making a website and cloth
 5. You need to provide a total of 10 keywords, separated by commas and wrapped in <result></result> tags
 6. Your keywords must be in the same language as the original requirement
 
@@ -34,12 +34,8 @@ Here is the original query:
 
 1. For example, if given "website security", you can associate it with "password encryption", "horizontal vulnerabilities", "vertical vulnerabilities", "injection attacks", etc. "Attractiveness" can be associated with "humor", "memes", "accessibility", "examples", etc. "Explanation" can be associated with "audience", "origin", "principles", etc.
 2. The words you provide should have varying degrees of relevance to the input keywords, ranging from 100% relevant to 1% relevant
-3. You need to carefully consider the keywords of the workflow, as this is very helpful for completing tasks. For example:
-    * in software development: requirements analysis, test cases, etc.; 
-    * in search algorithms: depth-first traversal, wide-first traversal, etc.; 
-    * in article writing: difficult word explanations, reverse flashback, etc.
-4. You need to provide a total of 20 words (i.e., if the input is 25, you provide 20 words), separated by commas and wrapped in <result></result> tags
-5. Your keywords must be in the same language as the input keywords
+3. You need to provide a total of 20 words (i.e., if the input is 25, you provide 20 words), separated by commas and wrapped in <result></result> tags
+4. Your keywords must be in the same language as the input keywords
 
 Here are the keywords:
 """
@@ -49,9 +45,13 @@ Here are the keywords:
 1. Some keywords may not be very helpful to the original requirement, or may belong to over-design or distractors - you need to ignore these words
 2. You need to think deeply about the useful keywords to provide your suggestions
 3. There is another architect to design the solution, your responsibility is to give extra points of the solution related to the keywords, so no need and do not give the design.
-3. Your description of the original requirement will be added as prompts and suggestions to the subsequent development of the original requirement
-4. Your description must be in the same language as the original requirement
-5. Wrap your final suggestions with only one <result></result> wrapper
+4. You need to carefully consider both the task itself and the topic, as this is very helpful for completing tasks. 
+    For example:
+    * Make a video of LLM: consider both how to make video and the LLM
+    * Make a website of cloth, consider both the solution of making a website and cloth
+5. Your description of the original requirement will be added as prompts and suggestions to the subsequent development of the original requirement
+6. Your description must be in the same language as the original requirement
+7. Wrap your final suggestions with only one <result></result> wrapper
 
 Here are the original query and the keywords:
 """
