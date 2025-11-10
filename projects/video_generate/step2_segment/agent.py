@@ -32,9 +32,13 @@ class Segment(CodeAgent):
         topic = context['topic']
         segments = await self.generate_segments(topic, script)
         context['segments'] = segments
-        for segment in segments:
+        for i, segment in enumerate(segments):
             assert 'content' in segment
             assert 'background' in segment
+            logger.info(f'\nScene {i}\n'
+                        f'Content: {segment["content"]}\n'
+                        f'Image requirement: {segment["background"]}\n'
+                        f'Manim requirement: {segment.get("background")}')
         return messages, context
 
     async def generate_segments(self, topic, script) -> list:
