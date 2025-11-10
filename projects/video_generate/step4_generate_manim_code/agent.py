@@ -58,6 +58,14 @@ class GenerateManimCode(CodeAgent):
 • Keep consistent BLACK color throughout the animation
 • Use color=BLACK explicitly for every Text, MathTex, Tex object
 
+**Line Thickness & Stroke Requirements (CRITICAL)**:
+• ALL shapes (Rectangle, Circle, Arrow, Line, etc.) must use THICK strokes: stroke_width=4
+• For emphasis or important diagrams: stroke_width=5 or 6
+• For subtle elements: minimum stroke_width=3
+• Arrows must be prominent: Arrow(..., stroke_width=5, buff=0.15)
+• Always explicitly specify stroke_width for every shape
+• Never use default thin strokes - they are too thin for visibility
+
 **Spatial Constraints (Important)**:
 • Safe area: x∈(-6.5, 6.5), y∈(-3.5, 3.5) (0.5 units from edge)
 • Element spacing: Use buff=0.3 or larger (avoid overlap)
@@ -65,15 +73,23 @@ class GenerateManimCode(CodeAgent):
 • Avoid multiple elements using the same reference point
 
 **Box/Rectangle Size Standards (CRITICAL)**:
-• For diagram boxes: Use consistent dimensions, e.g., width=2.5, height=1.5
-• For labels/text boxes: width=1.5~3.0, height=0.8~1.2
-• For emphasis boxes: width=3.0~4.0, height=1.5~2.0
-• Always specify both width AND height explicitly: Rectangle(width=2.5, height=1.5)
+• For diagram boxes: Use consistent dimensions, e.g., Rectangle(width=2.5, height=1.5, stroke_width=4)
+• For labels/text boxes: width=1.5~3.0, height=0.8~1.2, stroke_width=4
+• For emphasis boxes: width=3.0~4.0, height=1.5~2.0, stroke_width=5
+• Always specify both width AND height explicitly: Rectangle(width=2.5, height=1.5, stroke_width=4)
 • Avoid using default sizes - always set explicit dimensions
 • Maintain consistent box sizes within the same diagram level/category
+• All boxes must have thick strokes for clear visibility
+
+**Visual Quality Enhancement**:
+• Use thick, clear strokes for all shapes (stroke_width=4 minimum)
+• Make arrows bold and prominent (stroke_width=5, tip_length=0.25)
+• Add rounded corners for modern aesthetics: RoundedRectangle(corner_radius=0.15)
+• Use subtle fill colors with transparency when appropriate: fill_opacity=0.1
+• Ensure high contrast between elements for clarity
+• Apply consistent spacing and alignment throughout
 
 **Layout Suggestions**:
-
 • Content clearly layered
 • Key information highlighted
 • Reasonable use of space
@@ -101,13 +117,22 @@ class GenerateManimCode(CodeAgent):
 • Concise and smooth animation effects
 • Progressive display, avoid information overload
 • Appropriate pauses and rhythm
-• Professional visual presentation
+• Professional visual presentation with thick, clear lines
+• Use GrowArrow for arrows instead of Create for better effect
+• Consider using Circumscribe or Indicate to highlight important elements
 
 **Code Style**:
 • Implement directly in Scene class
 • Use VGroup appropriately to organize related elements
 • Clear comments and explanations
 • Avoid overly complex structures
+
+**Critical API Usage Rules**:
+• NEVER use scale_tips parameter - it doesn't exist in Manim
+• Use scale() method without any scale_tips argument
+• Arrow scaling: arrow.scale(2) is correct, arrow.scale(2, scale_tips=True) is WRONG
+• Do NOT pass scale_tips to any scale() method call
+• For tip size changes, use tip_length in Arrow constructor instead
 
 Please create Manim animation code that meets the above requirements."""
 
@@ -121,7 +146,29 @@ Please create Manim animation code that meets the above requirements."""
             manim_code = response.split('```')[1].split('```')[0]
         else:
             manim_code = response
+        
+        # Clean up invalid API usage
+        manim_code = self.clean_invalid_api_usage(manim_code)
+        
         return manim_code
+    
+    @staticmethod
+    def clean_invalid_api_usage(code: str) -> str:
+        """
+        Remove invalid Manim API usage patterns that cause errors.
+        """
+        import re
+        
+        # Remove scale_tips parameter from scale() calls
+        # Matches: .scale(factor, scale_tips=True/False)
+        code = re.sub(r'\.scale\(([^)]+),\s*scale_tips\s*=\s*(?:True|False)\s*\)', r'.scale(\1)', code)
+        
+        # Also handle cases where scale_tips is the only parameter besides the factor
+        # Matches: scale(2, scale_tips=True) -> scale(2)
+        code = re.sub(r'\.scale\(([^,)]+),?\s*scale_tips\s*=\s*(?:True|False)\s*\)', r'.scale(\1)', code)
+        
+        logger.info('Cleaned invalid API usage from generated code')
+        return code
 
     def save_history(self, messages, **kwargs):
         messages, context = messages

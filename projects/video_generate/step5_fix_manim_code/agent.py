@@ -1,6 +1,6 @@
 import re
 from typing import Dict, List
-
+import asyncio
 from omegaconf import DictConfig
 
 from ms_agent.agent import CodeAgent
@@ -8,7 +8,7 @@ from ms_agent.llm import LLM, Message
 from ms_agent.llm.openai_llm import OpenAI
 from ms_agent.utils import get_logger
 
-logger = get_logger(__name__)
+logger = get_logger()
 
 
 class FixManimCode(CodeAgent):
@@ -25,30 +25,43 @@ class FixManimCode(CodeAgent):
     async def execute_code(self, inputs, **kwargs):
         messages, context = inputs
         logger.info(f'Fixing manim code.')
-        for i in range(len(context['manim_code'])):
-            code = context['manim_code'][i]
+        
+        async def process_single_code(i, code):
             if code is None:
-                continue
+                return i, None
+            
             code = self.fix_colors_in_code(code)
             if code is None:
-                continue
+                return i, None
+            
             for _ in range(self.max_fix_rounds):
                 analysis = self.analyze_and_score(code)
                 if not analysis['needs_fix'] or analysis['layout_score'] >= 90:
                     break
-
+                
                 if analysis['issue_count'] == 0:
                     break
-
+                
                 code = await self.fix_code(analysis)
-
+            
             code = self.optimize_simple_code(code)
+            return i, code
+        
+        tasks = [
+            process_single_code(i, code) 
+            for i, code in enumerate(context['manim_code'])
+        ]
+        
+        results = await asyncio.gather(*tasks)
+        
+        for i, code in results:
             context['manim_code'][i] = code
+        
         return messages, context
 
     @staticmethod
     def optimize_simple_code(code):
-        """Fix spacing issues and normalize box sizes in code"""
+        """Fix spacing issues, normalize box sizes, and add stroke width in code"""
         lines = code.split('\n')
         optimized_lines = []
 
@@ -60,18 +73,52 @@ class FixManimCode(CodeAgent):
             # Increase buff if too small
             line = re.sub(r'buff=0\.[012](?!\d)', 'buff=0.3', line)
             
+            # Add stroke_width to shapes if not present
+            shape_patterns = [
+                ('Rectangle(', 'stroke_width=4'),
+                ('Square(', 'stroke_width=4'),
+                ('Circle(', 'stroke_width=4'),
+                ('RoundedRectangle(', 'stroke_width=4'),
+                ('Ellipse(', 'stroke_width=4'),
+                ('Polygon(', 'stroke_width=4'),
+                ('Line(', 'stroke_width=4'),
+                ('Arrow(', 'stroke_width=5'),
+                ('DoubleArrow(', 'stroke_width=5'),
+            ]
+            
+            for shape, default_stroke in shape_patterns:
+                if shape in line and 'stroke_width=' not in line:
+                    # Add stroke_width after the opening parenthesis
+                    line = line.replace(shape, f'{shape}{default_stroke}, ')
+            
             # Normalize Rectangle/Square sizes - ensure explicit width and height
             if 'Rectangle(' in line and 'width=' not in line:
                 # Add default width and height if not specified
-                line = line.replace('Rectangle(', 'Rectangle(width=2.5, height=1.5, ')
+                if 'stroke_width=' in line:
+                    line = line.replace('stroke_width=', 'width=2.5, height=1.5, stroke_width=')
+                else:
+                    line = line.replace('Rectangle(', 'Rectangle(width=2.5, height=1.5, ')
             
             if 'Square(' in line and 'side_length=' not in line:
                 # Add default side_length if not specified
-                line = line.replace('Square(', 'Square(side_length=1.5, ')
+                if 'stroke_width=' in line:
+                    line = line.replace('stroke_width=', 'side_length=1.5, stroke_width=')
+                else:
+                    line = line.replace('Square(', 'Square(side_length=1.5, ')
             
-            # Ensure RoundedRectangle has size specifications
-            if 'RoundedRectangle(' in line and 'width=' not in line:
-                line = line.replace('RoundedRectangle(', 'RoundedRectangle(width=2.5, height=1.5, ')
+            # Ensure RoundedRectangle has size specifications and rounded corners
+            if 'RoundedRectangle(' in line:
+                if 'width=' not in line:
+                    if 'stroke_width=' in line:
+                        line = line.replace('stroke_width=', 'width=2.5, height=1.5, stroke_width=')
+                    else:
+                        line = line.replace('RoundedRectangle(', 'RoundedRectangle(width=2.5, height=1.5, ')
+                if 'corner_radius=' not in line:
+                    line = line.replace('RoundedRectangle(', 'RoundedRectangle(corner_radius=0.15, ')
+            
+            # Enhance Arrow appearance
+            if 'Arrow(' in line and 'tip_length=' not in line:
+                line = line.replace('Arrow(', 'Arrow(tip_length=0.25, ')
 
             optimized_lines.append(line)
 
@@ -236,8 +283,17 @@ The following issues have been detected and need fixing:
 • Maintain richness and diversity of animation effects (current content richness: {richness_level})
 • Keep code concise and avoid over-engineering
 • Ensure the final result doesn't lose original creativity and expressiveness
+• Apply thick strokes to all shapes for better visibility (stroke_width=4 minimum)
+• Make arrows bold and prominent (stroke_width=5, tip_length=0.25)
 
 **Fix Guidelines**:
+
+**Visual Quality Guidelines**:
+• Stroke width: All shapes must use stroke_width=4 minimum (arrows: stroke_width=5)
+• Arrow tips: Use tip_length=0.25 for better visibility
+• Rounded corners: Apply corner_radius=0.15 to RoundedRectangle for modern look
+• Line clarity: Never use default thin strokes - always specify thick strokes
+• Consistency: Maintain uniform stroke widths throughout related elements
 
 **Boundary Control**:
 • Safe area: x ∈ (-6.5, 6.5), y ∈ (-3.5, 3.5)

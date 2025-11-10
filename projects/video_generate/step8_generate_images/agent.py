@@ -27,19 +27,20 @@ class GenerateImages(CodeAgent):
         if self.style == 'line-art':
             self.fusion = self.keep_only_black_for_folder
         else:
-            self.fusion = self.copy
+            self.fusion = self.fade
 
     async def execute_code(self, inputs, **kwargs):
         messages, context = inputs
         illustration_prompts = context['illustration_prompts']
         context['illustration_paths'] = []
+        segments = context['segments']
         images_dir = os.path.join(self.work_dir, 'images')
         os.makedirs(images_dir, exist_ok=True)
         logger.info(f'Generating images.')
 
         semaphore = asyncio.Semaphore(self.num_parallel)
 
-        async def process_single_illustration(i, prompt):
+        async def process_single_illustration(i, segment, prompt):
             async with semaphore:
                 logger.info(f'Generating image for: {prompt}.')
                 img_path = os.path.join(images_dir, f'illustration_{i + 1}_origin.png')
@@ -47,11 +48,11 @@ class GenerateImages(CodeAgent):
                 if os.path.exists(output_path):
                     return i, output_path
                 await self.generate_images(prompt, img_path)
-                self.fusion(img_path, output_path)
+                self.fusion(img_path, output_path, segment)
                 return i, output_path
 
-        tasks = [process_single_illustration(i, prompt)
-                 for i, prompt in enumerate(illustration_prompts)]
+        tasks = [process_single_illustration(i, segment, prompt)
+                 for i, (segment, prompt) in enumerate(zip(segments, illustration_prompts))]
         results = await asyncio.gather(*tasks)
 
         results.sort(key=lambda x: x[0])
@@ -118,11 +119,49 @@ class GenerateImages(CodeAgent):
                 poll_interval = min(poll_interval * 1.5, max_poll_interval)
 
     @staticmethod
-    def copy(input_image, output_image):
-        shutil.copy2(input_image, output_image)
+    def fade(input_image, output_image, segment):
+        """
+        Fade/lighten the background image to prevent it from overwhelming Manim animations.
+        If Manim animation exists, reduce the image intensity and increase brightness.
+        """
+        manim = segment.get('manim')
+        
+        img = Image.open(input_image).convert('RGBA')
+        
+        # If Manim animation exists, apply fade effect to reduce visual prominence
+        if manim:
+            logger.info(f'Applying fade effect to background image (Manim animation present)')
+            
+            # Convert to numpy array for processing
+            arr = np.array(img, dtype=np.float32)
+            
+            # Reduce overall intensity by lightening the image
+            # This makes the background less prominent so Manim animations stand out
+            fade_factor = 0.5  # Reduce color intensity to 50%
+            brightness_boost = 80  # Add brightness to lighten the image
+            
+            # Apply fade: reduce color intensity and increase brightness
+            # RGB channels (0, 1, 2)
+            arr[..., :3] = arr[..., :3] * fade_factor + brightness_boost
+            
+            # Ensure values stay in valid range [0, 255]
+            arr[..., :3] = np.clip(arr[..., :3], 0, 255)
+            
+            # Optionally reduce opacity slightly for more subtlety
+            arr[..., 3] = arr[..., 3] * 0.85  # Reduce opacity to 85%
+            
+            # Convert back to image
+            result = Image.fromarray(arr.astype(np.uint8), mode='RGBA')
+            result.save(output_image, 'PNG')
+            
+            logger.info(f'Faded background saved to: {output_image}')
+        else:
+            # No Manim animation, keep original image
+            logger.info(f'No Manim animation - keeping original background')
+            shutil.copy(input_image, output_image)
 
     @staticmethod
-    def keep_only_black_for_folder(input_image, output_image, threshold=80):
+    def keep_only_black_for_folder(input_image, output_image, segment, threshold=80):
         img = Image.open(input_image).convert('RGBA')
         arr = np.array(img)
 
