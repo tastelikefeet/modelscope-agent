@@ -43,7 +43,7 @@ Please generate an AI knowledge popularization script suitable for short video n
 
 10. You must always provide complete, accurate stories. Do not include fake information, incomplete content, or 'to be continued' placeholders, ensuring it's natural, fluent, vivid, and engaging.
 
-11. 你需要注意，不要使用中文引号，使用[]来代替它，例如[attention]
+11. DO NOT use Chinese quotes，use [] instead，e.g. [attention]
 
 Example Style:
 "It's just like when you're looking for a restroom in a mall, AI is that super navigator..." (humorous metaphor)

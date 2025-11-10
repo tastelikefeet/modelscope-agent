@@ -50,6 +50,7 @@ class GenerateIllustrationPrompts(CodeAgent):
 - You must use the specified style, for example, 'comic', 'realistic', 'line-art'
 - The image output should be a square, and its background should be **pure white**
 - Image content should be uncluttered, with clear individual elements
+- 除非必要，否则不要生成文字，因为文字可能生成不正确，造成AI感
 - The images need to accurately convey the meaning expressed by the text. Later, these images will be combined with text to create educational/knowledge-based videos
 - Output 80-120 words in English, only the scene description, no style keywords, and only use English text in the image if it is truly needed for the scene."""  # noqa
 
@@ -91,8 +92,13 @@ class GenerateIllustrationPrompts(CodeAgent):
             f'For example, do NOT draw any boxes, lines, or frames that separate parts of the image. '
             f'All elements must be together in one open space.')
         background = segment['background']
+        manim_query = ''
+        if segment.get('manim'):
+            manim_query = (f'There is a manim animation at the front of the generated image: {segment["manim"]}, '
+                           f'you need to consider the manim and give a proper background image， 使图片背景不会抢manim动画的关注焦点.')
         colorful_query = (f'The style is: {self.style}, '
-                          f'illustration based on: {segment["content"]}'
+                          f'illustration based on: {segment["content"]}, '
+                          f'{manim_query}, '
                           f'Requirements from the designer: {background}')
         prompt = line_art_query if self.style == 'line-art' else colorful_query
         logger.info(f'Generating illustration prompt for : {segment["content"]}.')
