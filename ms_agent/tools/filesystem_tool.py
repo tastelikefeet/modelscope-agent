@@ -209,8 +209,16 @@ class FileSystemTool(ToolBase):
         """
         abs_path = os.path.join(self.output_dir, path)
         if os.path.exists(abs_path):
-            shutil.rmtree(abs_path, ignore_errors=True)
-        return True
+            try:
+                if os.path.isfile(abs_path):
+                    os.remove(abs_path)
+                else:
+                    shutil.rmtree(abs_path)
+                return f'Path deleted: <{path}>'
+            except Exception as e:
+                return f'Delete file <{path}> failed, error: ' + str(e)
+        else:
+            return f'Path not found: {path}'
 
     async def list_files(self, path: str = None):
         """List all files in a directory.

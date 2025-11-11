@@ -74,6 +74,8 @@ class ChainWorkflow(Workflow):
         """
         agent_config = None
         idx = 0
+        # step_inputs is used for when you want to do a loop
+        step_inputs = {}
         while True:
             task = self.workflow_chains[idx]
             task_info = getattr(self.config, task)
@@ -95,9 +97,16 @@ class ChainWorkflow(Workflow):
             if 'tag' not in init_args:
                 init_args['tag'] = task
             engine = AgentLoader.build(**init_args)
-            inputs = await engine.run(inputs)
-            agent_config = engine.config
-            idx = engine.next_flow(idx)
+            step_inputs[idx] = (inputs, config)
+            outputs = await engine.run(inputs)
+            next_idx = engine.next_flow(idx)
+            assert next_idx - idx <= 1
+            if next_idx == idx + 1:
+                inputs = outputs
+                agent_config = engine.config
+            else:
+                inputs, agent_config = step_inputs[next_idx]
+            idx = next_idx
             if idx >= len(self.workflow_chains):
                 break
         return inputs

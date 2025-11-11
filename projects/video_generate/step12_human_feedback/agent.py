@@ -1,4 +1,4 @@
-from omegaconf import DictConfig
+from omegaconf import DictConfig, ListConfig
 
 from ms_agent.agent import LLMAgent
 from ms_agent.llm import Message
@@ -68,6 +68,7 @@ class HumanFeedback(LLMAgent):
 2. 分析用户描述的问题出现在segments的哪几个序号中，哪几个步骤中
 3. 如果是manim动画出现问题，你可以构造code_fix/code_fix_N.txt，N从1开始
 4. 当你确定了序号和步骤之后，你应当删除对应序号的本地文件，以及对应步骤和之后步骤的所有memory文件
+    * 如果你需要重新生成manim动画，你需要删除manim_code文件夹对应的分镜，并删除第4步的memory，如果仅fix code错误，不要删除manim_code，并从第5步开始重新执行
 5. 工作流会自动重新执行，生成缺失文件
 6. 如果你发现提出的问题来源于segment设计问题，例如难以修改的manim动画bug等，或者考虑删除代码文件重新生成（而非修复）
     * 你需要考虑以最小改动修复问题，防止视频发生大的感官变化
@@ -79,12 +80,14 @@ class HumanFeedback(LLMAgent):
                  tag: str,
                  trust_remote_code: bool = False,
                  **kwargs):
+        config.save_history = False
         config.prompt.system = self.system
         config.tools = DictConfig({
             "file_system":{
                 "mcp": False,
             }
         })
+        config.memory = ListConfig([])
         super().__init__(config, tag, trust_remote_code, **kwargs)
         self.work_dir = getattr(self.config, 'output_dir', 'output')
         self._query = ''
@@ -105,7 +108,8 @@ class HumanFeedback(LLMAgent):
             elif not self._query.strip():
                 continue
             else:
-                await self.run(inputs, **kwargs)
+                self.need_fix = True
+                return await super().run(self._query, **kwargs)
 
     def next_flow(self, idx: int) -> int:
         if self.need_fix:
