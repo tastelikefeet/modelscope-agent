@@ -90,7 +90,7 @@ class FixManimCode(CodeAgent):
         ]
         results = await asyncio.gather(*tasks)
         if pre_error_mode:
-            shutil.rmtree(self.code_fix_dir)
+            shutil.rmtree(self.code_fix_dir, ignore_errors=True)
         for (i, code) in results:
             manim_file = os.path.join(manim_code_dir, f'segment_{i + 1}.py')
             with open(manim_file, 'w') as f:
