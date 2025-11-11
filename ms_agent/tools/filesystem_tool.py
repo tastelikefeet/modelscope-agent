@@ -171,7 +171,10 @@ class FileSystemTool(ToolBase):
         results = {}
         for path in paths:
             try:
-                with open(os.path.join(self.output_dir, path), 'r') as f:
+                if not os.path.exists(path):
+                    # Allow read any file on the disk
+                    path = os.path.join(self.output_dir, path)
+                with open(path, 'r') as f:
                     results[path] = f.read()
             except Exception as e:
                 results[path] = f'Read file <{path}> failed, error: ' + str(e)
