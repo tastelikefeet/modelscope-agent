@@ -3,71 +3,16 @@ import os
 
 from omegaconf import DictConfig
 
-from ms_agent.agent import CodeAgent
-from ms_agent.llm import LLM, Message
-from ms_agent.llm.openai_llm import OpenAI
-from ms_agent.tools import ToolManager
+from ms_agent.agent import LLMAgent
+from ms_agent.llm import Message
 from ms_agent.utils import get_logger
 
 logger = get_logger()
 
 
-class Segment(CodeAgent):
+class Segment(LLMAgent):
 
-    def __init__(self,
-                 config: DictConfig,
-                 tag: str,
-                 trust_remote_code: bool = False,
-                 **kwargs):
-        super().__init__(config, tag, trust_remote_code, **kwargs)
-        self.work_dir = getattr(self.config, 'output_dir', 'output')
-        self.llm: OpenAI = LLM.from_config(self.config)
-        self.tool_manager = None
-
-    async def prepare_tools(self):
-        """Initialize and connect the tool manager."""
-        self.tool_manager = ToolManager(
-            self.config,
-            trust_remote_code=self.trust_remote_code)
-        await self.tool_manager.connect()
-
-    async def cleanup_tools(self):
-        """Cleanup resources used by the tool manager."""
-        await self.tool_manager.cleanup()
-
-    async def execute_code(self, inputs, **kwargs):
-        await self.prepare_tools()
-        messages, context = inputs
-        script = None
-        with open(os.path.join(self.work_dir, 'script.txt'), 'r') as f:
-            script = f.read()
-        title = None
-        with open(os.path.join(self.work_dir, 'title.txt'), 'r') as f:
-            title = f.read()
-
-        assert title.strip() is not None
-        context['title'] = title.strip()
-        assert title is not None
-        logger.info(f'Segmenting script to sentences.')
-        topic = context['topic']
-        segments = await self.generate_segments(topic, script)
-        context['segments'] = segments
-        for i, segment in enumerate(segments):
-            assert 'content' in segment
-            assert 'background' in segment
-            logger.info(f'\nScene {i}\n'
-                        f'Content: {segment["content"]}\n'
-                        f'Image requirement: {segment["background"]}\n'
-                        f'Manim requirement: {segment.get("manim", "No manim")}')
-        await self.cleanup_tools()
-        return messages, context
-
-    async def generate_segments(self, topic, script) -> list:
-        segments = await self.split_scene(topic, script)
-        return segments
-
-    async def split_scene(self, topic, script):
-        system = """You are an animation storyboard designer. Now there is a short video scene that needs storyboard design. The storyboard needs to meet the following conditions:
+    system = """You are an animation storyboard designer. Now there is a short video scene that needs storyboard design. The storyboard needs to meet the following conditions:
 
 1. Each storyboard panel will carry a piece of narration, (at most) one manim technical animation, one generated image background, and one subtitle
     * You can freely decide whether the manim animation exists. If the manim animation is not needed, the manim key can be omitted from the return value
@@ -103,29 +48,50 @@ An example:
 ```
 
 Now begin:"""
-        query = f'Original topic: \n\n{topic}\n\n，original script：\n\n{script}\n\nPlease finish your animation storyboard design:\n'
-        inputs = [
-            Message(role='system', content=system),
-            Message(role='user', content=query),
+
+    def __init__(self,
+                 config: DictConfig,
+                 tag: str,
+                 trust_remote_code: bool = False,
+                 **kwargs):
+        config.prompt.system = self.system
+        super().__init__(config, tag, trust_remote_code, **kwargs)
+        self.work_dir = getattr(self.config, 'output_dir', 'output')
+
+    async def create_messages(self, messages):
+        assert isinstance(messages, str)
+        return [
+            Message(role='system', content=self.system),
+            Message(role='user', content=messages),
         ]
-        tools = await self.tool_manager.get_tools()
-        _response_message = self.llm.generate(inputs, tools)
-        response = _response_message.content
+
+    async def run(self, inputs, **kwargs):
+        logger.info(f'Segmenting script to sentences.')
+        messages, context = inputs
+        script = None
+        with open(os.path.join(self.work_dir, 'script.txt'), 'r') as f:
+            script = f.read()
+        title = None
+        with open(os.path.join(self.work_dir, 'title.txt'), 'r') as f:
+            title = f.read()
+        assert title.strip() is not None
+        context['title'] = title.strip()
+        topic = context['topic']
+        query = f'Original topic: \n\n{topic}\n\n，original script：\n\n{script}\n\nPlease finish your animation storyboard design:\n'
+        messages = await super().run(query, **kwargs)
+        response = messages[-1].content
         if '```json' in response:
             response = response.split('```json')[1].split('```')[0]
         elif '```' in response:
             response = response.split('```')[1].split('```')[0]
-        return json.loads(response)
+        segments = json.loads(response)
+        for i, segment in enumerate(segments):
+            assert 'content' in segment
+            assert 'background' in segment
+            logger.info(f'\nScene {i}\n'
+                        f'Content: {segment["content"]}\n'
+                        f'Image requirement: {segment["background"]}\n'
+                        f'Manim requirement: {segment.get("manim", "No manim")}')
+        context['segments'] = segments
+        return messages, context
 
-    def save_history(self, messages, **kwargs):
-        messages, context = messages
-        self.config.context = context
-        return super().save_history(messages, **kwargs)
-
-    def read_history(self, messages, **kwargs):
-        _config, _messages = super().read_history(messages, **kwargs)
-        if _config is not None:
-            context = _config['context']
-            return _config, (_messages, context)
-        else:
-            return _config, _messages
