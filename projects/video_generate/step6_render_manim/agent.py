@@ -45,28 +45,21 @@ class RenderManim(CodeAgent):
         assert len(manim_code) == len(segments)
         logger.info(f'Rendering manim code.')
 
-        async def process_segment(i, segment, code, audio_duration):
-            scene_name = f'manim'
-            logger.info(f'Rendering manim code for: scene_{i + 1}')
-            scene_dir = os.path.join(self.render_dir, f'scene_{i + 1}')
-            os.makedirs(scene_dir, exist_ok=True)
-            if 'manim' in segment:
-                code = await self.render_manim_scene(code, scene_name, audio_duration, scene_dir, segment, i)
-            return code
-
         tasks = [
-            process_segment(i, segment, code, audio_info['audio_duration'])
+            self.render_manim_scene(segment, code, audio_info['audio_duration'], i)
             for i, (segment, code, audio_info) in enumerate(zip(segments, manim_code, audio_infos))
         ]
 
-        result = await asyncio.gather(*tasks)
-        for i, r in enumerate(result):
-            manim_file = os.path.join(manim_code_dir, f'segment_{i + 1}.py')
-            with open(manim_file, 'w') as f:
-                f.write(r)
+        await asyncio.gather(*tasks)
         return messages
 
-    async def render_manim_scene(self, code, scene_name, audio_duration, output_dir, segment, i):
+    async def render_manim_scene(self, segment, code, audio_duration, i):
+        scene_name = f'manim'
+        logger.info(f'Rendering manim code for: scene_{i + 1}')
+        output_dir = os.path.join(self.render_dir, f'scene_{i + 1}')
+        os.makedirs(output_dir, exist_ok=True)
+        if 'manim' not in segment:
+            return None
         code_file = os.path.join(output_dir, f'{scene_name}.py')
         class_match = re.search(r'class\s+(\w+)\s*\(Scene\)', code)
         actual_scene_name = class_match.group(1) if class_match else scene_name
@@ -77,8 +70,6 @@ class RenderManim(CodeAgent):
         final_file_path = None
         if os.path.exists(output_path):
             return output_path
-        if manim_requirement is None:
-            return None
         logger.info(f'Rendering scene {actual_scene_name}')
         fix_history = ''
         for i in range(5):
@@ -163,7 +154,10 @@ class RenderManim(CodeAgent):
             else:
                 break
         if final_file_path:
-            return code
+            manim_code_dir = os.path.join(self.work_dir, 'manim_code')
+            manim_file = os.path.join(manim_code_dir, f'segment_{i + 1}.py')
+            with open(manim_file, 'w') as f:
+                f.write(code)
         else:
             raise FileNotFoundError(final_file_path)
 
