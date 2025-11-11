@@ -72,7 +72,7 @@ class RenderManim(CodeAgent):
             return output_path
         logger.info(f'Rendering scene {actual_scene_name}')
         fix_history = ''
-        for i in range(5):
+        for retry_idx in range(5):
             with open(code_file, 'w') as f:
                 f.write(code)
 
