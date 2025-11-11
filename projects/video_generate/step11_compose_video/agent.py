@@ -339,7 +339,7 @@ class ComposeVideo(CodeAgent):
         illustration_paths = []
         for i, segment in enumerate(segments):
             illustration_paths.append(os.path.join(self.images_dir, f'illustration_{i + 1}.png'))
-            foreground_paths.append(os.path.join(self.render_dir, f'scene_{i + 1}', f'manim.mov'))
+            foreground_paths.append(os.path.join(self.render_dir, f'scene_{i + 1}', f'video_scene.mov'))
             audio_paths.append(os.path.join(self.tts_dir, f'segment_{i + 1}.mp3'))
             subtitle_paths.append(os.path.join(self.subtitle_dir, f'bilingual_subtitle_{i + 1}.png'))
 

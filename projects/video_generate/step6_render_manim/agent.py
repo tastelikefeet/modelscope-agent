@@ -54,7 +54,7 @@ class RenderManim(CodeAgent):
         return messages
 
     async def render_manim_scene(self, segment, code, audio_duration, i):
-        scene_name = f'manim'
+        scene_name = f'video_scene'
         logger.info(f'Rendering manim code for: scene_{i + 1}')
         output_dir = os.path.join(self.render_dir, f'scene_{i + 1}')
         os.makedirs(output_dir, exist_ok=True)
