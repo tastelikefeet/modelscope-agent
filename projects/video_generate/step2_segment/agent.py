@@ -30,6 +30,7 @@ class Segment(LLMAgent):
     * The video resolution is around 1920*1080(bottom 1920*300 for subtitles only), manim can use top 1920*700. Lines that are too thin are easily difficult to see clearly. You need to explicitly specify the line thickness of the manim animation, emphasis elements should use thicker lines
     * Use more horizontal layouts to leverage the wider space and minimize positional conflicts between animation components.
     * Consider the synchronization between animations and content. When read at a normal speaking pace, the content should align with the animation's progression.
+    * Specify the language of the manim texts, it should be the same with the script and the storyboard content(Chinese/English for example)
 4. You will be given a script. Your storyboard design needs to be based on the script. You can also add some additional information you think is useful
 5. You will be provided with the original requirements, which may contain one or more user-specified documents with content to be explained. Read through them, integrate with the script, and refine the short video's screenplay and animations. When documents are available, you can design animations based on their formulas, charts, and other visual elements.
     [CRITICAL]: The manim and image generation steps will not receive the original requirements and files. Supply very detail information for them, especially any data/points/formulas to prevent any mismatch with the original query and/or documentation
