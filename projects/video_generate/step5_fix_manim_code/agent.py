@@ -232,6 +232,8 @@ The following issues have been detected and need fixing:
 • Rounded corners: Apply corner_radius=0.15 to RoundedRectangle for modern look
 • Line clarity: Never use default thin strokes - always specify thick strokes
 • Consistency: Maintain uniform stroke widths throughout related elements
+• [CRITICAL]Absolutely prevent **element spatial overlap** or **elements going out of bounds** or **elements not aligned**.
+• [CRITICAL]Connection lines between boxes/text are of proper length, with **both endpoints attached to the objects**.
 
 **Boundary Control**:
 • Canvas size: (1280, 700) (width x height) which is the top 3/4 of screen, bottom is left for subtitles

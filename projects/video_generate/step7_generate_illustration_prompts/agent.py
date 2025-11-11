@@ -88,7 +88,7 @@ class GenerateIllustrationPrompts(CodeAgent):
             f'All elements must be solid black or outlined in black, and all faces must use irregular '
             f'white lines for eyes and mouth to express emotion. All elements should be relevant to the '
             f'main theme and the meaning of the current subtitle segment. All icons, patterns, and objects '
-            f'are decorative elements floating around or near the stickman, not separate scenes or frames. '
+            f'are decorative elements floating around or near the stick man, not separate scenes or frames. '
             f'For example, do NOT draw any boxes, lines, or frames that separate parts of the image. '
             f'All elements must be together in one open space.')
         background = segment['background']

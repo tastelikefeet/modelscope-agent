@@ -16,7 +16,7 @@ class Segment(LLMAgent):
 
 1. Each storyboard panel will carry a piece of narration, (at most) one manim technical animation, one generated image background, and one subtitle
     * You can freely decide whether the manim animation exists. If the manim animation is not needed, the manim key can be omitted from the return value
-2. Each of your storyboard panels should take about 10 seconds to 20 seconds to read at normal speaking speed. Too short will cause a sense of frequent switching, and too long will appear too static
+2. Each of your storyboard panels should take about 5 seconds to 15 seconds(at most) to read at normal speaking speed. Too short will cause a sense of frequent switching, and too long will appear too static
     * If a storyboard panel has no manim animation, it should not exceed 5s to 10s at most
     * Pay attention to the coordination between the background image and the manim animation. 
         - If a manim animation exists, the background image should not be too flashy. Else the background image will become the main focus, and the image details should be richer
@@ -27,8 +27,9 @@ class Segment(LLMAgent):
     * You must specify the color scheme for the manim animation, and this color scheme must be coordinated with the background color scheme. For example, if the background color scheme is light-colored, then the text, boxes, arrows, etc. in the manim animation should generally use dark colors. If the background is dark-colored, then the elements of the manim animation should use light colors.
         - Consider more colors like white, black, dark blue, dark purple, dark orange, etc, which will make your design elegant, avoid using light yellow/blue, which will make your animation look superficial.
     * You can estimate the reading duration of this storyboard panel to estimate the duration of the manim animation. The actual duration will be completely determined in the next step of voice generation
-    * The video resolution is around 1920*1080(bottom 1920*300 for subtitles only). Lines that are too thin are easily difficult to see clearly. You need to explicitly specify the line thickness of the manim animation, emphasis elements should use thicker lines
+    * The video resolution is around 1920*1080(bottom 1920*300 for subtitles only), manim can use top 1920*700. Lines that are too thin are easily difficult to see clearly. You need to explicitly specify the line thickness of the manim animation, emphasis elements should use thicker lines
     * Use more horizontal layouts to leverage the wider space and minimize positional conflicts between animation components.
+    * Consider the synchronization between animations and content. When read at a normal speaking pace, the content should align with the animation's progression.
 4. You will be given a script. Your storyboard design needs to be based on the script. You can also add some additional information you think is useful
 5. You will be provided with the original requirements, which may contain one or more user-specified documents with content to be explained. Read through them, integrate with the script, and refine the short video's screenplay and animations. When documents are available, you can design animations based on their formulas, charts, and other visual elements.
     [CRITICAL]: The manim and image generation steps will not receive the original requirements and files. Supply very detail information for them, especially any data/points/formulas to prevent any mismatch with the original query and/or documentation
