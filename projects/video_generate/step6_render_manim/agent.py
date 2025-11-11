@@ -115,7 +115,7 @@ class RenderManim(CodeAgent):
                              (e.stderr.decode('utf-8', errors='ignore') if e.stderr else '')
                 logger.error(f'Manim rendering timed out after {self.manim_render_timeout} '
                     f'seconds for {actual_scene_name}, output: {output_text}')
-                logger.error(f'Trying to fix manim code.')
+                logger.info(f'Trying to fix manim code.')
                 code, fix_history = self.fix_manim_code(
                     output_text, fix_history,
                     code, manim_requirement, class_name, content, audio_duration
@@ -135,7 +135,7 @@ class RenderManim(CodeAgent):
                 ]
 
                 if any([error_indicator in output_text for error_indicator in real_error_indicators]):
-                    logger.error(f'Trying to fix manim code.')
+                    logger.info(f'Trying to fix manim code.')
                     code, fix_history = self.fix_manim_code(output_text, fix_history, code, manim_requirement, class_name, content, audio_duration)
                     continue
 
