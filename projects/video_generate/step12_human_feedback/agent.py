@@ -1,6 +1,3 @@
-import json
-import os
-
 from omegaconf import DictConfig
 
 from ms_agent.agent import LLMAgent
@@ -83,7 +80,6 @@ class HumanFeedback(LLMAgent):
         config.tools = DictConfig({
             "file_system":{
                 "mcp": False,
-                "exclude": ["create_directory", "write_file"]
             }
         })
         super().__init__(config, tag, trust_remote_code, **kwargs)

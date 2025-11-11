@@ -1,5 +1,6 @@
 # Copyright (c) Alibaba, Inc. and its affiliates.
 import os
+import shutil
 from typing import Optional
 
 from ms_agent.llm.utils import Tool
@@ -103,6 +104,23 @@ class FileSystemTool(ToolBase):
                         'required': [],
                         'additionalProperties': False
                     }),
+                Tool(
+                    tool_name='delete_file_or_dir',
+                    server_name='file_system',
+                    description='Delete one file or one directory',
+                    parameters={
+                        'type': 'object',
+                        'properties': {
+                            'path': {
+                                'type':
+                                'string',
+                                'description':
+                                'The relative path to delete',
+                            }
+                        },
+                        'required': ['path'],
+                        'additionalProperties': False
+                    }),
             ]
         }
         return {
@@ -179,6 +197,20 @@ class FileSystemTool(ToolBase):
             except Exception as e:
                 results[path] = f'Read file <{path}> failed, error: ' + str(e)
         return str(results)
+
+    async def delete_file_or_dir(self, path: str):
+        """Delete a file or a directory.
+
+        Args:
+            path(str): The file or directory to delete, a prefix dir will be automatically concatenated.
+
+        Returns:
+            boolean
+        """
+        abs_path = os.path.join(self.output_dir, path)
+        if os.path.exists(abs_path):
+            shutil.rmtree(abs_path, ignore_errors=True)
+        return True
 
     async def list_files(self, path: str = None):
         """List all files in a directory.
