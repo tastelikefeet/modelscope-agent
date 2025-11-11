@@ -31,8 +31,8 @@ class Segment(LLMAgent):
     * Use more horizontal layouts to leverage the wider space and minimize positional conflicts between animation components.
 4. You will be given a script. Your storyboard design needs to be based on the script. You can also add some additional information you think is useful
 5. You will be provided with the original requirements, which may contain one or more user-specified documents with content to be explained. Read through them, integrate with the script, and refine the short video's screenplay and animations. When documents are available, you can design animations based on their formulas, charts, and other visual elements.
-    [CRITICAL]: The manim and image generation steps will not receive the original requirements and files. Supply the detail information for them, especially any data/points/formulas to prevent any mismatch from the original query and/or documentation
-6. Your return format is JSON format
+    [CRITICAL]: The manim and image generation steps will not receive the original requirements and files. Supply very detail information for them, especially any data/points/formulas to prevent any mismatch with the original query and/or documentation
+6. Your return format is JSON format, no need to save file, later the json will be parsed out of the response body
 7. You need to pay attention not to use Chinese quotation marks. Use [] to replace them, for example [attention]
 
 An example:
@@ -55,6 +55,12 @@ Now begin:"""
                  trust_remote_code: bool = False,
                  **kwargs):
         config.prompt.system = self.system
+        config.tools = DictConfig({
+            "file_system":{
+                "mcp": False,
+                "exclude": ["create_directory", "write_file"]
+            }
+        })
         super().__init__(config, tag, trust_remote_code, **kwargs)
         self.work_dir = getattr(self.config, 'output_dir', 'output')
 

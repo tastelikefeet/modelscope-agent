@@ -109,9 +109,6 @@ subtitle_lang: English
 slogan: ['AI敲门砖', '魔搭社区']
 
 tools:
-  shell:
-    mcp: false
-
   file_system:
     mcp: false
 
