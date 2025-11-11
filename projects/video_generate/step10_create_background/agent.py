@@ -42,7 +42,7 @@ class CreateBackground(CodeAgent):
     async def execute_code(self, inputs, **kwargs):
         messages, context = inputs
         logger.info(f'Creating background.')
-        topic = context.get('topic')
+        title = context.get('title')
         width, height = 1920, 1080
         background_color = (255, 255, 255)
         title_color = (0, 0, 0)
@@ -65,7 +65,7 @@ class CreateBackground(CodeAgent):
         title_font = self.get_font(config['title_font_size'])
         subtitle_font = self.get_font(config['subtitle_font_size'])
 
-        title_lines = textwrap.wrap(topic, width=config['title_max_width'])
+        title_lines = textwrap.wrap(title, width=config['title_max_width'])
         y_position = config['padding']
         for line in title_lines:
             bbox = draw.textbbox((0, 0), line, font=title_font)

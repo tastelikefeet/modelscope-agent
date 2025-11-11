@@ -35,6 +35,8 @@ prompt:
         * Follow the style specified in the query, if no style, be meme-heavy and humorous. Don't sound like an LLM - just like friends chatting.
         * The opening of a short video is crucial - you need to pay attention to how engaging your script's intro is.
     
+    - Carefully consider user's original requirements and/or read the documents provided by the user, then abstract, summarize the content. Pay special attention to any formulas, quantitative metrics, definitions, or similar elements, as these constitute critical information that must be prioritized.
+    
     - The ending must be complete, do not cut off, your video is not a demo, it's a masterpiece.
     
     - Output only the script body, no explanations.
@@ -49,7 +51,10 @@ prompt:
     "It's just like when you're looking for a restroom in a mall, AI is that super navigator..." (humorous metaphor)
     "Don't let this simple E=mc² fool you, the story behind it is actually quite fascinating..." (smooth transition)
     
-    A shell tool and a file system tool will be given to you. You must create a `script.txt` file and write the script content into this file.
+    A shell tool and a file system tool will be given to you. You must create:
+      * A `script.txt` file and write the script content into this file.
+      * A `title.txt` file and write the video title into this file.
+        * Use the video name if the user explicitly specifies one; otherwise, generate a title that does not exceed 7 words.
     
     Now begin:
 

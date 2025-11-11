@@ -29,8 +29,10 @@ class GenerateScript(LLMAgent):
         self.llm: LLM = LLM.from_config(self.config)
 
     def on_task_end(self, messages: List[Message]):
-        filename = os.path.join(self.work_dir, 'script.txt')
-        assert os.path.isfile(filename)
+        script = os.path.join(self.work_dir, 'script.txt')
+        title = os.path.join(self.work_dir, 'title.txt')
+        assert os.path.isfile(script)
+        assert os.path.isfile(title)
         return super().on_task_end(messages)
 
     async def run(self, messages, **kwargs):

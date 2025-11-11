@@ -6,6 +6,7 @@ from omegaconf import DictConfig
 from ms_agent.agent import CodeAgent
 from ms_agent.llm import LLM, Message
 from ms_agent.llm.openai_llm import OpenAI
+from ms_agent.tools import ToolManager
 from ms_agent.utils import get_logger
 
 logger = get_logger()
@@ -21,13 +22,32 @@ class Segment(CodeAgent):
         super().__init__(config, tag, trust_remote_code, **kwargs)
         self.work_dir = getattr(self.config, 'output_dir', 'output')
         self.llm: OpenAI = LLM.from_config(self.config)
+        self.tool_manager = None
+
+    async def prepare_tools(self):
+        """Initialize and connect the tool manager."""
+        self.tool_manager = ToolManager(
+            self.config,
+            trust_remote_code=self.trust_remote_code)
+        await self.tool_manager.connect()
+
+    async def cleanup_tools(self):
+        """Cleanup resources used by the tool manager."""
+        await self.tool_manager.cleanup()
 
     async def execute_code(self, inputs, **kwargs):
+        await self.prepare_tools()
         messages, context = inputs
         script = None
         with open(os.path.join(self.work_dir, 'script.txt'), 'r') as f:
             script = f.read()
-        assert script is not None
+        title = None
+        with open(os.path.join(self.work_dir, 'title.txt'), 'r') as f:
+            title = f.read()
+
+        assert title.strip() is not None
+        context['title'] = title.strip()
+        assert title is not None
         logger.info(f'Segmenting script to sentences.')
         topic = context['topic']
         segments = await self.generate_segments(topic, script)
@@ -39,6 +59,7 @@ class Segment(CodeAgent):
                         f'Content: {segment["content"]}\n'
                         f'Image requirement: {segment["background"]}\n'
                         f'Manim requirement: {segment.get("manim", "No manim")}')
+        await self.cleanup_tools()
         return messages, context
 
     async def generate_segments(self, topic, script) -> list:
@@ -64,8 +85,10 @@ class Segment(CodeAgent):
     * The video resolution is around 1920*1080(bottom 1920*300 for subtitles only). Lines that are too thin are easily difficult to see clearly. You need to explicitly specify the line thickness of the manim animation, emphasis elements should use thicker lines
     * Use more horizontal layouts to leverage the wider space and minimize positional conflicts between animation components.
 4. You will be given a script. Your storyboard design needs to be based on the script. You can also add some additional information you think is useful
-5. Your return format is JSON format
-6. You need to pay attention not to use Chinese quotation marks. Use [] to replace them, for example [attention]
+5. You will be provided with the original requirements, which may contain one or more user-specified documents with content to be explained. Read through them, integrate with the script, and refine the short video's screenplay and animations. When documents are available, you can design animations based on their formulas, charts, and other visual elements.
+    [CRITICAL]: The manim and image generation steps will not receive the original requirements and files. Supply the detail information for them, especially any data/points/formulas to prevent any mismatch from the original query and/or documentation
+6. Your return format is JSON format
+7. You need to pay attention not to use Chinese quotation marks. Use [] to replace them, for example [attention]
 
 An example:
 ```json
@@ -85,7 +108,7 @@ Now begin:"""
             Message(role='system', content=system),
             Message(role='user', content=query),
         ]
-        _response_message = self.llm.generate(inputs)
+        _response_message = self.llm.generate(inputs, self.tool_manager.get_tools())
         response = _response_message.content
         if '```json' in response:
             response = response.split('```json')[1].split('```')[0]
