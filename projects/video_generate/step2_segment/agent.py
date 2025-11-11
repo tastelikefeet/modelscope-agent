@@ -95,6 +95,6 @@ Now begin:"""
                         f'Image requirement: {segment["background"]}\n'
                         f'Manim requirement: {segment.get("manim", "No manim")}')
         with open(os.path.join(self.work_dir, 'segments.txt'), 'w') as f:
-            f.write(json.dumps(segments, indent=4))
+            f.write(json.dumps(segments, indent=4, ensure_ascii=False))
         return messages
 

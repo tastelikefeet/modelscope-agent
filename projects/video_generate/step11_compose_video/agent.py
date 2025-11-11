@@ -307,16 +307,17 @@ class ComposeVideo(CodeAgent):
 
         final_video.write_videofile(
             output_path,
-            fps=24,
+            fps=15,
             codec='libx264',
             audio_codec='aac',
             temp_audiofile='temp-audio.m4a',
             remove_temp=True,
             logger=None,
-            threads=2,
-            bitrate='5000k',
+            threads=16,
+            bitrate='2500k',
             audio_bitrate='192k',
             audio_fps=44100,
+            preset='faster',
             write_logfile=False)
 
         if os.path.exists(output_path) and os.path.getsize(output_path) > 1024:

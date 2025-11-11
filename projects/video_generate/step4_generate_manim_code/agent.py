@@ -32,7 +32,7 @@ class GenerateManimCode(CodeAgent):
             audio_infos = json.load(f)
         logger.info(f'Generating manim code.')
         tasks = []
-        for i, segment, audio_info in enumerate(zip(segments, audio_infos)):
+        for i, (segment, audio_info) in enumerate(zip(segments, audio_infos)):
             manim_requirement = segment.get('manim')
             if manim_requirement is not None:
                 tasks.append(self.generate_manim_code(segment, audio_info['audio_duration'], i))

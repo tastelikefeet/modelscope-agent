@@ -58,7 +58,7 @@ class GenerateAudio(CodeAgent):
                 'audio_duration': audio_duration,
             })
         with open(os.path.join(self.work_dir, 'audio_info.txt'), 'w') as f:
-            f.write(json.dumps(audio_info, indent=4))
+            f.write(json.dumps(audio_info, indent=4, ensure_ascii=False))
         return messages
 
     @staticmethod
