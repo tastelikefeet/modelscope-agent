@@ -57,7 +57,6 @@ Here are the original query and the keywords:
 """
 
     def __init__(self, config):
-        config.save_memory = False
         super().__init__(config)
         config.llm.service = config.llm.provider
         self.llm = None
@@ -68,6 +67,7 @@ Here are the original query and the keywords:
     def set_base_config(self, config: DictConfig):
         super().set_base_config(config)
         _config = deepcopy(config)
+        _config.save_history = False
         delattr(_config, 'memory')
         delattr(_config, 'tools')
         _config.generation_config.temperature = 1.0

@@ -564,7 +564,7 @@ class LLMAgent(Agent):
         if not query:
             return
 
-        if not getattr(self.config, 'save_memory', True):
+        if not getattr(self.config, 'save_history', True):
             return
 
         config: DictConfig = deepcopy(self.config)

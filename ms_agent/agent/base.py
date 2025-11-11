@@ -68,7 +68,7 @@ class Agent(ABC):
         return read_history(self.output_dir, self.tag)
 
     def save_history(self, messages: Any, **kwargs):
-        if not getattr(self.config, 'save_memory', True):
+        if not getattr(self.config, 'save_history', True):
             return
         save_history(self.output_dir, self.tag, self.config, messages)
 
