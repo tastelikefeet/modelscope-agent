@@ -4,7 +4,7 @@ import os
 import moviepy as mp
 from PIL import Image
 from moviepy import AudioClip
-from omegaconf import DictConfig, ListConfig
+from omegaconf import DictConfig
 
 from ms_agent.agent import CodeAgent
 from ms_agent.utils import get_logger
@@ -332,28 +332,25 @@ class ComposeVideo(CodeAgent):
         with open(os.path.join(self.work_dir, 'segments.txt'), 'r') as f:
             segments = json.load(f)
 
-        background_paths = []
         foreground_paths = []
         audio_paths = []
         subtitle_paths = []
         illustration_paths = []
-        subtitle_segments_list = []
         for i, segment in enumerate(segments):
-            background_paths.append(os.path.join(self.images_dir, f'illustration_{i + 1}.png'))
+            illustration_paths.append(os.path.join(self.images_dir, f'illustration_{i + 1}.png'))
             foreground_paths.append(os.path.join(self.render_dir, f'scene_{i + 1}', f'manim.mov'))
             audio_paths.append(os.path.join(self.tts_dir, f'segment_{i + 1}.mp3'))
             subtitle_paths.append(os.path.join(self.subtitle_dir, f'bilingual_subtitle_{i + 1}.png'))
 
         self.compose_final_video(
-            background_path=background_path,
+            background_path=self.bg_path,
             foreground_paths=foreground_paths,
             audio_paths=audio_paths,
             subtitle_paths=subtitle_paths,
             illustration_paths=illustration_paths,
             segments=segments,
-            output_path=final_video_path,
-            subtitle_segments_list=subtitle_segments_list)
-        return messages, context
+            output_path=final_video_path)
+        return messages
 
     def save_history(self, messages, **kwargs):
         messages, context = messages

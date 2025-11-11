@@ -15,12 +15,63 @@ class HumanFeedback(LLMAgent):
     system = """你是一个负责协助解决短视频生成中的人工反馈问题的助手。你的职责是根据人工反馈的问题，定位问题出现在哪个工作流程中，并适当删除前置任务的配置文件，以触发任务的重新执行。
 
 前置工作流：
-首先有一个根目录文件夹用于存储所有文件，以下描述的所有文件，或你的所有shell命令都基于这个根目录进行，你无需关心根目录位置，仅需要关注相对目录即可
-1. 根据用户需求生成基本台本，存储到script.txt中，短视频名字，存储到title.txt中
-2. 根据台本切分分镜设计，分镜设计存储在内存中，稍后该设计会给你
-3. 生成分镜的音频讲解，文件存储在audio文件夹中，以segment_N.mp3命名，其中N从1开始，代表分镜索引
-4. 生成manim动画代码，这部分的代码
-5. 修复manim
+首先有一个根目录文件夹用于存储所有文件，以下描述的所有文件，或你的所有工具命令都基于这个根目录进行，你无需关心根目录位置，仅需要关注相对目录即可
+1. 根据用户需求生成基本台本
+    * memory: memory/generate_script.json memory/generate_script.yaml
+    * 输入：用户需求，可能读取用户指定的文件
+    * 输出：台本文件script.txt，原始需求文件topic.txt，短视频名称文件title.txt
+2. 根据台本切分分镜设计
+    * memory: memory/segment.json memory/segment.yaml
+    * 输入：topic.txt, script.txt
+    * 输出：segments.txt，描述旁白、背景图片生成要求、前景manim动画要求的分镜列表
+3. 生成分镜的音频讲解
+    * memory: memory/generate_audio.json memory/generate_audio.yaml
+    * 输入：segments.txt
+    * 输出：audio/audio_N.mp3列表，N为segment序号从1开始，以及根目录audio_info.txt，包含audio时长
+4. 根据语音时长生成manim动画代码
+    * memory: memory/generate_manim_code.json memory/generate_manim_code.yaml
+    * 输入：segments.txt，audio_info.txt
+    * 输出：manim代码文件列表 manim_code/segment_N.py，N为segment序号从1开始
+5. 修复manim代码
+    * memory: memory/fix_manim_code.json memory/fix_manim_code.yaml
+    * 输入：manim_code/segment_N.py N为segment序号从1开始，code_fix/code_fix_N.txt 预错误文件
+    * 输出：更新的manim_code/segment_N.py文件
+    * 备注：如果manim动画出现问题，你应该新建code_fix/code_fix_N.txt交给本步骤重新执行
+6. 渲染manim代码
+    * memory: memory/render_manim.json memory/render_manim.yaml
+    * 输入：manim_code/segment_N.py
+    * 输出：manim_render/scene_N文件夹列表，如果segments.txt中对某个步骤包含了manim要求，则对应文件夹中会有manim.mov文件
+7. 生成文生图提示词
+    * memory: memory/generate_illustration_prompts.json memory/generate_illustration_prompts.yaml
+    * 输入：segments.txt
+    * 输出：illustration_prompts/segment_N.txt，N为segment序号从1开始
+8. 文生图
+    * memory: memory/generate_images.json memory/generate_images.yaml
+    * 输入：illustration_prompts/segment_N.txt列表
+    * 输出：images/illustration_N.png列表，N为segment序号从1开始
+9. 生成字幕
+    * memory: memory/generate_subtitle.json memory/generate_subtitle.yaml
+    * 输入：segments.txt
+    * 输出：subtitles/bilingual_subtitle_N.png列表，N为segment序号从1开始
+10. 生成背景，为纯色带有短视频title和slogans的图片
+    * memory: memory/create_background.json memory/create_background.yaml
+    * 输入：title.txt
+    * 输出：background.jpg
+11. 拼合整体视频
+    * memory: memory/compose_video.json memory/compose_video.yaml
+    * 输入：前序所有的文件信息
+    * 输出：final_video.mp4
+
+注意：
+1. 删除某个步骤的memory的json和yaml文件会让本步骤重新执行
+2. 重新执行某个步骤时，如果对应输出文件存在，则会跳过执行。例如如果某个segment对应的segment_N.png已经生成了，那么只会执行其他没有本地文件的segment的生成操作
+
+对你的要求：
+1. 获取用户提交的问题之后，你应当读取segments.txt、topic.txt来获取对任务的基本认识
+2. 分析用户描述的问题出现在segments的哪几个序号中，哪几个步骤中
+3. 如果是manim动画出现问题，你可以构造code_fix/code_fix_N.txt，N从1开始
+4. 当你确定了序号和步骤之后，你应当删除对应序号的本地文件，以及对应步骤和之后步骤的所有memory文件
+5. 工作流会自动重新执行，生成缺失文件
 """
 
     def __init__(self,
@@ -37,41 +88,29 @@ class HumanFeedback(LLMAgent):
         })
         super().__init__(config, tag, trust_remote_code, **kwargs)
         self.work_dir = getattr(self.config, 'output_dir', 'output')
+        self._query = ''
+        self.need_fix = False
 
     async def create_messages(self, messages):
-        assert isinstance(messages, str)
         return [
             Message(role='system', content=self.system),
-            Message(role='user', content=messages),
+            Message(role='user', content=self._query),
         ]
 
     async def run(self, inputs, **kwargs):
-        logger.info(f'Segmenting script to sentences.')
-        messages, context = inputs
-        script = None
-        with open(os.path.join(self.work_dir, 'script.txt'), 'r') as f:
-            script = f.read()
-        title = None
-        with open(os.path.join(self.work_dir, 'title.txt'), 'r') as f:
-            title = f.read()
-        assert title.strip() is not None
-        context['title'] = title.strip()
-        topic = context['topic']
-        query = f'Original topic: \n\n{topic}\n\n，original script：\n\n{script}\n\nPlease finish your animation storyboard design:\n'
-        messages = await super().run(query, **kwargs)
-        response = messages[-1].content
-        if '```json' in response:
-            response = response.split('```json')[1].split('```')[0]
-        elif '```' in response:
-            response = response.split('```')[1].split('```')[0]
-        segments = json.loads(response)
-        for i, segment in enumerate(segments):
-            assert 'content' in segment
-            assert 'background' in segment
-            logger.info(f'\nScene {i}\n'
-                        f'Content: {segment["content"]}\n'
-                        f'Image requirement: {segment["background"]}\n'
-                        f'Manim requirement: {segment.get("manim", "No manim")}')
-        context['segments'] = segments
-        return messages, context
+        logger.info(f'Human eval')
+        while True:
+            self._query = input('>>>')
+            if self._query.strip() == 'exit':
+                self.need_fix = False
+            elif not self._query.strip():
+                continue
+            else:
+                await self.run(inputs, **kwargs)
+
+    def next_flow(self, idx: int) -> int:
+        if self.need_fix:
+            return 0
+        else:
+            return idx + 1
 

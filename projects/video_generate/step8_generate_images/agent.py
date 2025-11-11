@@ -53,6 +53,7 @@ class GenerateImages(CodeAgent):
                     return
                 await self.generate_images(prompt, img_path)
                 self.fusion(img_path, output_path, segment)
+                shutil.rmtree(img_path, ignore_errors=True)
 
         tasks = [process_single_illustration(i, segment, prompt)
                  for i, (segment, prompt) in enumerate(zip(segments, illustration_prompts))]
