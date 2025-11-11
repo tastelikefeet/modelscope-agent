@@ -63,10 +63,10 @@ class Segment(CodeAgent):
         return messages, context
 
     async def generate_segments(self, topic, script) -> list:
-        segments = self.split_scene(topic, script)
+        segments = await self.split_scene(topic, script)
         return segments
 
-    def split_scene(self, topic, script):
+    async def split_scene(self, topic, script):
         system = """You are an animation storyboard designer. Now there is a short video scene that needs storyboard design. The storyboard needs to meet the following conditions:
 
 1. Each storyboard panel will carry a piece of narration, (at most) one manim technical animation, one generated image background, and one subtitle
@@ -108,7 +108,8 @@ Now begin:"""
             Message(role='system', content=system),
             Message(role='user', content=query),
         ]
-        _response_message = self.llm.generate(inputs, self.tool_manager.get_tools())
+        tools = await self.tool_manager.get_tools()
+        _response_message = self.llm.generate(inputs, tools)
         response = _response_message.content
         if '```json' in response:
             response = response.split('```json')[1].split('```')[0]
