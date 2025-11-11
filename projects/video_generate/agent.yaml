@@ -89,14 +89,6 @@ voices:
     rate: '-5%'
     pitch: '-50Hz'
 
-  news:
-    voice: zh-CN-XiaochenMultilingualNeural
-    rate: '+0%'
-
-  aunt:
-    voice: zh-CN-XiaoqiuNeural
-    rate: '+0%'
-
 
 max_chat_round: 20
 

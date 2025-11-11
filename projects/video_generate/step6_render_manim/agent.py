@@ -54,7 +54,7 @@ class RenderManim(CodeAgent):
         return messages
 
     async def render_manim_scene(self, segment, code, audio_duration, i):
-        scene_name = f'video_scene'
+        scene_name = f'Scene{i+1}' # sometimes actual_scene_name cannot find matched class, so do not change this name
         logger.info(f'Rendering manim code for: scene_{i + 1}')
         output_dir = os.path.join(self.render_dir, f'scene_{i + 1}')
         os.makedirs(output_dir, exist_ok=True)
@@ -90,16 +90,27 @@ class RenderManim(CodeAgent):
             ]
 
             try:
-                result = subprocess.run(
+                process = subprocess.Popen(
                     cmd,
                     cwd=output_dir,
-                    capture_output=True,
+                    stdout=subprocess.PIPE,
+                    stderr=subprocess.PIPE,
                     text=True,
                     encoding='utf-8',
                     errors='ignore',
-                    timeout=self.manim_render_timeout,
                     env=env)
                 
+                # Wait for process to complete with timeout
+                stdout, stderr = process.communicate(timeout=self.manim_render_timeout)
+                
+                # Create result object compatible with original logic
+                class Result:
+                    def __init__(self, returncode, stdout, stderr):
+                        self.returncode = returncode
+                        self.stdout = stdout
+                        self.stderr = stderr
+                
+                result = Result(process.returncode, stdout, stderr)
                 output_text = (result.stdout or '') + (result.stderr or '')
             except subprocess.TimeoutExpired as e:
                 output_text = (e.stdout.decode('utf-8', errors='ignore') if e.stdout else '') + \
@@ -149,7 +160,7 @@ class RenderManim(CodeAgent):
                             shutil.copy2(scaled_path, output_path)
                         final_file_path = output_path
             if not final_file_path:
-                logger.error(f'Manim file: {final_file_path} not found, trying to fix manim code.')
+                logger.error(f'Manim file: {class_name} not found, trying to fix manim code.')
                 code, fix_history = self.fix_manim_code(output_text, fix_history, code, manim_requirement, class_name, content, audio_duration)
             else:
                 break
