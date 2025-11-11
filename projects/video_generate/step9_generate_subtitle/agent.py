@@ -1,3 +1,4 @@
+import json
 import os
 import re
 from typing import List
@@ -23,31 +24,27 @@ class GenerateSubtitle(CodeAgent):
         self.work_dir = getattr(self.config, 'output_dir', 'output')
         self.llm: OpenAI = LLM.from_config(self.config)
         self.subtitle_lang = getattr(self.config, 'subtitle_lang', 'English')
-        subtitle_dir = os.path.join(self.work_dir, 'subtitles')
-        os.makedirs(subtitle_dir, exist_ok=True)
+        self.subtitle_dir = os.path.join(self.work_dir, 'subtitles')
+        os.makedirs(self.subtitle_dir, exist_ok=True)
 
-    async def execute_code(self, inputs, **kwargs):
-        messages, context = inputs
-        segments = context['segments']
-        context['subtitle_segments_list'] = []
-        context['subtitle_paths'] = []
-        subtitle_dir = os.path.join(self.work_dir, 'subtitles')
-        os.makedirs(subtitle_dir, exist_ok=True)
+    async def execute_code(self, messages, **kwargs):
+        with open(os.path.join(self.work_dir, 'segments.txt'), 'r') as f:
+            segments = json.load(f)
         logger.info(f'Generating subtitles.')
         for i, seg in enumerate(segments):
             text = seg.get('content', '')
             subtitle = await self.translate_text(text, self.subtitle_lang)
-            output_file = os.path.join(subtitle_dir,
+            output_file = os.path.join(self.subtitle_dir,
                                        f'bilingual_subtitle_{i + 1}.png')
+            if os.path.exists(output_file):
+                continue
             self.create_bilingual_subtitle_image(
                 source=text,
                 target=subtitle,
                 output_file=output_file,
                 width=1720,
                 height=180)
-            context['subtitle_segments_list'].append(output_file)
-            context['subtitle_paths'].append([output_file])
-        return messages, context
+        return messages
 
     @staticmethod
     def _split_subtitles(text: str, max_chars: int = 30) -> List[str]:
@@ -314,16 +311,3 @@ Now translate:
 
         final_img.save(output_file)
         return final_height
-
-    def save_history(self, messages, **kwargs):
-        messages, context = messages
-        self.config.context = context
-        return super().save_history(messages, **kwargs)
-
-    def read_history(self, messages, **kwargs):
-        _config, _messages = super().read_history(messages, **kwargs)
-        if _config is not None:
-            context = _config['context']
-            return _config, (_messages, context)
-        else:
-            return _config, _messages

@@ -1,4 +1,5 @@
 import asyncio
+import json
 import os
 import shutil
 from io import BytesIO
@@ -28,14 +29,17 @@ class GenerateImages(CodeAgent):
             self.fusion = self.keep_only_black_for_folder
         else:
             self.fusion = self.fade
+        self.illustration_prompts_dir = os.path.join(self.work_dir, 'illustration_prompts')
+        self.images_dir = os.path.join(self.work_dir, 'images')
+        os.makedirs(self.images_dir, exist_ok=True)
 
-    async def execute_code(self, inputs, **kwargs):
-        messages, context = inputs
-        illustration_prompts = context['illustration_prompts']
-        context['illustration_paths'] = []
-        segments = context['segments']
-        images_dir = os.path.join(self.work_dir, 'images')
-        os.makedirs(images_dir, exist_ok=True)
+    async def execute_code(self, messages, **kwargs):
+        with open(os.path.join(self.work_dir, 'segments.txt'), 'r') as f:
+            segments = json.load(f)
+        illustration_prompts = []
+        for i in range(len(segments)):
+            with open(os.path.join(self.illustration_prompts_dir, f'segment_{i+1}.txt'), 'r') as f:
+                illustration_prompts.append(f.read())
         logger.info(f'Generating images.')
 
         semaphore = asyncio.Semaphore(self.num_parallel)
@@ -43,22 +47,17 @@ class GenerateImages(CodeAgent):
         async def process_single_illustration(i, segment, prompt):
             async with semaphore:
                 logger.info(f'Generating image for: {prompt}.')
-                img_path = os.path.join(images_dir, f'illustration_{i + 1}_origin.png')
-                output_path = os.path.join(images_dir, f'illustration_{i + 1}.png')
+                img_path = os.path.join(self.images_dir, f'illustration_{i + 1}_origin.png')
+                output_path = os.path.join(self.images_dir, f'illustration_{i + 1}.png')
                 if os.path.exists(output_path):
-                    return i, output_path
+                    return
                 await self.generate_images(prompt, img_path)
                 self.fusion(img_path, output_path, segment)
-                return i, output_path
 
         tasks = [process_single_illustration(i, segment, prompt)
                  for i, (segment, prompt) in enumerate(zip(segments, illustration_prompts))]
-        results = await asyncio.gather(*tasks)
-
-        results.sort(key=lambda x: x[0])
-        context['illustration_paths'] = [path for _, path in results]
-
-        return messages, context
+        await asyncio.gather(*tasks)
+        return messages
 
     async def generate_images(self, prompt, img_path, negative_prompt=None):
         base_url = self.config.text2image.t2i_base_url.strip('/')
@@ -189,16 +188,3 @@ class GenerateImages(CodeAgent):
         result = Image.fromarray(img_array.astype(np.uint8), mode='RGBA')
         result.save(output_image)
         return result
-
-    def save_history(self, messages, **kwargs):
-        messages, context = messages
-        self.config.context = context
-        return super().save_history(messages, **kwargs)
-
-    def read_history(self, messages, **kwargs):
-        _config, _messages = super().read_history(messages, **kwargs)
-        if _config is not None:
-            context = _config['context']
-            return _config, (_messages, context)
-        else:
-            return _config, _messages

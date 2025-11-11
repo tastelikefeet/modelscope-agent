@@ -1,4 +1,6 @@
 import asyncio
+import json
+import os
 
 from omegaconf import DictConfig
 
@@ -19,27 +21,34 @@ class GenerateManimCode(CodeAgent):
                  **kwargs):
         super().__init__(config, tag, trust_remote_code, **kwargs)
         self.llm: OpenAI = LLM.from_config(self.config)
+        self.work_dir = getattr(self.config, 'output_dir', 'output')
+        self.manim_code_dir = os.path.join(self.work_dir, 'manim_code')
+        os.makedirs(self.manim_code_dir, exist_ok=True)
 
-    async def execute_code(self, inputs, **kwargs):
-        messages, context = inputs
-        segments = context['segments']
-        context['manim_code'] = []
+    async def execute_code(self, messages, **kwargs):
+        with open(os.path.join(self.work_dir, 'segments.txt'), 'r') as f:
+            segments = json.load(f)
+        with open(os.path.join(self.work_dir, 'audio_info.txt'), 'r') as f:
+            audio_infos = json.load(f)
         logger.info(f'Generating manim code.')
         tasks = []
-        for i, segment in enumerate(segments):
+        for i, segment, audio_info in enumerate(zip(segments, audio_infos)):
             manim_requirement = segment.get('manim')
             if manim_requirement is not None:
-                tasks.append(self.generate_manim_code(segment, i))
+                tasks.append(self.generate_manim_code(segment, audio_info['audio_duration'], i))
             else:
-                tasks.append(asyncio.sleep(0, result=None))
-        context['manim_code'] = await asyncio.gather(*tasks)
-        return messages, context
+                tasks.append(asyncio.sleep(0, result=''))
+        manim_code = await asyncio.gather(*tasks)
+        for i, code in enumerate(manim_code):
+            manim_file = os.path.join(self.manim_code_dir, f'segment_{i + 1}.py')
+            with open(manim_file, 'w') as f:
+                f.write(code)
+        return messages
 
-    async def generate_manim_code(self, segment, i):
-        audio_duration = segment['audio_duration']
+    async def generate_manim_code(self, segment, audio_duration, i):
         class_name = f'Scene{i + 1}'
         content = segment['content']
-        manim_requirement = segment.get('manim')
+        manim_requirement = segment['manim']
 
         prompt = f"""You are a professional Manim animation expert, creating clear and beautiful educational animations.
 
@@ -117,16 +126,3 @@ Please create Manim animation code that meets the above requirements."""
         else:
             manim_code = response
         return manim_code
-
-    def save_history(self, messages, **kwargs):
-        messages, context = messages
-        self.config.context = context
-        return super().save_history(messages, **kwargs)
-
-    def read_history(self, messages, **kwargs):
-        _config, _messages = super().read_history(messages, **kwargs)
-        if _config is not None:
-            context = _config['context']
-            return _config, (_messages, context)
-        else:
-            return _config, _messages

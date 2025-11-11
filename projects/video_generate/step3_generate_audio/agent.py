@@ -1,4 +1,5 @@
 import asyncio
+import json
 import os
 from dataclasses import dataclass, field
 from typing import List
@@ -32,27 +33,33 @@ class GenerateAudio(CodeAgent):
         super().__init__(config, tag, trust_remote_code, **kwargs)
         self.work_dir = getattr(self.config, 'output_dir', 'output')
         self.llm: OpenAI = LLM.from_config(self.config)
+        self.tts_dir = os.path.join(self.work_dir, 'audio')
+        os.makedirs(self.tts_dir, exist_ok=True)
         self.voices = self.config.voices
 
-    async def execute_code(self, inputs, **kwargs):
-        messages, context = inputs
-        segments = context['segments']
-        context['audio_paths'] = []
-        tts_dir = os.path.join(self.work_dir, 'audio')
-        os.makedirs(tts_dir, exist_ok=True)
+    async def execute_code(self, messages, **kwargs):
+        with open(os.path.join(self.work_dir, 'segments.txt'), 'r') as f:
+            segments = json.load(f)
         logger.info(f'Generating audios.')
 
         tasks = []
         audio_paths = []
         for i, segment in enumerate(segments):
             logger.info(f'Generating audio for: {segment.get("content")}')
-            audio_path = os.path.join(tts_dir, f'segment_{i + 1}.mp3')
+            audio_path = os.path.join(self.tts_dir, f'segment_{i + 1}.mp3')
             audio_paths.append(audio_path)
             tasks.append(self.generate_audio(segment, audio_path))
-        await asyncio.gather(*tasks)
-
-        context['audio_paths'] = audio_paths
-        return messages, context
+        audio_durations = await asyncio.gather(*tasks)
+        assert len(audio_durations) == len(audio_paths)
+        audio_info = []
+        for audio_path, audio_duration in zip(audio_paths, audio_durations):
+            audio_info.append({
+                'audio_path': audio_path,
+                'audio_duration': audio_duration,
+            })
+        with open(os.path.join(self.work_dir, 'audio_info.txt'), 'w') as f:
+            f.write(json.dumps(audio_info, indent=4))
+        return messages
 
     @staticmethod
     async def create_silent_audio(output_path, duration=5.0):
@@ -96,22 +103,11 @@ class GenerateAudio(CodeAgent):
     async def generate_audio(self, segment, audio_path):
         tts_text = segment.get('content', '').strip()
         logger.info(f'Generating audio for {tts_text}')
+        if os.path.exists(audio_path):
+            return self.get_audio_duration(audio_path)
         if tts_text:
             await self.edge_tts_generate(tts_text, audio_path, self.config.voice)
-            segment['audio_duration'] = self.get_audio_duration(audio_path)
+            return self.get_audio_duration(audio_path)
         else:
             await self.create_silent_audio(audio_path, duration=2.0)
-            segment['audio_duration'] = 2.0
-
-    def save_history(self, messages, **kwargs):
-        messages, context = messages
-        self.config.context = context
-        return super().save_history(messages, **kwargs)
-
-    def read_history(self, messages, **kwargs):
-        _config, _messages = super().read_history(messages, **kwargs)
-        if _config is not None:
-            context = _config['context']
-            return _config, (_messages, context)
-        else:
-            return _config, _messages
+            return 2.0

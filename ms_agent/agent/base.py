@@ -69,3 +69,7 @@ class Agent(ABC):
 
     def save_history(self, messages: Any, **kwargs):
         save_history(self.output_dir, self.tag, self.config, messages)
+
+    def next_flow(self, idx: int) -> int:
+        """Used in workflow, decide which agent goes next."""
+        return idx + 1

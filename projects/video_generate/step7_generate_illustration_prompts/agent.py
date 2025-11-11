@@ -1,4 +1,6 @@
 import asyncio
+import json
+import os
 from dataclasses import dataclass, field
 from typing import List
 
@@ -65,21 +67,27 @@ class GenerateIllustrationPrompts(CodeAgent):
         self.llm: OpenAI = LLM.from_config(self.config)
         self.style = getattr(self.config.text2image, 't2i_style', 'realistic')
         self.system = self.line_art_prompt if self.style == 'line-art' else self.color_prompt
+        self.illustration_prompts_dir = os.path.join(self.work_dir, 'illustration_prompts')
+        os.makedirs(self.illustration_prompts_dir, exist_ok=True)
 
-    async def execute_code(self, inputs, **kwargs):
-        messages, context = inputs
-        segments = context['segments']
-        text_segments = segments
+    async def execute_code(self, messages, **kwargs):
+        with open(os.path.join(self.work_dir, 'segments.txt'), 'r') as f:
+            segments = json.load(f)
         logger.info(f'Generating illustration prompts.')
         illustration_prompts = await asyncio.gather(*[
-            self.generate_illustration_prompts(segment)
-            for segment in text_segments
+            self.generate_illustration_prompts(segment, i)
+            for i, segment in enumerate(segments)
         ])
-        context['illustration_prompts'] = illustration_prompts
-        return messages, context
+        assert len(illustration_prompts) == len(segments)
+        for i, prompt in enumerate(illustration_prompts):
+            with open(os.path.join(self.illustration_prompts_dir, f'segment_{i+1}.txt'), 'w') as f:
+                f.write(prompt)
+        return messages
 
-    async def generate_illustration_prompts(self, segment):
-
+    async def generate_illustration_prompts(self, segment, i):
+        if os.path.exists(os.path.join(self.illustration_prompts_dir, f'segment_{i+1}.txt')):
+            with open(os.path.join(self.illustration_prompts_dir, f'segment_{i+1}.txt'), 'r') as f:
+                return f.read()
         line_art_query = (
             f'Please generate a detailed English scene description for an AI knowledge science stickman '
             f'illustration based on: {segment["content"]}\nRemember: The illustration must depict only ONE scene, '
@@ -109,16 +117,3 @@ class GenerateIllustrationPrompts(CodeAgent):
         _response_message = self.llm.generate(inputs)
         response = _response_message.content
         return response.strip()
-
-    def save_history(self, messages, **kwargs):
-        messages, context = messages
-        self.config.context = context
-        return super().save_history(messages, **kwargs)
-
-    def read_history(self, messages, **kwargs):
-        _config, _messages = super().read_history(messages, **kwargs)
-        if _config is not None:
-            context = _config['context']
-            return _config, (_messages, context)
-        else:
-            return _config, _messages

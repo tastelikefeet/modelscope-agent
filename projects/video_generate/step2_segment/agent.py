@@ -72,18 +72,13 @@ Now begin:"""
             Message(role='user', content=messages),
         ]
 
-    async def run(self, inputs, **kwargs):
+    async def run(self, *args, **kwargs):
         logger.info(f'Segmenting script to sentences.')
-        messages, context = inputs
         script = None
         with open(os.path.join(self.work_dir, 'script.txt'), 'r') as f:
             script = f.read()
-        title = None
-        with open(os.path.join(self.work_dir, 'title.txt'), 'r') as f:
-            title = f.read()
-        assert title.strip() is not None
-        context['title'] = title.strip()
-        topic = context['topic']
+        with open(os.path.join(self.work_dir, 'topic.txt'), 'r') as f:
+            topic = f.read()
         query = f'Original topic: \n\n{topic}\n\n，original script：\n\n{script}\n\nPlease finish your animation storyboard design:\n'
         messages = await super().run(query, **kwargs)
         response = messages[-1].content
@@ -99,6 +94,7 @@ Now begin:"""
                         f'Content: {segment["content"]}\n'
                         f'Image requirement: {segment["background"]}\n'
                         f'Manim requirement: {segment.get("manim", "No manim")}')
-        context['segments'] = segments
-        return messages, context
+        with open(os.path.join(self.work_dir, 'segments.txt'), 'w') as f:
+            f.write(json.dumps(segments, indent=4))
+        return messages
 

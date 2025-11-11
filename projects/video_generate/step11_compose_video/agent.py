@@ -1,3 +1,4 @@
+import json
 import os
 
 import moviepy as mp
@@ -20,12 +21,16 @@ class ComposeVideo(CodeAgent):
                  **kwargs):
         super().__init__(config, tag, trust_remote_code, **kwargs)
         self.work_dir = getattr(self.config, 'output_dir', 'output')
-        self.animation_mode = getattr(self.config, 'animation_code', 'auto')
         self.transition = getattr(self.config, 't2i_transition', 'ken-burns-effect')
+        self.bg_path = os.path.join(self.work_dir, 'background.jpg')
+        self.render_dir = os.path.join(self.work_dir, 'manim_render')
+        self.tts_dir = os.path.join(self.work_dir, 'audio')
+        self.images_dir = os.path.join(self.work_dir, 'images')
+        self.subtitle_dir = os.path.join(self.work_dir, 'subtitles')
 
     def compose_final_video(self, background_path, foreground_paths,
                             audio_paths, subtitle_paths, illustration_paths,
-                            segments, output_path, subtitle_segments_list):
+                            segments, output_path):
         segment_durations = []
         total_duration = 0
         logger.info(f'Composing the final video.')
@@ -197,49 +202,24 @@ class ComposeVideo(CodeAgent):
                 fg_clip = fg_clip.with_duration(duration)
                 current_video_clips.append(fg_clip)
 
-            if i < len(subtitle_segments_list):
-                subtitle_imgs = [subtitle_segments_list[i]]
-                if subtitle_imgs and isinstance(
-                        subtitle_imgs, list) and len(subtitle_imgs) > 0:
-                    n = len(subtitle_imgs)
-                    seg_duration = duration / n
-                    for idx, subtitle_path in enumerate(subtitle_imgs):
-                        if not os.path.exists(subtitle_path):
-                            continue
-                        subtitle_img = Image.open(subtitle_path)
-                        subtitle_w, subtitle_h = subtitle_img.size
-                        
-                        subtitle_clip = mp.ImageClip(
-                            subtitle_path, duration=seg_duration)
-                        subtitle_clip = subtitle_clip.resized(
-                            (subtitle_w, subtitle_h))
-                        subtitle_y = 850
-                        subtitle_clip = subtitle_clip.with_position(
-                            ('center', subtitle_y))
-                        subtitle_clip = subtitle_clip.with_start(idx
-                                                                * seg_duration)
-                        current_video_clips.append(subtitle_clip)
-            else:
-                if isinstance(subtitle_paths[i], (list, ListConfig)):
-                    subtitle_paths[i] = subtitle_paths[i][0]
-                if i < len(subtitle_paths
-                           ) and subtitle_paths[i] and os.path.exists(
-                               subtitle_paths[i]):
-                    subtitle_img = Image.open(subtitle_paths[i])
-                    subtitle_w, subtitle_h = subtitle_img.size
-                    
-                    # Validate subtitle dimensions
-                    if subtitle_w <= 0 or subtitle_h <= 0:
-                        logger.error(f'Invalid subtitle dimensions: {subtitle_w}x{subtitle_h} for {subtitle_paths[i]}')
-                    else:
-                        subtitle_clip = mp.ImageClip(
-                            subtitle_paths[i], duration=duration)
-                        subtitle_clip = subtitle_clip.resized(
-                            (subtitle_w, subtitle_h))
-                        subtitle_y = 850
-                        subtitle_clip = subtitle_clip.with_position(
-                            ('center', subtitle_y))
-                        current_video_clips.append(subtitle_clip)
+            if i < len(subtitle_paths
+                       ) and subtitle_paths[i] and os.path.exists(
+                           subtitle_paths[i]):
+                subtitle_img = Image.open(subtitle_paths[i])
+                subtitle_w, subtitle_h = subtitle_img.size
+
+                # Validate subtitle dimensions
+                if subtitle_w <= 0 or subtitle_h <= 0:
+                    logger.error(f'Invalid subtitle dimensions: {subtitle_w}x{subtitle_h} for {subtitle_paths[i]}')
+                else:
+                    subtitle_clip = mp.ImageClip(
+                        subtitle_paths[i], duration=duration)
+                    subtitle_clip = subtitle_clip.resized(
+                        (subtitle_w, subtitle_h))
+                    subtitle_y = 850
+                    subtitle_clip = subtitle_clip.with_position(
+                        ('center', subtitle_y))
+                    current_video_clips.append(subtitle_clip)
 
             if current_video_clips:
                 segment_video = mp.CompositeVideoClip(
@@ -346,17 +326,23 @@ class ComposeVideo(CodeAgent):
             if abs(actual_duration - final_video.duration) >= 1.0:
                 raise RuntimeError('Duration not match')
 
-    async def execute_code(self, inputs, **kwargs):
-        messages, context = inputs
-        final_name = 'preview_with_placeholders.mp4' if self.animation_mode == 'human' else 'final_video.mp4'
+    async def execute_code(self, messages, **kwargs):
+        final_name = 'final_video.mp4'
         final_video_path = os.path.join(self.work_dir, final_name)
-        background_path = context.get('background_path')
-        foreground_paths = context.get('foreground_paths')
-        audio_paths = context.get('audio_paths')
-        subtitle_paths = context.get('subtitle_paths')
-        illustration_paths = context.get('illustration_paths')
-        segments = context.get('segments')
-        subtitle_segments_list = context.get('subtitle_segments_list')
+        with open(os.path.join(self.work_dir, 'segments.txt'), 'r') as f:
+            segments = json.load(f)
+
+        background_paths = []
+        foreground_paths = []
+        audio_paths = []
+        subtitle_paths = []
+        illustration_paths = []
+        subtitle_segments_list = []
+        for i, segment in enumerate(segments):
+            background_paths.append(os.path.join(self.images_dir, f'illustration_{i + 1}.png'))
+            foreground_paths.append(os.path.join(self.render_dir, f'scene_{i + 1}', f'manim.mov'))
+            audio_paths.append(os.path.join(self.tts_dir, f'segment_{i + 1}.mp3'))
+            subtitle_paths.append(os.path.join(self.subtitle_dir, f'bilingual_subtitle_{i + 1}.png'))
 
         self.compose_final_video(
             background_path=background_path,

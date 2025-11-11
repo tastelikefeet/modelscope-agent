@@ -39,10 +39,10 @@ class CreateBackground(CodeAgent):
                 continue
         return ImageFont.load_default()
 
-    async def execute_code(self, inputs, **kwargs):
-        messages, context = inputs
+    async def execute_code(self, messages, **kwargs):
         logger.info(f'Creating background.')
-        title = context.get('title')
+        with open(os.path.join(self.work_dir, 'title.txt'), 'r') as f:
+            title = f.read()
         width, height = 1920, 1080
         background_color = (255, 255, 255)
         title_color = (0, 0, 0)
@@ -91,8 +91,7 @@ class CreateBackground(CodeAgent):
                   fill=(0, 0, 0),
                   width=config['line_width'])
         image.save(self.bg_path)
-        context['background_path'] = self.bg_path
-        return messages, context
+        return messages
 
     def save_history(self, messages, **kwargs):
         messages, context = messages

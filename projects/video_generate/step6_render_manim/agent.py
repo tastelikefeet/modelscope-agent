@@ -1,4 +1,5 @@
 import asyncio
+import json
 import os
 import re
 import shutil
@@ -28,33 +29,40 @@ class RenderManim(CodeAgent):
         self.work_dir = getattr(self.config, 'output_dir', 'output')
         self.llm: OpenAI = LLM.from_config(self.config)
         self.manim_render_timeout = getattr(self.config, 'manim_render_timeout', 300)
-        self.fix_history = ''
+        self.render_dir = os.path.join(self.work_dir, 'manim_render')
+        os.makedirs(self.render_dir, exist_ok=True)
 
-    async def execute_code(self, inputs, **kwargs):
-        messages, context = inputs
-        context['foreground_paths'] = []
-        segments = context['segments']
-        manim_code = context['manim_code']
+    async def execute_code(self, messages, **kwargs):
+        with open(os.path.join(self.work_dir, 'segments.txt'), 'r') as f:
+            segments = json.load(f)
+        manim_code_dir = os.path.join(self.work_dir, 'manim_code')
+        manim_code = []
+        for i in range(len(segments)):
+            with open(os.path.join(manim_code_dir, f'segment_{i+1}.py'), 'r') as f:
+                manim_code.append(f.read())
+        assert len(manim_code) == len(segments)
         logger.info(f'Rendering manim code.')
 
         async def process_segment(i, segment, code):
-            scene_name = f'Scene{i + 1}'
-            logger.info(f'Rendering manim code for: {scene_name}')
-            scene_dir = os.path.join(self.work_dir, f'scene_{i + 1}')
+            scene_name = f'manim'
+            logger.info(f'Rendering manim code for: scene_{i + 1}')
+            scene_dir = os.path.join(self.render_dir, f'scene_{i + 1}')
             os.makedirs(scene_dir, exist_ok=True)
             if 'manim' in segment:
-                manim_file = await self.render_manim_scene(code, scene_name, scene_dir, segment, i)
-            else:
-                manim_file = None
-            return manim_file
+                code = await self.render_manim_scene(code, scene_name, scene_dir, segment, i)
+            return code
 
         tasks = [
             process_segment(i, segment, code)
             for i, (segment, code) in enumerate(zip(segments, manim_code))
         ]
 
-        context['foreground_paths'] = await asyncio.gather(*tasks)
-        return messages, context
+        result = await asyncio.gather(*tasks)
+        for i, r in enumerate(result):
+            manim_file = os.path.join(manim_code_dir, f'segment_{i + 1}.py')
+            with open(manim_file, 'w') as f:
+                f.write(r)
+        return messages
 
     async def render_manim_scene(self, code, scene_name, output_dir, segment, i):
         code_file = os.path.join(output_dir, f'{scene_name}.py')
@@ -71,7 +79,7 @@ class RenderManim(CodeAgent):
         if manim_requirement is None:
             return None
         logger.info(f'Rendering scene {actual_scene_name}')
-        self.fix_history = ''
+        fix_history = ''
         for i in range(5):
             with open(code_file, 'w') as f:
                 f.write(code)
@@ -107,8 +115,8 @@ class RenderManim(CodeAgent):
                 logger.error(f'Manim rendering timed out after {self.manim_render_timeout} '
                     f'seconds for {actual_scene_name}, output: {output_text}')
                 logger.error(f'Trying to fix manim code.')
-                code = self.fix_manim_code(
-                    output_text,
+                code, fix_history = self.fix_manim_code(
+                    output_text, fix_history,
                     code, manim_requirement, class_name, content, audio_duration
                 )
                 continue
@@ -127,7 +135,7 @@ class RenderManim(CodeAgent):
 
                 if any([error_indicator in output_text for error_indicator in real_error_indicators]):
                     logger.error(f'Trying to fix manim code.')
-                    code = self.fix_manim_code(output_text, code, manim_requirement, class_name, content, audio_duration)
+                    code, fix_history = self.fix_manim_code(output_text, fix_history, code, manim_requirement, class_name, content, audio_duration)
                     continue
 
             for root, dirs, files in os.walk(output_dir):
@@ -150,15 +158,15 @@ class RenderManim(CodeAgent):
                         final_file_path = output_path
             if not final_file_path:
                 logger.error(f'Manim file: {final_file_path} not found, trying to fix manim code.')
-                code = self.fix_manim_code(output_text, code, manim_requirement, class_name, content, audio_duration)
+                code, fix_history = self.fix_manim_code(output_text, fix_history, code, manim_requirement, class_name, content, audio_duration)
             else:
                 break
         if final_file_path:
-            return final_file_path
+            return code
         else:
             raise FileNotFoundError(final_file_path)
 
-    def fix_manim_code(self, error_log, manim_code, manim_requirement, class_name, content, audio_duration):
+    def fix_manim_code(self, error_log, fix_history, manim_code, manim_requirement, class_name, content, audio_duration):
         fix_request = f"""You are a professional code debugging specialist. You need to help me fix issues in the code. Error messages will be passed directly to you. You need to carefully examine the problems and provide the correct, complete code.
 {error_log}
 
@@ -167,7 +175,7 @@ class RenderManim(CodeAgent):
 {manim_code}
 ```
 
-{self.fix_history}
+{fix_history}
 
 **Original code task**: Create manim animation
 - Class name: {class_name}
@@ -194,10 +202,10 @@ Please precisely fix the detected issues while maintaining the richness and crea
             manim_code = response.split('```')[1].split('```')[0]
         else:
             manim_code = response
-        self.fix_history = (f'You have a fix history which generates the code which is given to you:\n\n{fix_request}\n\n'
+        fix_history = (f'You have a fix history which generates the code which is given to you:\n\n{fix_request}\n\n'
                             f'If last error is same with latest error, **You probably find a wrong root cause**, '
                             f'Check carefully and fix it again.**')
-        return manim_code
+        return manim_code, fix_history
 
     @staticmethod
     def verify_and_fix_mov_file(mov_path):
@@ -261,16 +269,3 @@ Please precisely fix the detected issues while maintaining the richness and crea
             return scaled_path
         else:
             return video_path
-
-    def save_history(self, messages, **kwargs):
-        messages, context = messages
-        self.config.context = context
-        return super().save_history(messages, **kwargs)
-
-    def read_history(self, messages, **kwargs):
-        _config, _messages = super().read_history(messages, **kwargs)
-        if _config is not None:
-            context = _config['context']
-            return _config, (_messages, context)
-        else:
-            return _config, _messages

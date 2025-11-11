@@ -35,10 +35,12 @@ class GenerateScript(LLMAgent):
         assert os.path.isfile(title)
         return super().on_task_end(messages)
 
-    async def run(self, messages, **kwargs):
+    async def run(self, query: str, **kwargs):
         messages = [
             Message(role='system', content=self.system),
-            Message(role='user', content=messages),
+            Message(role='user', content=query),
         ]
         inputs = await super().run(messages, **kwargs)
-        return inputs, {'topic': messages[1].content}
+        with open(os.path.join(self.work_dir, 'topic.txt'), 'w') as f:
+            f.write(messages[1].content)
+        return inputs

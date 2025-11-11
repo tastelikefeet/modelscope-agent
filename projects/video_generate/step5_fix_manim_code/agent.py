@@ -1,4 +1,7 @@
+import json
+import os
 import re
+import shutil
 from typing import Dict, List
 import asyncio
 from omegaconf import DictConfig
@@ -21,39 +24,70 @@ class FixManimCode(CodeAgent):
         super().__init__(config, tag, trust_remote_code, **kwargs)
         self.max_fix_rounds = getattr(self.config, 'max_fix_rounds', 3)
         self.llm: OpenAI = LLM.from_config(self.config)
+        self.work_dir = getattr(self.config, 'output_dir', 'output')
+        self.code_fix_dir = os.path.join(self.work_dir, 'code_fix')
+        os.makedirs(self.code_fix_dir, exist_ok=True)
 
-    async def execute_code(self, inputs, **kwargs):
-        messages, context = inputs
+    async def execute_code(self, messages, **kwargs):
         logger.info(f'Fixing manim code.')
         
-        async def process_single_code(i, code):
-            if code is None:
-                return i, None
+        async def process_single_code(i, pre_error, code):
+            if not code:
+                return i, ''
 
             for _ in range(self.max_fix_rounds):
-                analysis = self.analyze_and_score(code)
-                if not analysis['needs_fix'] or analysis['layout_score'] >= 90:
+                if pre_error is not None:
+                    if pre_error:
+                        code = await self.fix_code(pre_error, code)
                     break
-                
-                if analysis['issue_count'] == 0:
-                    break
-                
-                code = await self.fix_code(analysis)
+                else:
+                    analysis = self.analyze_and_score(code)
+                    if not analysis['needs_fix'] or analysis['layout_score'] >= 90:
+                        break
+
+                    if analysis['issue_count'] == 0:
+                        break
+
+                    code = await self.fix_code(analysis['fix_prompt'], analysis['manim_code'])
             
             code = self.optimize_simple_code(code)
             return i, code
-        
+
+        with open(os.path.join(self.work_dir, 'segments.txt'), 'r') as f:
+            segments = json.load(f)
+
+        manim_code_dir = os.path.join(self.work_dir, 'manim_code')
+        manim_code = []
+        pre_errors = []
+        pre_error_mode = False
+        for i in range(len(segments)):
+            with open(os.path.join(manim_code_dir, f'segment_{i+1}.py'), 'r') as f:
+                manim_code.append(f.read())
+            error_file = os.path.join(self.code_fix_dir, f'code_fix_{i + 1}.txt')
+            if os.path.exists(error_file):
+                pre_error_mode = True
+                with open(error_file, 'r') as _f:
+                    pre_error = _f.read()
+                    pre_error = pre_error or ''
+            else:
+                pre_error = ''
+            pre_errors.append(pre_error)
+        assert len(manim_code) == len(segments)
+        if pre_error_mode:
+            assert len(pre_errors) == len(segments)
         tasks = [
-            process_single_code(i, code) 
-            for i, code in enumerate(context['manim_code'])
+            process_single_code(i, pre_error, code)
+            for i, pre_error, code in enumerate(zip(manim_code, pre_errors))
         ]
-        
         results = await asyncio.gather(*tasks)
+        if pre_error_mode:
+            shutil.rmtree(self.code_fix_dir)
+        for i, code in enumerate(results):
+            manim_file = os.path.join(manim_code_dir, f'segment_{i + 1}.py')
+            with open(manim_file, 'w') as f:
+                f.write(code)
         
-        for i, code in results:
-            context['manim_code'][i] = code
-        
-        return messages, context
+        return messages
 
     @staticmethod
     def optimize_simple_code(code):
@@ -86,9 +120,7 @@ class FixManimCode(CodeAgent):
 
         return '\n'.join(optimized_lines)
 
-    async def fix_code(self, analysis):
-        fix_prompt = analysis['fix_prompt']
-        manim_code = analysis['manim_code']
+    async def fix_code(self, fix_prompt, manim_code):
         fix_request = f"""
 {fix_prompt}
 
@@ -738,16 +770,3 @@ Please return the complete fixed code, ensuring both layout issues are resolved 
             return f"Multiple objects using center() positioning: {', '.join(objects)}"
         else:
             return conflict.get('description', 'Unknown conflict')
-
-    def save_history(self, messages, **kwargs):
-        messages, context = messages
-        self.config.context = context
-        return super().save_history(messages, **kwargs)
-
-    def read_history(self, messages, **kwargs):
-        _config, _messages = super().read_history(messages, **kwargs)
-        if _config is not None:
-            context = _config['context']
-            return _config, (_messages, context)
-        else:
-            return _config, _messages

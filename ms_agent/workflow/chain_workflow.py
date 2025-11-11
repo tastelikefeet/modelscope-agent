@@ -73,7 +73,9 @@ class ChainWorkflow(Workflow):
             Any: The final output after executing all tasks in the chain.
         """
         agent_config = None
-        for task in self.workflow_chains:
+        idx = 0
+        while True:
+            task = self.workflow_chains[idx]
             task_info = getattr(self.config, task)
             config = getattr(task_info, 'agent_config', agent_config)
             if not hasattr(task_info, 'agent'):
@@ -95,4 +97,7 @@ class ChainWorkflow(Workflow):
             engine = AgentLoader.build(**init_args)
             inputs = await engine.run(inputs)
             agent_config = engine.config
+            idx = engine.next_flow(idx)
+            if idx >= len(self.workflow_chains):
+                break
         return inputs
