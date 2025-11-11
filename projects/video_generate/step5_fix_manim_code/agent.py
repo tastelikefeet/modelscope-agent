@@ -70,19 +70,22 @@ class FixManimCode(CodeAgent):
                     pre_error = _f.read()
                     pre_error = pre_error or ''
             else:
-                pre_error = ''
+                pre_error = None
             pre_errors.append(pre_error)
         assert len(manim_code) == len(segments)
         if pre_error_mode:
+            pre_errors = [e or '' for e in pre_errors]
             assert len(pre_errors) == len(segments)
+        else:
+            pre_errors = [None] * len(segments)
         tasks = [
             process_single_code(i, pre_error, code)
-            for i, pre_error, code in enumerate(zip(manim_code, pre_errors))
+            for i, (code, pre_error) in enumerate(zip(manim_code, pre_errors))
         ]
         results = await asyncio.gather(*tasks)
         if pre_error_mode:
             shutil.rmtree(self.code_fix_dir)
-        for i, code in enumerate(results):
+        for (i, code) in results:
             manim_file = os.path.join(manim_code_dir, f'segment_{i + 1}.py')
             with open(manim_file, 'w') as f:
                 f.write(code)
