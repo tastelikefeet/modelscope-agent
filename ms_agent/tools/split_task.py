@@ -9,13 +9,13 @@ from omegaconf import DictConfig
 class SplitTask(ToolBase):
     """A tool special for task splitting"""
 
-    def __init__(self, config: DictConfig):
+    def __init__(self, config: DictConfig, **kwargs):
         super().__init__(config)
         if hasattr(config, 'tools') and hasattr(config.tools, 'split_task'):
             self.tag_prefix = getattr(config.tools.split_task, 'tag_prefix',
                                       'worker-')
         else:
-            self.tag_prefix = 'worker-'
+            self.tag_prefix = kwargs.get('tag_prefix', 'worker-')
         self.round = 0
 
     async def connect(self):

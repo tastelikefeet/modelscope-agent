@@ -72,7 +72,7 @@ Here are the original query and the keywords:
         delattr(_config, 'tools')
         _config.generation_config.temperature = 1.0
         self.llm = LLM.from_config(_config)
-        self.split_task = SplitTask(_config)
+        self.split_task = SplitTask(_config, tag_prefix='diversity-')
         self.num_split = getattr(config, "num_split", self.num_split)
 
     async def run(self, messages: List[Message]):
