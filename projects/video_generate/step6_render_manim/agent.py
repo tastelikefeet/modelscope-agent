@@ -40,21 +40,23 @@ class RenderManim(CodeAgent):
         for i in range(len(segments)):
             with open(os.path.join(manim_code_dir, f'segment_{i+1}.py'), 'r') as f:
                 manim_code.append(f.read())
+        with open(os.path.join(self.work_dir, 'audio_info.txt'), 'r') as f:
+            audio_infos = json.load(f)
         assert len(manim_code) == len(segments)
         logger.info(f'Rendering manim code.')
 
-        async def process_segment(i, segment, code):
+        async def process_segment(i, segment, code, audio_duration):
             scene_name = f'manim'
             logger.info(f'Rendering manim code for: scene_{i + 1}')
             scene_dir = os.path.join(self.render_dir, f'scene_{i + 1}')
             os.makedirs(scene_dir, exist_ok=True)
             if 'manim' in segment:
-                code = await self.render_manim_scene(code, scene_name, scene_dir, segment, i)
+                code = await self.render_manim_scene(code, scene_name, audio_duration, scene_dir, segment, i)
             return code
 
         tasks = [
-            process_segment(i, segment, code)
-            for i, (segment, code) in enumerate(zip(segments, manim_code))
+            process_segment(i, segment, code, audio_info['audio_duration'])
+            for i, (segment, code, audio_info) in enumerate(zip(segments, manim_code, audio_infos))
         ]
 
         result = await asyncio.gather(*tasks)
@@ -64,12 +66,11 @@ class RenderManim(CodeAgent):
                 f.write(r)
         return messages
 
-    async def render_manim_scene(self, code, scene_name, output_dir, segment, i):
+    async def render_manim_scene(self, code, scene_name, audio_duration, output_dir, segment, i):
         code_file = os.path.join(output_dir, f'{scene_name}.py')
         class_match = re.search(r'class\s+(\w+)\s*\(Scene\)', code)
         actual_scene_name = class_match.group(1) if class_match else scene_name
         output_path = os.path.join(output_dir, f'{scene_name}.mov')
-        audio_duration = segment['audio_duration']
         manim_requirement = segment.get('manim')
         class_name = f'Scene{i + 1}'
         content = segment['content']

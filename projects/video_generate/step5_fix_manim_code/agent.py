@@ -37,18 +37,24 @@ class FixManimCode(CodeAgent):
 
             for _ in range(self.max_fix_rounds):
                 if pre_error is not None:
+                    logger.info(f'Try to fix pre defined error for segment {i+1}')
                     if pre_error:
+                        logger.info(f'Fixing pre error of segment {i+1}: {pre_error}')
                         code = await self.fix_code(pre_error, code)
+                        logger.info(f'Fix pre error of segment {i + 1} done')
                     break
                 else:
                     analysis = self.analyze_and_score(code)
+                    logger.info(f'Analyse segment {i + 1}: {analysis["fix_prompt"]}')
                     if not analysis['needs_fix'] or analysis['layout_score'] >= 90:
                         break
 
                     if analysis['issue_count'] == 0:
                         break
 
+                    logger.info(f'Fixing analysis errors of segment {i+1}')
                     code = await self.fix_code(analysis['fix_prompt'], analysis['manim_code'])
+                    logger.info(f'Fix analysis errors of segment {i + 1} done')
             
             code = self.optimize_simple_code(code)
             return i, code
