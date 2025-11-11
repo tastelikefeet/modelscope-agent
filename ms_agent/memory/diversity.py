@@ -57,6 +57,7 @@ Here are the original query and the keywords:
 """
 
     def __init__(self, config):
+        config.save_memory = False
         super().__init__(config)
         config.llm.service = config.llm.provider
         self.llm = None

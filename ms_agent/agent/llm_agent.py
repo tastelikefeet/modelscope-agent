@@ -564,6 +564,9 @@ class LLMAgent(Agent):
         if not query:
             return
 
+        if not getattr(self.config, 'save_memory', True):
+            return
+
         config: DictConfig = deepcopy(self.config)
         config.runtime = self.runtime.to_dict()
         save_history(
