@@ -1,7 +1,7 @@
 import json
 import os
 import shutil
-from concurrent.futures import ProcessPoolExecutor, as_completed
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from typing import List, Union
 
 from omegaconf import DictConfig
@@ -22,6 +22,7 @@ class FixManimCode(CodeAgent):
                  **kwargs):
         super().__init__(config, tag, trust_remote_code, **kwargs)
         self.work_dir = getattr(self.config, 'output_dir', 'output')
+        self.num_parallel = getattr(self.config, 'llm_num_parallel', 10)
         self.code_fix_dir = os.path.join(self.work_dir, 'code_fix')
         os.makedirs(self.code_fix_dir, exist_ok=True)
 
@@ -56,7 +57,7 @@ class FixManimCode(CodeAgent):
         tasks = [(i, pre_error, code) for i, (code, pre_error) in enumerate(zip(manim_code, pre_errors)) if code]
         results = {}
         
-        with ProcessPoolExecutor() as executor:
+        with ThreadPoolExecutor(max_workers=self.num_parallel) as executor:
             futures = {executor.submit(self._process_single_code_static, i, pre_error, code, 
                                        self.config): i
                       for i, pre_error, code in tasks}

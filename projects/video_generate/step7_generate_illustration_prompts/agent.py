@@ -2,7 +2,7 @@ import json
 import os
 from dataclasses import dataclass, field
 from typing import List, Union
-from concurrent.futures import ProcessPoolExecutor, as_completed
+from concurrent.futures import ThreadPoolExecutor, as_completed
 
 from ms_agent.agent import CodeAgent
 from ms_agent.llm import LLM, Message
@@ -45,6 +45,7 @@ class GenerateIllustrationPrompts(CodeAgent):
                  **kwargs):
         super().__init__(config, tag, trust_remote_code, **kwargs)
         self.work_dir = getattr(self.config, 'output_dir', 'output')
+        self.num_parallel = getattr(self.config, 'llm_num_parallel', 10)
         self.style = getattr(self.config.text2image, 't2i_style', 'realistic')
         self.illustration_prompts_dir = os.path.join(self.work_dir, 'illustration_prompts')
         os.makedirs(self.illustration_prompts_dir, exist_ok=True)
@@ -57,7 +58,7 @@ class GenerateIllustrationPrompts(CodeAgent):
         tasks = [(i, segment) for i, segment in enumerate(segments)]
         illustration_prompts = [''] * len(segments)
         
-        with ProcessPoolExecutor() as executor:
+        with ThreadPoolExecutor(max_workers=self.num_parallel) as executor:
             futures = {executor.submit(self._generate_illustration_prompts_static, i, segment, 
                                        self.config, self.style, self.system,
                                        self.illustration_prompts_dir): i 

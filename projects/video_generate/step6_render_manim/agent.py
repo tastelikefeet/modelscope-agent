@@ -3,7 +3,7 @@ import os
 import re
 import shutil
 import subprocess
-from concurrent.futures import ProcessPoolExecutor, as_completed
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from typing import List, Union
 
 from moviepy import VideoFileClip
@@ -27,6 +27,7 @@ class RenderManim(CodeAgent):
                  **kwargs):
         super().__init__(config, tag, trust_remote_code, **kwargs)
         self.work_dir = getattr(self.config, 'output_dir', 'output')
+        self.num_parallel = getattr(self.config, 'llm_num_parallel', 10)
         self.manim_render_timeout = getattr(self.config, 'manim_render_timeout', 300)
         self.render_dir = os.path.join(self.work_dir, 'manim_render')
         os.makedirs(self.render_dir, exist_ok=True)
@@ -47,7 +48,7 @@ class RenderManim(CodeAgent):
         tasks = [(i, segment, code, audio_info['audio_duration']) 
                  for i, (segment, code, audio_info) in enumerate(zip(segments, manim_code, audio_infos))]
 
-        with ProcessPoolExecutor() as executor:
+        with ThreadPoolExecutor(max_workers=self.num_parallel) as executor:
             futures = {executor.submit(self._render_manim_scene_static, i, segment, code, duration, 
                                        self.config, self.work_dir, self.render_dir, 
                                        self.window_size, self.manim_render_timeout): i 

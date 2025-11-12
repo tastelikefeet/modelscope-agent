@@ -1,6 +1,6 @@
 import json
 import os
-from concurrent.futures import ProcessPoolExecutor, as_completed
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from typing import List, Union
 
 from omegaconf import DictConfig
@@ -21,6 +21,7 @@ class GenerateManimCode(CodeAgent):
                  **kwargs):
         super().__init__(config, tag, trust_remote_code, **kwargs)
         self.work_dir = getattr(self.config, 'output_dir', 'output')
+        self.num_parallel = getattr(self.config, 'llm_num_parallel', 10)
         self.manim_code_dir = os.path.join(self.work_dir, 'manim_code')
         os.makedirs(self.manim_code_dir, exist_ok=True)
 
@@ -39,7 +40,7 @@ class GenerateManimCode(CodeAgent):
         
         manim_code = [''] * len(segments)
         
-        with ProcessPoolExecutor() as executor:
+        with ThreadPoolExecutor(max_workers=self.num_parallel) as executor:
             futures = {executor.submit(self._generate_manim_code_static, seg, dur, idx, self.config): idx 
                       for seg, dur, idx in tasks}
             for future in as_completed(futures):

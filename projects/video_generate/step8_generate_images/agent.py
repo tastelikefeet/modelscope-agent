@@ -2,7 +2,7 @@ import json
 import os
 import shutil
 from io import BytesIO
-from concurrent.futures import ProcessPoolExecutor
+from concurrent.futures import ThreadPoolExecutor
 from typing import List, Union
 import asyncio
 
@@ -26,7 +26,7 @@ class GenerateImages(CodeAgent):
                  **kwargs):
         super().__init__(config, tag, trust_remote_code, **kwargs)
         self.work_dir = getattr(self.config, 'output_dir', 'output')
-        self.num_parallel = getattr(self.config.text2image, 't2i_num_parallel', 1)
+        self.num_parallel = getattr(self.config, 't2i_num_parallel', 1)
         self.style = getattr(self.config.text2image, 't2i_style', 'realistic')
         self.fusion = self.fade
         self.illustration_prompts_dir = os.path.join(self.work_dir, 'illustration_prompts')
@@ -44,9 +44,9 @@ class GenerateImages(CodeAgent):
 
         tasks = [(i, segment, prompt) for i, (segment, prompt) in enumerate(zip(segments, illustration_prompts))]
         
-        # Use ProcessPoolExecutor with asyncio event loop
+        # Use ThreadPoolExecutor with asyncio event loop
         loop = asyncio.get_event_loop()
-        with ProcessPoolExecutor(max_workers=self.num_parallel) as executor:
+        with ThreadPoolExecutor(max_workers=self.num_parallel) as executor:
             futures = [loop.run_in_executor(executor, self._process_single_illustration_static, 
                                             i, segment, prompt, self.config,
                                             self.images_dir, self.fusion.__name__)
