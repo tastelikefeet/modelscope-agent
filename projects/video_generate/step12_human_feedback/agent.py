@@ -106,6 +106,7 @@ class HumanFeedback(LLMAgent):
             self._query = input('>>>')
             if self._query.strip() == 'exit':
                 self.need_fix = False
+                return inputs
             elif not self._query.strip():
                 continue
             else:
