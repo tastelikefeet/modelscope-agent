@@ -108,8 +108,6 @@ Now translate:
 
         # Define sentence-ending punctuation (highest priority for breaks)
         sentence_enders = '.!?。！？'
-        # Define clause-ending punctuation (medium priority)
-        clause_enders = ',;:，；：、'
         # All punctuation marks
         all_punctuation = string.punctuation + '。！？；，、：""' '《》【】（）'
 
@@ -134,21 +132,22 @@ Now translate:
                     # Found sentence end, break after it
                     return i, False
             
-            # Priority 2: Look for clause-ending punctuation
-            for i in range(max_pos, search_start, -1):
-                if i > 0 and i < len(text) and text[i - 1] in clause_enders:
-                    return i, False
-            
-            # Priority 3: Look for whitespace
+            # Priority 2: Look for whitespace
             for i in range(max_pos, search_start, -1):
                 if i < len(text) and text[i].isspace():
+                    return i, False
+            
+            # Priority 3: Look for existing hyphens in compound words (e.g., "Megatron-LM")
+            # Break after the hyphen to keep compound words together
+            for i in range(max_pos, search_start, -1):
+                if i > 0 and i < len(text) and text[i - 1] == '-':
                     return i, False
             
             # Priority 4: For Chinese text, can break between characters
             if max_pos > 0 and max_pos < len(text) and is_chinese(text[max_pos - 1]):
                 return max_pos, False
             
-            # Priority 5: For English, try to break at word boundary with hyphen
+            # Priority 5: For English, try to break at word boundary
             # Look back for space
             for i in range(max_pos, max(0, max_pos - 15), -1):
                 if i < len(text) and text[i].isspace():

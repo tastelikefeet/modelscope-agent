@@ -12,7 +12,7 @@ cd ms-agent
 
 2. 安装依赖
 ```shell
-pip isntall .
+pip install .
 cd projects/SingularityCinema
 pip install -r requirements.txt
 ```
