@@ -37,7 +37,9 @@ class GenerateIllustrationPrompts(CodeAgent):
 - Unless necessary, do not generate text, as text may be generated incorrectly, creating an AI-generated feel
 - The image panel size is 1920*1080, so you need to concentrate elements within a relatively flat image area. Elements at the top and bottom will be cropped
 - The images need to accurately convey the meaning expressed by the text. Later, these images will be combined with text to create educational/knowledge-based videos
-- Output 80-120 words in English, only the scene description, no style keywords, and only use English text in the image if it is truly needed for the scene."""  # noqa
+- Output 80-120 words in English, only the scene description, no style keywords, and only use English text in the image if it is truly needed for the scene.
+
+Only return the prompt itself, do not add any other explainations or marks."""  # noqa
 
     def __init__(self,
                  config: DictConfig,

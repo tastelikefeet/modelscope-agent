@@ -188,23 +188,15 @@ class FileSystemTool(ToolBase):
         results = {}
         for path in paths:
             try:
-                # Determine the target path
                 if os.path.isabs(path):
-                    # Absolute path provided
                     target_path = path
                 else:
-                    # Relative path - join with output_dir
                     target_path = os.path.join(self.output_dir, path)
-                
-                # Resolve to absolute path and check if within output_dir
                 target_path_real = os.path.realpath(target_path)
                 output_dir_real = os.path.realpath(self.output_dir)
-                
-                # Check if the resolved path is within output_dir
                 is_in_output_dir = target_path_real.startswith(output_dir_real + os.sep) or target_path_real == output_dir_real
                 
                 if not is_in_output_dir and not self.allow_read_all_files:
-                    # Path is outside output_dir and unrestricted access is not allowed
                     results[path] = f'Access denied: Reading file <{path}> outside output directory is not allowed. Set allow_read_all_files=true in config to enable.'
                     logger.warning(f'Attempt to read file outside output directory blocked: {path} -> {target_path_real}')
                     continue
