@@ -109,19 +109,23 @@ Requirements for you:
         ]
 
     async def run(self, inputs, **kwargs):
-        logger.info(
-            '请查看输出文件夹中的final_video.mp4,并给出你的修改意见。请注意:\n'
+        blue_color_prefix = '\033[34m'
+        blue_color_suffix = '\033[0m'
+        print(
+            f'{blue_color_prefix}请查看输出文件夹中的final_video.mp4,并给出你的修改意见。请注意:\n'
             '    * 重新生成素材合成video需要一定时间，建议将问题总结起来一并反馈\n'
             '    * 请具体描述问题现象,并尽量描述清楚发生在哪个分镜中,例如在展示...信息时动画向...越界了...重叠了\n'
-            '    * 可以给出对整体视频的评价,例如建议模型重新生成动画,或者对现有动画比较满意直接修改\n')
-        logger.info(
-            'Please review final_video.mp4 in the output folder and provide your feedback. Please note:\n'
+            f'    * 可以给出对整体视频的评价,例如建议模型重新生成动画,或者对现有动画比较满意直接修改\n{blue_color_suffix}')
+        print(
+            f'{blue_color_prefix}Please review final_video.mp4 in the output folder and provide your feedback. '
+            f'Please note:\n'
             '    * Regenerating assets and composing the video takes time, so it is recommended '
             'to summarize all issues and provide feedback together\n'
             '    * Please describe the problem specifically and try to clearly indicate which segment it occurs in, '
             'for example: when displaying ... information, the animation went out of bounds ... overlapped ...\n'
             '    * You can provide an overall evaluation of the video, such as suggesting the model regenerate '
-            'the animation, or if you are satisfied with the existing animation, just make direct modifications\n'
+            f'the animation, or if you are satisfied with the existing animation, '
+            f'just make direct modifications\n{blue_color_suffix}'
         )
         while True:
             self._query = input('>>>')
