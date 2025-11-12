@@ -1,3 +1,4 @@
+# Copyright (c) Alibaba, Inc. and its affiliates.
 import os
 import shutil
 from concurrent.futures import ThreadPoolExecutor, as_completed

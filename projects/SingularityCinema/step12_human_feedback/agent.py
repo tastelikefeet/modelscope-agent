@@ -1,3 +1,4 @@
+# Copyright (c) Alibaba, Inc. and its affiliates.
 from ms_agent.agent import LLMAgent
 from ms_agent.llm import Message
 from ms_agent.utils import get_logger
