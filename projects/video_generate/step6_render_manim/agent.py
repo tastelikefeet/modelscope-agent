@@ -1,9 +1,10 @@
-import asyncio
 import json
 import os
 import re
 import shutil
 import subprocess
+from concurrent.futures import ProcessPoolExecutor, as_completed
+from typing import List, Union
 
 from moviepy import VideoFileClip
 from omegaconf import DictConfig
@@ -27,12 +28,11 @@ class RenderManim(CodeAgent):
                  **kwargs):
         super().__init__(config, tag, trust_remote_code, **kwargs)
         self.work_dir = getattr(self.config, 'output_dir', 'output')
-        self.llm: OpenAI = LLM.from_config(self.config)
         self.manim_render_timeout = getattr(self.config, 'manim_render_timeout', 300)
         self.render_dir = os.path.join(self.work_dir, 'manim_render')
         os.makedirs(self.render_dir, exist_ok=True)
 
-    async def execute_code(self, messages, **kwargs):
+    async def execute_code(self, messages: Union[str, List[Message]], **kwargs) -> List[Message]:
         with open(os.path.join(self.work_dir, 'segments.txt'), 'r') as f:
             segments = json.load(f)
         manim_code_dir = os.path.join(self.work_dir, 'manim_code')
@@ -45,18 +45,31 @@ class RenderManim(CodeAgent):
         assert len(manim_code) == len(segments)
         logger.info(f'Rendering manim code.')
 
-        tasks = [
-            self.render_manim_scene(segment, code, audio_info['audio_duration'], i)
-            for i, (segment, code, audio_info) in enumerate(zip(segments, manim_code, audio_infos))
-        ]
+        tasks = [(i, segment, code, audio_info['audio_duration']) 
+                 for i, (segment, code, audio_info) in enumerate(zip(segments, manim_code, audio_infos))]
 
-        await asyncio.gather(*tasks)
+        with ProcessPoolExecutor() as executor:
+            futures = {executor.submit(self._render_manim_scene_static, i, segment, code, duration, 
+                                       self.config, self.work_dir, self.render_dir, 
+                                       self.window_size, self.manim_render_timeout): i 
+                      for i, segment, code, duration in tasks}
+            for future in as_completed(futures):
+                future.result()  # Wait for completion and raise any exceptions
+
         return messages
-
-    async def render_manim_scene(self, segment, code, audio_duration, i):
+    
+    @staticmethod
+    def _render_manim_scene_static(i, segment, code, audio_duration, config, work_dir, render_dir, window_size, manim_render_timeout):
+        """Static method for multiprocessing"""
+        llm = LLM.from_config(config)
+        return RenderManim._render_manim_impl(llm, i, segment, code, audio_duration, 
+                                              work_dir, render_dir, window_size, manim_render_timeout)
+    
+    @staticmethod
+    def _render_manim_impl(llm, i, segment, code, audio_duration, work_dir, render_dir, window_size, manim_render_timeout):
         scene_name = f'Scene{i+1}' # sometimes actual_scene_name cannot find matched class, so do not change this name
         logger.info(f'Rendering manim code for: scene_{i + 1}')
-        output_dir = os.path.join(self.render_dir, f'scene_{i + 1}')
+        output_dir = os.path.join(render_dir, f'scene_{i + 1}')
         os.makedirs(output_dir, exist_ok=True)
         if 'manim' not in segment:
             return None
@@ -82,10 +95,10 @@ class RenderManim(CodeAgent):
             env['PYTHONIOENCODING'] = 'utf-8'
             env['LANG'] = 'zh_CN.UTF-8'
             env['LC_ALL'] = 'zh_CN.UTF-8'
-            window_size = ','.join([str(i) for i in self.window_size])
+            window_size_str = ','.join([str(x) for x in window_size])
             cmd = [
                 'manim', 'render', '-ql', '--transparent', '--format=mov',
-                f'--resolution={window_size}', '--disable_caching',
+                f'--resolution={window_size_str}', '--disable_caching',
                 os.path.basename(code_file), actual_scene_name
             ]
 
@@ -101,7 +114,7 @@ class RenderManim(CodeAgent):
                     env=env)
                 
                 # Wait for process to complete with timeout
-                stdout, stderr = process.communicate(timeout=self.manim_render_timeout)
+                stdout, stderr = process.communicate(timeout=manim_render_timeout)
                 
                 # Create result object compatible with original logic
                 class Result:
@@ -115,11 +128,11 @@ class RenderManim(CodeAgent):
             except subprocess.TimeoutExpired as e:
                 output_text = (e.stdout.decode('utf-8', errors='ignore') if e.stdout else '') + \
                              (e.stderr.decode('utf-8', errors='ignore') if e.stderr else '')
-                logger.error(f'Manim rendering timed out after {self.manim_render_timeout} '
+                logger.error(f'Manim rendering timed out after {manim_render_timeout} '
                     f'seconds for {actual_scene_name}, output: {output_text}')
                 logger.info(f'Trying to fix manim code.')
-                code, fix_history = self.fix_manim_code(
-                    output_text, fix_history,
+                code, fix_history = RenderManim._fix_manim_code_impl(
+                    llm, output_text, fix_history,
                     code, manim_requirement, class_name, content, audio_duration
                 )
                 continue
@@ -138,7 +151,7 @@ class RenderManim(CodeAgent):
 
                 if any([error_indicator in output_text for error_indicator in real_error_indicators]):
                     logger.info(f'Trying to fix manim code.')
-                    code, fix_history = self.fix_manim_code(output_text, fix_history, code, manim_requirement, class_name, content, audio_duration)
+                    code, fix_history = RenderManim._fix_manim_code_impl(llm, output_text, fix_history, code, manim_requirement, class_name, content, audio_duration)
                     continue
 
             for root, dirs, files in os.walk(output_dir):
@@ -154,25 +167,26 @@ class RenderManim(CodeAgent):
 
                         shutil.copy2(found_file, output_path)
                         scaled_path = RenderManim.scale_video_to_fit(
-                            output_path, target_size=self.window_size)
+                            output_path, target_size=window_size)
                         if scaled_path and scaled_path != output_path:
                             shutil.rmtree(output_path, ignore_errors=True)
                             shutil.copy2(scaled_path, output_path)
                         final_file_path = output_path
             if not final_file_path:
                 logger.error(f'Manim file: {class_name} not found, trying to fix manim code.')
-                code, fix_history = self.fix_manim_code(output_text, fix_history, code, manim_requirement, class_name, content, audio_duration)
+                code, fix_history = RenderManim._fix_manim_code_impl(llm, output_text, fix_history, code, manim_requirement, class_name, content, audio_duration)
             else:
                 break
         if final_file_path:
-            manim_code_dir = os.path.join(self.work_dir, 'manim_code')
+            manim_code_dir = os.path.join(work_dir, 'manim_code')
             manim_file = os.path.join(manim_code_dir, f'segment_{i + 1}.py')
             with open(manim_file, 'w') as f:
                 f.write(code)
         else:
             raise FileNotFoundError(final_file_path)
-
-    def fix_manim_code(self, error_log, fix_history, manim_code, manim_requirement, class_name, content, audio_duration):
+    
+    @staticmethod
+    def _fix_manim_code_impl(llm, error_log, fix_history, manim_code, manim_requirement, class_name, content, audio_duration):
         fix_request = f"""You are a professional code debugging specialist. You need to help me fix issues in the code. Error messages will be passed directly to you. You need to carefully examine the problems and provide the correct, complete code.
 {error_log}
 
@@ -200,7 +214,7 @@ class RenderManim(CodeAgent):
 Please precisely fix the detected issues while maintaining the richness and creativity of the animation.
 """
         inputs = [Message(role='user', content=fix_request)]
-        _response_message = self.llm.generate(inputs)
+        _response_message = llm.generate(inputs)
         response = _response_message.content
         if '```python' in response:
             manim_code = response.split('```python')[1].split('```')[0]
