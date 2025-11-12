@@ -31,7 +31,6 @@ class GenerateIllustrationPrompts(CodeAgent):
 - All text in the image must be clear, readable, and not distorted, garbled, or random.
 - The scene can include rich, relevant, and layered minimalist tech/AI/futuristic elements (e.g., computer, chip, data stream, AI icon, screen, etc.), and simple decorative elements to enhance atmosphere, but do not let elements overlap or crowd together.
 - All elements should be relevant to the main theme and the meaning of the current subtitle segment.
-- You must use the specified style, for example, 'comic book', 'realistic', 'line-art', 'hand drawn'
 - The image output should be a square, and its background should be **pure white**
 - Image content should be uncluttered, with clear individual elements
 - Unless necessary, do not generate text, as text may be generated incorrectly, creating an AI-generated feel
