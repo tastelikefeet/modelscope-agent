@@ -76,7 +76,7 @@ video:
   preset: ultrafast
   fps: 24
 
-voice: male
+voice: emma
 
 voices:
   male:
@@ -101,9 +101,8 @@ voices:
 
   emma:
     voice: en-US-EmmaMultilingualNeural
-    rate: '0%'
+    rate: '+0%'
     pitch: '+0Hz'
-
 
 max_chat_round: 20
 
@@ -111,9 +110,7 @@ manim_render_timeout: 120
 
 output_dir: output
 
-subtitle_lang: English
-
-slogan: ['AI敲门砖', '魔搭社区']
+slogan: ['History Story', 'Talk Radio']
 
 fonts:
   - Alibaba PuHuiTi

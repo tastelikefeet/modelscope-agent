@@ -231,7 +231,7 @@ class ComposeVideo(CodeAgent):
                         subtitle_paths[i], duration=duration)
                     subtitle_clip = subtitle_clip.resized(
                         (subtitle_w, subtitle_h))
-                    subtitle_y = 850
+                    subtitle_y = 900
                     subtitle_clip = subtitle_clip.with_position(
                         ('center', subtitle_y))
                     current_video_clips.append(subtitle_clip)

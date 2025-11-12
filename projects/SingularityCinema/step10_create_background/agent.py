@@ -54,7 +54,7 @@ class CreateBackground(CodeAgent):
             'padding': 50,
             'line_width': 8,
             'subtitle_offset': 40,
-            'line_position_offset': 190
+            'line_position_offset': 140
         }
 
         image = Image.new('RGB', (width, height), background_color)
