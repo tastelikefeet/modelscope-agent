@@ -340,7 +340,9 @@ class LLMAgent(Agent):
                     service = self.config.llm.service
                     config_dict = {
                         'model':
-                        _memory.summary_model if hasattr(_memory, 'summary_model') else getattr(self.config.llm, 'model', None),
+                        _memory.summary_model if hasattr(
+                            _memory, 'summary_model') else getattr(
+                                self.config.llm, 'model', None),
                         'provider':
                         'openai',
                         'openai_base_url':

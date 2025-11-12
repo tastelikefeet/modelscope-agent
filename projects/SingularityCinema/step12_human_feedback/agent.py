@@ -1,8 +1,7 @@
-from omegaconf import DictConfig, ListConfig
-
 from ms_agent.agent import LLMAgent
 from ms_agent.llm import Message
 from ms_agent.utils import get_logger
+from omegaconf import DictConfig, ListConfig
 
 logger = get_logger()
 
@@ -84,7 +83,7 @@ Requirements for you:
 5. The workflow will automatically re-execute to generate missing files
 6. If you find the reported problem stems from segment design issues, such as difficult-to-fix Manim animation bugs, or consider deleting code files for regeneration (rather than fixing):
     * You need to consider fixing the problem with minimal changes to prevent major perceptual changes to the video
-    * Try not to update segments (segments.txt), otherwise the entire video will be completely redone"""
+    * Try not to update segments (segments.txt), otherwise the entire video will be completely redone""" # noqa
 
     def __init__(self,
                  config: DictConfig,
@@ -93,11 +92,9 @@ Requirements for you:
                  **kwargs):
         config.save_history = False
         config.prompt.system = self.system
-        config.tools = DictConfig({
-            "file_system":{
-                "mcp": False,
-            }
-        })
+        config.tools = DictConfig({'file_system': {
+            'mcp': False,
+        }})
         config.memory = ListConfig([])
         super().__init__(config, tag, trust_remote_code, **kwargs)
         self.work_dir = getattr(self.config, 'output_dir', 'output')
@@ -111,14 +108,20 @@ Requirements for you:
         ]
 
     async def run(self, inputs, **kwargs):
-        logger.info(f'请查看输出文件夹中的final_video.mp4,并给出你的修改意见。请注意:\n'
-                    f'    * 重新生成素材合成video需要一定时间，建议将问题总结起来一并反馈\n'
-                    f'    * 请具体描述问题现象,并尽量描述清楚发生在哪个分镜中,例如在展示...信息时动画向...越界了...重叠了\n'
-                    f'    * 可以给出对整体视频的评价,例如建议模型重新生成动画,或者对现有动画比较满意直接修改\n')
-        logger.info(f'Please review final_video.mp4 in the output folder and provide your feedback. Please note:\n'
-                    f'    * Regenerating assets and composing the video takes time, so it is recommended to summarize all issues and provide feedback together\n'
-                    f'    * Please describe the problem specifically and try to clearly indicate which segment it occurs in, for example: when displaying ... information, the animation went out of bounds ... overlapped ...\n'
-                    f'    * You can provide an overall evaluation of the video, such as suggesting the model regenerate the animation, or if you are satisfied with the existing animation, just make direct modifications\n')
+        logger.info(
+            '请查看输出文件夹中的final_video.mp4,并给出你的修改意见。请注意:\n'
+            '    * 重新生成素材合成video需要一定时间，建议将问题总结起来一并反馈\n'
+            '    * 请具体描述问题现象,并尽量描述清楚发生在哪个分镜中,例如在展示...信息时动画向...越界了...重叠了\n'
+            '    * 可以给出对整体视频的评价,例如建议模型重新生成动画,或者对现有动画比较满意直接修改\n')
+        logger.info(
+            'Please review final_video.mp4 in the output folder and provide your feedback. Please note:\n'
+            '    * Regenerating assets and composing the video takes time, so it is recommended '
+            'to summarize all issues and provide feedback together\n'
+            '    * Please describe the problem specifically and try to clearly indicate which segment it occurs in, '
+            'for example: when displaying ... information, the animation went out of bounds ... overlapped ...\n'
+            '    * You can provide an overall evaluation of the video, such as suggesting the model regenerate '
+            'the animation, or if you are satisfied with the existing animation, just make direct modifications\n'
+        )
         while True:
             self._query = input('>>>')
             if self._query.strip() in ('exit', 'quit'):
@@ -135,4 +138,3 @@ Requirements for you:
             return 0
         else:
             return idx + 1
-

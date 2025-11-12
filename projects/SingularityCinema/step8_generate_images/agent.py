@@ -1,12 +1,12 @@
-import json
+import asyncio
 import os
 import shutil
-from io import BytesIO
 from concurrent.futures import ThreadPoolExecutor
+from io import BytesIO
 from typing import List, Union
-import asyncio
 
 import aiohttp
+import json
 import numpy as np
 from ms_agent.agent import CodeAgent
 from ms_agent.llm import Message
@@ -29,34 +29,46 @@ class GenerateImages(CodeAgent):
         self.num_parallel = getattr(self.config, 't2i_num_parallel', 1)
         self.style = getattr(self.config.text2image, 't2i_style', 'realistic')
         self.fusion = self.fade
-        self.illustration_prompts_dir = os.path.join(self.work_dir, 'illustration_prompts')
+        self.illustration_prompts_dir = os.path.join(self.work_dir,
+                                                     'illustration_prompts')
         self.images_dir = os.path.join(self.work_dir, 'images')
         os.makedirs(self.images_dir, exist_ok=True)
 
-    async def execute_code(self, messages: Union[str, List[Message]], **kwargs) -> List[Message]:
+    async def execute_code(self, messages: Union[str, List[Message]],
+                           **kwargs) -> List[Message]:
         with open(os.path.join(self.work_dir, 'segments.txt'), 'r') as f:
             segments = json.load(f)
         illustration_prompts = []
         for i in range(len(segments)):
-            with open(os.path.join(self.illustration_prompts_dir, f'segment_{i+1}.txt'), 'r') as f:
+            with open(
+                    os.path.join(self.illustration_prompts_dir,
+                                 f'segment_{i+1}.txt'), 'r') as f:
                 illustration_prompts.append(f.read())
-        logger.info(f'Generating images.')
+        logger.info('Generating images.')
 
-        tasks = [(i, segment, prompt) for i, (segment, prompt) in enumerate(zip(segments, illustration_prompts))]
-        
+        tasks = [
+            (i, segment, prompt)
+            for i, (segment,
+                    prompt) in enumerate(zip(segments, illustration_prompts))
+        ]
+
         # Use ThreadPoolExecutor with asyncio event loop
         loop = asyncio.get_event_loop()
         with ThreadPoolExecutor(max_workers=self.num_parallel) as executor:
-            futures = [loop.run_in_executor(executor, self._process_single_illustration_static, 
-                                            i, segment, prompt, self.config,
-                                            self.images_dir, self.fusion.__name__)
-                      for i, segment, prompt in tasks]
+            futures = [
+                loop.run_in_executor(executor,
+                                     self._process_single_illustration_static,
+                                     i, segment, prompt, self.config,
+                                     self.images_dir, self.fusion.__name__)
+                for i, segment, prompt in tasks
+            ]
             await asyncio.gather(*futures)
-        
+
         return messages
-    
+
     @staticmethod
-    def _process_single_illustration_static(i, segment, prompt, config, images_dir, fusion_name):
+    def _process_single_illustration_static(i, segment, prompt, config,
+                                            images_dir, fusion_name):
         """Static method for multiprocessing"""
         import asyncio
         loop = asyncio.new_event_loop()
@@ -64,36 +76,39 @@ class GenerateImages(CodeAgent):
         try:
             result = loop.run_until_complete(
                 GenerateImages._process_single_illustration_impl(
-                    i, segment, prompt, config, images_dir, fusion_name
-                )
-            )
+                    i, segment, prompt, config, images_dir, fusion_name))
             return result
         finally:
             loop.close()
-    
+
     @staticmethod
-    async def _process_single_illustration_impl(i, segment, prompt, config, images_dir, fusion_name):
+    async def _process_single_illustration_impl(i, segment, prompt, config,
+                                                images_dir, fusion_name):
         """Implementation of single illustration processing"""
         logger.info(f'Generating image for: {prompt}.')
         img_path = os.path.join(images_dir, f'illustration_{i + 1}_origin.png')
         output_path = os.path.join(images_dir, f'illustration_{i + 1}.png')
         if os.path.exists(output_path):
             return
-        
+
         await GenerateImages._generate_images_impl(prompt, img_path, config)
-        
+
         if fusion_name == 'keep_only_black_for_folder':
-            GenerateImages.keep_only_black_for_folder(img_path, output_path, segment)
+            GenerateImages.keep_only_black_for_folder(img_path, output_path,
+                                                      segment)
         else:
             GenerateImages.fade(img_path, output_path, segment)
-        
+
         try:
             os.remove(img_path)
         except OSError:
             pass
-    
+
     @staticmethod
-    async def _generate_images_impl(prompt, img_path, config, negative_prompt=None):
+    async def _generate_images_impl(prompt,
+                                    img_path,
+                                    config,
+                                    negative_prompt=None):
         """Implementation of image generation"""
         base_url = config.text2image.t2i_base_url.strip('/')
         api_key = config.text2image.t2i_api_key
@@ -157,7 +172,9 @@ class GenerateImages(CodeAgent):
         manim = segment.get('manim')
         img = Image.open(input_image).convert('RGBA')
         if manim:
-            logger.info(f'Applying fade effect to background image (Manim animation present)')
+            logger.info(
+                'Applying fade effect to background image (Manim animation present)'
+            )
             arr = np.array(img, dtype=np.float32)
             fade_factor = 0.5  # Reduce color intensity to 50%
             brightness_boost = 60  # Add brightness to lighten the image
@@ -168,11 +185,14 @@ class GenerateImages(CodeAgent):
             result.save(output_image, 'PNG')
             logger.info(f'Faded background saved to: {output_image}')
         else:
-            logger.info(f'No Manim animation - keeping original background')
+            logger.info('No Manim animation - keeping original background')
             shutil.copy(input_image, output_image)
 
     @staticmethod
-    def keep_only_black_for_folder(input_image, output_image, segment, threshold=80):
+    def keep_only_black_for_folder(input_image,
+                                   output_image,
+                                   segment,
+                                   threshold=80):
         img = Image.open(input_image).convert('RGBA')
         arr = np.array(img)
 

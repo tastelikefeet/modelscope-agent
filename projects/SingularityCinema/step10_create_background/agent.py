@@ -4,9 +4,9 @@ import textwrap
 from ms_agent.agent import CodeAgent
 from ms_agent.llm import LLM
 from ms_agent.llm.openai_llm import OpenAI
+from ms_agent.utils import get_logger
 from omegaconf import DictConfig
 from PIL import Image, ImageDraw, ImageFont
-from ms_agent.utils import get_logger
 
 logger = get_logger(__name__)
 
@@ -22,9 +22,10 @@ class CreateBackground(CodeAgent):
         self.work_dir = getattr(self.config, 'output_dir', 'output')
         self.bg_path = os.path.join(self.work_dir, 'background.jpg')
         self.llm: OpenAI = LLM.from_config(self.config)
-        self.fonts = getattr(
-            self.config, 'fonts',
-            ['Alibaba PuHuiTi', 'PingFang SC', 'Heiti SC', 'STHeiti', 'SimHei', 'Microsoft YaHei'])
+        self.fonts = getattr(self.config, 'fonts', [
+            'Alibaba PuHuiTi', 'PingFang SC', 'Heiti SC', 'STHeiti', 'SimHei',
+            'Microsoft YaHei'
+        ])
         self.slogan = getattr(self.config, 'slogan', [])
         self.style = getattr(self.config.text2image, 't2i_style', 'realistic')
 
@@ -32,15 +33,14 @@ class CreateBackground(CodeAgent):
         import matplotlib.font_manager as fm
         for font_name in self.fonts:
             try:
-                font_path = fm.findfont(
-                    fm.FontProperties(family=font_name))
+                font_path = fm.findfont(fm.FontProperties(family=font_name))
                 return ImageFont.truetype(font_path, size)
             except OSError or ValueError:
                 continue
         return ImageFont.load_default()
 
     async def execute_code(self, messages, **kwargs):
-        logger.info(f'Creating background.')
+        logger.info('Creating background.')
         with open(os.path.join(self.work_dir, 'title.txt'), 'r') as f:
             title = f.read()
         width, height = 1920, 1080

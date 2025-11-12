@@ -59,7 +59,8 @@ class AgentLoader:
                 getattr(agent_config, 'local_dir', ''), DEFAULT_AGENT_FILE)
 
         if code_file is not None:
-            agent_instance = cls._load_external_code(agent_config, code_file, **kwargs)
+            agent_instance = cls._load_external_code(agent_config, code_file,
+                                                     **kwargs)
         else:
             assert agent_config is not None
             if agent_type == LLMAgent.AGENT_NAME.lower():
@@ -108,7 +109,8 @@ class AgentLoader:
                 agent_instance = agent_cls(
                     config,
                     config.tag,
-                    trust_remote_code=config.trust_remote_code, **kwargs)
+                    trust_remote_code=config.trust_remote_code,
+                    **kwargs)
                 break
         assert agent_instance is not None, f'Cannot find a proper agent class in the external code file: {code_file}'
         if subdir_inserted:

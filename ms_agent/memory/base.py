@@ -2,9 +2,8 @@
 from abc import ABC, abstractmethod
 from typing import List
 
-from omegaconf import DictConfig
-
 from ms_agent.llm.utils import Message
+from omegaconf import DictConfig
 
 
 class Memory(ABC):
@@ -33,4 +32,3 @@ class Memory(ABC):
             config(`DictConfig`): The config containing all information
         """
         self.base_config = config
-

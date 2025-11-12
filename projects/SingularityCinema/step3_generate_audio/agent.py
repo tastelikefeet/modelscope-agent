@@ -1,10 +1,10 @@
 import asyncio
-import json
 import os
 from dataclasses import dataclass, field
 from typing import List
 
 import edge_tts
+import json
 from moviepy import AudioClip, AudioFileClip
 from ms_agent.agent import CodeAgent
 from ms_agent.llm import LLM
@@ -40,7 +40,7 @@ class GenerateAudio(CodeAgent):
     async def execute_code(self, messages, **kwargs):
         with open(os.path.join(self.work_dir, 'segments.txt'), 'r') as f:
             segments = json.load(f)
-        logger.info(f'Generating audios.')
+        logger.info('Generating audios.')
 
         tasks = []
         audio_paths = []
@@ -106,7 +106,8 @@ class GenerateAudio(CodeAgent):
         if os.path.exists(audio_path):
             return self.get_audio_duration(audio_path)
         if tts_text:
-            await self.edge_tts_generate(tts_text, audio_path, self.config.voice)
+            await self.edge_tts_generate(tts_text, audio_path,
+                                         self.config.voice)
             return self.get_audio_duration(audio_path)
         else:
             await self.create_silent_audio(audio_path, duration=2.0)

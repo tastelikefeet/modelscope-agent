@@ -1,5 +1,6 @@
 # Copyright (c) Alibaba, Inc. and its affiliates.
 import asyncio
+
 from ms_agent.llm.utils import Tool
 from ms_agent.tools.base import ToolBase
 from ms_agent.utils.utils import escape_yaml_string
@@ -63,7 +64,8 @@ class SplitTask(ToolBase):
         from ms_agent.agent import LLMAgent
 
         tasks = tool_args.get('tasks')
-        execution_mode = tool_args.get('execution_mode', 'sequential')  # 'parallel' or 'sequential'
+        execution_mode = tool_args.get(
+            'execution_mode', 'sequential')  # 'parallel' or 'sequential'
 
         sub_tasks = []
         for i, task in enumerate(tasks):

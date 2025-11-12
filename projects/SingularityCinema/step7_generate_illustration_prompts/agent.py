@@ -1,9 +1,9 @@
-import json
 import os
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from dataclasses import dataclass, field
 from typing import List, Union
-from concurrent.futures import ThreadPoolExecutor, as_completed
 
+import json
 from ms_agent.agent import CodeAgent
 from ms_agent.llm import LLM, Message
 from ms_agent.utils import get_logger
@@ -47,53 +47,69 @@ class GenerateIllustrationPrompts(CodeAgent):
         self.work_dir = getattr(self.config, 'output_dir', 'output')
         self.num_parallel = getattr(self.config, 'llm_num_parallel', 10)
         self.style = getattr(self.config.text2image, 't2i_style', 'realistic')
-        self.illustration_prompts_dir = os.path.join(self.work_dir, 'illustration_prompts')
+        self.illustration_prompts_dir = os.path.join(self.work_dir,
+                                                     'illustration_prompts')
         os.makedirs(self.illustration_prompts_dir, exist_ok=True)
 
-    async def execute_code(self, messages: Union[str, List[Message]], **kwargs) -> List[Message]:
+    async def execute_code(self, messages: Union[str, List[Message]],
+                           **kwargs) -> List[Message]:
         with open(os.path.join(self.work_dir, 'segments.txt'), 'r') as f:
             segments = json.load(f)
-        logger.info(f'Generating illustration prompts.')
-        
+        logger.info('Generating illustration prompts.')
+
         tasks = [(i, segment) for i, segment in enumerate(segments)]
         illustration_prompts = [''] * len(segments)
-        
+
         with ThreadPoolExecutor(max_workers=self.num_parallel) as executor:
-            futures = {executor.submit(self._generate_illustration_prompts_static, i, segment, 
-                                       self.config, self.style, self.system,
-                                       self.illustration_prompts_dir): i 
-                      for i, segment in tasks}
+            futures = {
+                executor.submit(self._generate_illustration_prompts_static, i,
+                                segment, self.config, self.style, self.system,
+                                self.illustration_prompts_dir): i
+                for i, segment in tasks
+            }
             for future in as_completed(futures):
                 i, prompt = future.result()
                 illustration_prompts[i] = prompt
-        
+
         assert len(illustration_prompts) == len(segments)
         for i, prompt in enumerate(illustration_prompts):
-            with open(os.path.join(self.illustration_prompts_dir, f'segment_{i+1}.txt'), 'w') as f:
+            with open(
+                    os.path.join(self.illustration_prompts_dir,
+                                 f'segment_{i+1}.txt'), 'w') as f:
                 f.write(prompt)
         return messages
-    
-    @staticmethod
-    def _generate_illustration_prompts_static(i, segment, config, style, system, illustration_prompts_dir):
-        """Static method for multiprocessing"""
-        llm = LLM.from_config(config)
-        return GenerateIllustrationPrompts._generate_illustration_impl(llm, i, segment, style, system, illustration_prompts_dir)
 
     @staticmethod
-    def _generate_illustration_impl(llm, i, segment, style, system, illustration_prompts_dir):
-        if os.path.exists(os.path.join(illustration_prompts_dir, f'segment_{i+1}.txt')):
-            with open(os.path.join(illustration_prompts_dir, f'segment_{i+1}.txt'), 'r') as f:
+    def _generate_illustration_prompts_static(i, segment, config, style,
+                                              system,
+                                              illustration_prompts_dir):
+        """Static method for multiprocessing"""
+        llm = LLM.from_config(config)
+        return GenerateIllustrationPrompts._generate_illustration_impl(
+            llm, i, segment, style, system, illustration_prompts_dir)
+
+    @staticmethod
+    def _generate_illustration_impl(llm, i, segment, style, system,
+                                    illustration_prompts_dir):
+        if os.path.exists(
+                os.path.join(illustration_prompts_dir, f'segment_{i+1}.txt')):
+            with open(
+                    os.path.join(illustration_prompts_dir,
+                                 f'segment_{i+1}.txt'), 'r') as f:
                 return i, f.read()
         background = segment['background']
         manim_query = ''
         if segment.get('manim'):
-            manim_query = (f'There is a manim animation at the front of the generated image: {segment["manim"]}, '
-                           f'you need to make the image background not steal the focus from the manim animation.')
+            manim_query = (
+                f'There is a manim animation at the front of the generated image: {segment["manim"]}, '
+                f'you need to make the image background not steal the focus from the manim animation.'
+            )
         query = (f'The style required from user is: {style}, '
-                          f'illustration based on: {segment["content"]}, '
-                          f'{manim_query}, '
-                          f'Requirements from the storyboard designer: {background}')
-        logger.info(f'Generating illustration prompt for : {segment["content"]}.')
+                 f'illustration based on: {segment["content"]}, '
+                 f'{manim_query}, '
+                 f'Requirements from the storyboard designer: {background}')
+        logger.info(
+            f'Generating illustration prompt for : {segment["content"]}.')
         inputs = [
             Message(role='system', content=system),
             Message(role='user', content=query),

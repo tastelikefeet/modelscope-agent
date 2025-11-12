@@ -3,7 +3,7 @@ from copy import deepcopy
 from typing import List
 
 from ms_agent import LLMAgent
-from ms_agent.llm import Message, LLM
+from ms_agent.llm import LLM, Message
 from ms_agent.utils import get_logger
 from omegaconf import DictConfig
 

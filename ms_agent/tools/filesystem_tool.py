@@ -112,10 +112,8 @@ class FileSystemTool(ToolBase):
                         'type': 'object',
                         'properties': {
                             'path': {
-                                'type':
-                                'string',
-                                'description':
-                                'The relative path to delete',
+                                'type': 'string',
+                                'description': 'The relative path to delete',
                             }
                         },
                         'required': ['path'],

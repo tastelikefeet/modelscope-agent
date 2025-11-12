@@ -1,10 +1,11 @@
 # Copyright (c) Alibaba, Inc. and its affiliates.
 import os
 from abc import ABC, abstractmethod
-from typing import Any, AsyncGenerator, List, Union, Tuple
+from typing import Any, AsyncGenerator, List, Tuple, Union
+
 from ms_agent.llm import Message
 from ms_agent.utils import read_history, save_history
-from ms_agent.utils.constants import DEFAULT_RETRY_COUNT, DEFAULT_OUTPUT_DIR
+from ms_agent.utils.constants import DEFAULT_OUTPUT_DIR, DEFAULT_RETRY_COUNT
 from omegaconf import DictConfig
 
 
@@ -64,7 +65,8 @@ class Agent(ABC):
         """
         raise NotImplementedError()
 
-    def read_history(self, messages: Any, **kwargs) -> Tuple[DictConfig, List[Message]]:
+    def read_history(self, messages: Any,
+                     **kwargs) -> Tuple[DictConfig, List[Message]]:
         return read_history(self.output_dir, self.tag)
 
     def save_history(self, messages: Any, **kwargs):

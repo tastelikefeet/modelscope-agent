@@ -1,11 +1,10 @@
-import json
 import os
 
-from omegaconf import DictConfig
-
+import json
 from ms_agent.agent import LLMAgent
 from ms_agent.llm import Message
 from ms_agent.utils import get_logger
+from omegaconf import DictConfig
 
 logger = get_logger()
 
@@ -19,7 +18,7 @@ class Segment(LLMAgent):
     * For tech-related short videos, they should have a technical and professional feel. For product-related short videos, they should be gentle and authentic, avoiding exaggerated expressions such as "shocking", "solved by xxx", etc.
 2. Each of your storyboard panels should take about 5 seconds to 15 seconds(at most) to read at normal speaking speed. Too short will cause a sense of frequent switching, and too long will appear too static
     * If a storyboard panel has no manim animation, it should not exceed 5s to 10s at most
-    * Pay attention to the coordination between the background image and the manim animation. 
+    * Pay attention to the coordination between the background image and the manim animation.
         - If a manim animation exists, the background image should not be too flashy. Else the background image will become the main focus, and the image details should be richer
         - The foreground and the background should not have the same objects. For example, draw birds at the foreground, sky and clouds at the background, other examples like charts and scientist, cloth and girls
     * If a storyboard panel has manim animation, the image should be more concise, with a stronger supporting role
@@ -51,7 +50,7 @@ An example:
 ]
 ```
 
-Now begin:"""
+Now begin:""" # noqa
 
     def __init__(self,
                  config: DictConfig,
@@ -60,9 +59,9 @@ Now begin:"""
                  **kwargs):
         config.prompt.system = self.system
         config.tools = DictConfig({
-            "file_system":{
-                "mcp": False,
-                "exclude": ["create_directory", "write_file"]
+            'file_system': {
+                'mcp': False,
+                'exclude': ['create_directory', 'write_file']
             }
         })
         super().__init__(config, tag, trust_remote_code, **kwargs)
@@ -76,13 +75,15 @@ Now begin:"""
         ]
 
     async def run(self, *args, **kwargs):
-        logger.info(f'Segmenting script to sentences.')
+        logger.info('Segmenting script to sentences.')
         script = None
         with open(os.path.join(self.work_dir, 'script.txt'), 'r') as f:
             script = f.read()
         with open(os.path.join(self.work_dir, 'topic.txt'), 'r') as f:
             topic = f.read()
-        query = f'Original topic: \n\n{topic}\n\n，original script：\n\n{script}\n\nPlease finish your animation storyboard design:\n'
+        query = (
+            f'Original topic: \n\n{topic}\n\n，original script：\n\n{script}\n\n'
+            f'Please finish your animation storyboard design:\n')
         messages = await super().run(query, **kwargs)
         response = messages[-1].content
         if '```json' in response:
@@ -93,11 +94,11 @@ Now begin:"""
         for i, segment in enumerate(segments):
             assert 'content' in segment
             assert 'background' in segment
-            logger.info(f'\nScene {i}\n'
-                        f'Content: {segment["content"]}\n'
-                        f'Image requirement: {segment["background"]}\n'
-                        f'Manim requirement: {segment.get("manim", "No manim")}')
+            logger.info(
+                f'\nScene {i}\n'
+                f'Content: {segment["content"]}\n'
+                f'Image requirement: {segment["background"]}\n'
+                f'Manim requirement: {segment.get("manim", "No manim")}')
         with open(os.path.join(self.work_dir, 'segments.txt'), 'w') as f:
             f.write(json.dumps(segments, indent=4, ensure_ascii=False))
         return messages
-

@@ -2,13 +2,12 @@ import re
 from copy import deepcopy
 from typing import List
 
+from ms_agent.utils import get_logger
 from omegaconf import DictConfig
 
-from .base import Memory
-from ..llm import Message, LLM
+from ..llm import LLM, Message
 from ..tools import SplitTask
-
-from ms_agent.utils import get_logger
+from .base import Memory
 
 logger = get_logger()
 
@@ -20,7 +19,7 @@ class Diversity(Memory):
 1. The keywords you provide should be terms, such as "security", "independent module", "aesthetics", "style", "examples", etc.
 2. The keywords you provide should have varying degrees of relevance to the original requirement, ranging from 100% relevant to 1% relevant
 3. Keywords should cover all aspects, including technical, non-technical, design, scalability, scenarios, and more
-4. You need to carefully consider both the task itself and the topic, as this is very helpful for completing tasks. 
+4. You need to carefully consider both the task itself and the topic, as this is very helpful for completing tasks.
     For example:
     * Make a video of LLM: consider both how to make video and the LLM
     * Make a website of cloth, consider both the solution of making a website and cloth
@@ -28,7 +27,7 @@ class Diversity(Memory):
 6. Your keywords must be in the same language as the original requirement
 
 Here is the original query:
-"""
+""" # noqa
 
     div_system2 = """You are an inspiration bot. You will be given a series of keywords, and you need to provide related words that you associate with based on these keywords. The words must meet the following conditions:
 
@@ -38,14 +37,14 @@ Here is the original query:
 4. Your keywords must be in the same language as the input keywords
 
 Here are the keywords:
-"""
+""" # noqa
 
     div_system3 = """You are an inspiration bot. You will be given a series of keywords and an original requirement. You need to carefully analyze the relationship between the original requirement and the keywords, and provide your suggestions for completing the original requirement based on the keywords:
 
 1. Some keywords may not be very helpful to the original requirement, or may belong to over-design or distractors - you need to ignore these words
 2. You need to think deeply about the useful keywords to provide your suggestions
 3. There is another architect to design the solution, your responsibility is to give extra points of the solution related to the keywords, so no need and do not give the design.
-4. You need to carefully consider both the task itself and the topic, as this is very helpful for completing tasks. 
+4. You need to carefully consider both the task itself and the topic, as this is very helpful for completing tasks.
     For example:
     * Make a video of LLM: consider both how to make video and the LLM
     * Make a website of cloth, consider both the solution of making a website and cloth
@@ -54,7 +53,7 @@ Here are the keywords:
 7. Wrap your final suggestions with only one <result></result> wrapper
 
 Here are the original query and the keywords:
-"""
+""" # noqa
 
     def __init__(self, config):
         super().__init__(config)
@@ -73,7 +72,7 @@ Here are the original query and the keywords:
         _config.generation_config.temperature = 1.0
         self.llm = LLM.from_config(_config)
         self.split_task = SplitTask(_config, tag_prefix='diversity-')
-        self.num_split = getattr(config, "num_split", self.num_split)
+        self.num_split = getattr(config, 'num_split', self.num_split)
 
     async def run(self, messages: List[Message]):
         if self.memory_called:
@@ -103,11 +102,15 @@ Here are the original query and the keywords:
             'execution_mode': 'parallel',
         }
 
-        results = await self.split_task.call_tool('', tool_name='', tool_args=arguments)
+        results = await self.split_task.call_tool(
+            '', tool_name='', tool_args=arguments)
         pattern = r'<result>(.*?)</result>'
         all_keywords = []
         for keywords in re.findall(pattern, results, re.DOTALL):
-            all_keywords.extend([keyword.strip() for keyword in keywords.split(',') if keyword.strip()])
+            all_keywords.extend([
+                keyword.strip() for keyword in keywords.split(',')
+                if keyword.strip()
+            ])
 
         arguments = []
         _query = ','.join(set(all_keywords))
@@ -124,11 +127,15 @@ Here are the original query and the keywords:
             'execution_mode': 'parallel',
         }
 
-        results = await self.split_task.call_tool('', tool_name='', tool_args=arguments)
+        results = await self.split_task.call_tool(
+            '', tool_name='', tool_args=arguments)
         pattern = r'<result>(.*?)</result>'
         all_keywords = []
         for keywords in re.findall(pattern, results, re.DOTALL):
-            all_keywords.extend([keyword.strip() for keyword in keywords.split(',') if keyword.strip()])
+            all_keywords.extend([
+                keyword.strip() for keyword in keywords.split(',')
+                if keyword.strip()
+            ])
 
         _query = ','.join(set(all_keywords))
         logger.info(f'Diversity second round keywords: {_query}')
@@ -147,9 +154,10 @@ Here are the original query and the keywords:
         suggestions = '\n'.join(suggestions)
         logger.info(f'Diversity third round suggestions: {suggestions}')
 
-        suggestions = ('\nNow Additional suggestions and findings are given to you, '
-         'you need to consider these suggestions and carefully process the query:\n'
-         f'{suggestions}')
+        suggestions = (
+            '\nNow Additional suggestions and findings are given to you, '
+            'you need to consider these suggestions and carefully process the query:\n'
+            f'{suggestions}')
         if system != query:
             system = system + suggestions
             messages[0].content = system

@@ -1,9 +1,8 @@
 # Copyright (c) Alibaba, Inc. and its affiliates.
-from typing import List, Union, Any
-
-from omegaconf import DictConfig
+from typing import Any, List, Union
 
 from ms_agent.llm import Message
+from omegaconf import DictConfig
 
 from .base import Agent
 
@@ -44,5 +43,5 @@ class CodeAgent(Agent):
         return messages
 
     async def execute_code(self, inputs: Union[str, List[Message]],
-                  **kwargs) -> List[Message]:
+                           **kwargs) -> List[Message]:
         return inputs

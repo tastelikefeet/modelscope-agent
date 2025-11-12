@@ -1,14 +1,14 @@
-import json
 import os
 import re
 from typing import List
 
+import json
 from ms_agent.agent import CodeAgent
 from ms_agent.llm import LLM, Message
 from ms_agent.llm.openai_llm import OpenAI
+from ms_agent.utils import get_logger
 from omegaconf import DictConfig
 from PIL import Image, ImageDraw, ImageFont
-from ms_agent.utils import get_logger
 
 logger = get_logger(__name__)
 
@@ -30,7 +30,7 @@ class GenerateSubtitle(CodeAgent):
     async def execute_code(self, messages, **kwargs):
         with open(os.path.join(self.work_dir, 'segments.txt'), 'r') as f:
             segments = json.load(f)
-        logger.info(f'Generating subtitles.')
+        logger.info('Generating subtitles.')
         for i, seg in enumerate(segments):
             text = seg.get('content', '')
             subtitle = None
@@ -104,26 +104,26 @@ Now translate:
     @staticmethod
     def smart_wrap_text(text, max_lines=2, chars_per_line=50):
         import string
-        
+
         # Define punctuation marks (both Chinese and English)
-        punctuation = string.punctuation + '。！？；，、：""''《》【】（）'
-        
+        punctuation = string.punctuation + '。！？；，、：""' '《》【】（）'
+
         def is_only_punctuation(s):
             """Check if string contains only punctuation and whitespace"""
             return all(c in punctuation or c.isspace() for c in s)
-        
+
         def strip_line_punctuation(s):
             """Remove punctuation from the end of line"""
-            _punctuation = string.punctuation + '。！？；，、：""''《》【】（）'
+            _punctuation = string.punctuation + '。！？；，、：""' '《》【】（）'
             # Strip trailing punctuation
             while s and s[-1] in _punctuation:
                 s = s[:-1]
             return s
-        
+
         def is_chinese(char):
             """Check if character is Chinese"""
             return '\u4e00' <= char <= '\u9fff'
-        
+
         def can_break_here(text, pos):
             """Check if we can break at this position"""
             if pos >= len(text):
@@ -138,91 +138,90 @@ Now translate:
             if pos > 0 and is_chinese(text[pos - 1]):
                 return True
             return False
-        
+
         def break_line(text, max_chars):
             """Break text into lines with smart word breaking"""
             if len(text) <= max_chars:
                 return [text]
-            
+
             lines = []
             current_pos = 0
-            
+
             while current_pos < len(text):
                 remaining = text[current_pos:]
-                
+
                 if len(remaining) <= max_chars:
                     lines.append(remaining)
                     break
-                
+
                 # Try to find a good break point
                 break_pos = max_chars
                 found_break = False
-                
+
                 # Look backward for a natural break point
                 for i in range(max_chars, max(0, max_chars - 10), -1):
                     if can_break_here(remaining, i):
                         break_pos = i
                         found_break = True
                         break
-                
+
                 # If no natural break found and we're in a word, add hyphen
                 if not found_break and break_pos < len(remaining):
                     # Check if we're breaking in the middle of an English word
-                    if (break_pos > 0 and 
-                        remaining[break_pos - 1].isalpha() and 
-                        break_pos < len(remaining) and 
-                        remaining[break_pos].isalpha() and
-                        not is_chinese(remaining[break_pos - 1]) and
-                        not is_chinese(remaining[break_pos])):
+                    if (break_pos > 0 and remaining[break_pos - 1].isalpha()
+                            and break_pos < len(remaining)
+                            and remaining[break_pos].isalpha()
+                            and not is_chinese(remaining[break_pos - 1])
+                            and not is_chinese(remaining[break_pos])):
                         # Add hyphen for word break
                         line = remaining[:break_pos - 1] + '-'
                         lines.append(line)
                         current_pos += break_pos - 1
                         continue
-                
+
                 # Extract the line
                 line = remaining[:break_pos].rstrip()
                 lines.append(line)
                 current_pos += break_pos
-                
+
                 # Skip any leading whitespace for the next line
                 while current_pos < len(text) and text[current_pos].isspace():
                     current_pos += 1
-            
+
             return lines
-        
+
         # Break text into initial lines
         raw_lines = break_line(text.strip(), chars_per_line)
-        
+
         # Post-process lines
         processed_lines = []
         for line in raw_lines:
             # Strip leading/trailing whitespace
             line = line.strip()
-            
+
             # Skip empty lines
             if not line:
                 continue
-            
+
             # Skip lines with only punctuation
             if is_only_punctuation(line):
                 continue
-            
+
             # Remove punctuation from start and end
             cleaned_line = strip_line_punctuation(line)
-            
+
             # Only add non-empty cleaned lines
             if cleaned_line.strip():
                 processed_lines.append(cleaned_line.strip())
-        
+
         # Limit to max_lines
         if len(processed_lines) > max_lines:
             processed_lines = processed_lines[:max_lines]
-        
+
         # If no valid lines, return original text as fallback
         if not processed_lines:
             processed_lines = [text.strip()]
-        
+
         return processed_lines
 
     @staticmethod
@@ -293,18 +292,29 @@ Now translate:
         chars_per_line = 50
 
         main_img, main_height = GenerateSubtitle.create_subtitle_image(
-            source, width, height, main_font_size, 'black', chars_per_line=chars_per_line)
+            source,
+            width,
+            height,
+            main_font_size,
+            'black',
+            chars_per_line=chars_per_line)
 
         if target.strip():
             # For English, allow more characters per line due to narrower chars
             target_chars_per_line = 100
             target_img, target_height = GenerateSubtitle.create_subtitle_image(
-                target, width, height, target_font_size, 'gray', chars_per_line=target_chars_per_line)
+                target,
+                width,
+                height,
+                target_font_size,
+                'gray',
+                chars_per_line=target_chars_per_line)
             total_height = main_height + target_height + main_target_gap
             combined_img = Image.new('RGBA', (width, total_height),
                                      (0, 0, 0, 0))
             combined_img.paste(main_img, (0, 0), main_img)
-            combined_img.paste(target_img, (0, main_height + main_target_gap), target_img)
+            combined_img.paste(target_img, (0, main_height + main_target_gap),
+                               target_img)
             final_img = combined_img
             final_height = total_height
         else:

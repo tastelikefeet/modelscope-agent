@@ -1,13 +1,12 @@
-import json
 import os
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from typing import List, Union
 
-from omegaconf import DictConfig
-
+import json
 from ms_agent.agent import CodeAgent
 from ms_agent.llm import LLM, Message
 from ms_agent.utils import get_logger
+from omegaconf import DictConfig
 
 logger = get_logger()
 
@@ -25,40 +24,46 @@ class GenerateManimCode(CodeAgent):
         self.manim_code_dir = os.path.join(self.work_dir, 'manim_code')
         os.makedirs(self.manim_code_dir, exist_ok=True)
 
-    async def execute_code(self, messages: Union[str, List[Message]], **kwargs) -> List[Message]:
+    async def execute_code(self, messages: Union[str, List[Message]],
+                           **kwargs) -> List[Message]:
         with open(os.path.join(self.work_dir, 'segments.txt'), 'r') as f:
             segments = json.load(f)
         with open(os.path.join(self.work_dir, 'audio_info.txt'), 'r') as f:
             audio_infos = json.load(f)
-        logger.info(f'Generating manim code.')
-        
+        logger.info('Generating manim code.')
+
         tasks = []
         for i, (segment, audio_info) in enumerate(zip(segments, audio_infos)):
             manim_requirement = segment.get('manim')
             if manim_requirement is not None:
                 tasks.append((segment, audio_info['audio_duration'], i))
-        
+
         manim_code = [''] * len(segments)
-        
+
         with ThreadPoolExecutor(max_workers=self.num_parallel) as executor:
-            futures = {executor.submit(self._generate_manim_code_static, seg, dur, idx, self.config): idx 
-                      for seg, dur, idx in tasks}
+            futures = {
+                executor.submit(self._generate_manim_code_static, seg, dur,
+                                idx, self.config): idx
+                for seg, dur, idx in tasks
+            }
             for future in as_completed(futures):
                 idx = futures[future]
                 manim_code[idx] = future.result()
-        
+
         for i, code in enumerate(manim_code):
-            manim_file = os.path.join(self.manim_code_dir, f'segment_{i + 1}.py')
+            manim_file = os.path.join(self.manim_code_dir,
+                                      f'segment_{i + 1}.py')
             with open(manim_file, 'w') as f:
                 f.write(code)
         return messages
-    
+
     @staticmethod
     def _generate_manim_code_static(segment, audio_duration, i, config):
         """Static method for multiprocessing"""
         llm = LLM.from_config(config)
-        return GenerateManimCode._generate_manim_impl(llm, segment, audio_duration, i)
-    
+        return GenerateManimCode._generate_manim_impl(llm, segment,
+                                                      audio_duration, i)
+
     @staticmethod
     def _generate_manim_impl(llm, segment, audio_duration, i):
         class_name = f'Scene{i + 1}'
@@ -123,12 +128,12 @@ class GenerateManimCode(CodeAgent):
 • Avoid overly complex structures
 
 **Color Suggestions**:
-• You need to explicitly specify element colors and make these colors coordinated and elegant in style. 
-• Consider the advices from the storyboard designer. 
-• Don't use light yellow, light blue, etc., as this will make the animation look superficial. 
+• You need to explicitly specify element colors and make these colors coordinated and elegant in style.
+• Consider the advices from the storyboard designer.
+• Don't use light yellow, light blue, etc., as this will make the animation look superficial.
 • Consider more colors like white, black, dark blue, dark purple, dark orange, etc.
 
-Please create Manim animation code that meets the above requirements."""
+Please create Manim animation code that meets the above requirements.""" # noqa
 
         logger.info(f'Generating manim code for: {content}')
         _response_message = llm.generate(
