@@ -121,7 +121,7 @@ Requirements for you:
                     f'    * You can provide an overall evaluation of the video, such as suggesting the model regenerate the animation, or if you are satisfied with the existing animation, just make direct modifications\n')
         while True:
             self._query = input('>>>')
-            if self._query.strip() == 'exit':
+            if self._query.strip() in ('exit', 'quit'):
                 self.need_fix = False
                 return inputs
             elif not self._query.strip():
