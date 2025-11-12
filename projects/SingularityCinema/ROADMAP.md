@@ -12,6 +12,7 @@
     * [] 直接使用多模态数据（图表、图片等） P0
 - [] 默认支持更多的tts语音 P0
 - [] 支持更多LLM模型，例如Qwen系列、DeepSeek系列等 P0
+- [] 支持一个segment中多个字幕切换，防止文字超长 P0
 - [] 支持文生视频 P1
 - [] 支持更复杂的前景设计和背景特效 P1
 
@@ -39,6 +40,7 @@ This ROADMAP is to be completed by the end of S4 2025, i.e., December 31st.
     * [] Directly use multimodal data (charts, images, etc.) P0
 - [] Support more TTS voices by default P0
 - [] Support more LLM models, such as Qwen series, DeepSeek series, etc. P0
+- [] Support multiple subtitles in one segment P0
 - [] Support text-to-video generation P1
 - [] Support more complex foreground design and background effects P1
 
