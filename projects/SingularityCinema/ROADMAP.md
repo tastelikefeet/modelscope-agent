@@ -28,6 +28,10 @@
 - [] 支持web-ui生成 P0
 - [] 创空间和space部署 P0
 
+### Bug修复
+
+- [] title和slogan需要始终展示，目前在没有manim动画时看不到
+
 ## English
 
 This ROADMAP is to be completed by the end of S4 2025, i.e., December 31st.
@@ -55,3 +59,7 @@ This ROADMAP is to be completed by the end of S4 2025, i.e., December 31st.
 
 - [] Support web UI generation P0
 - [] Create space and deploy to Hugging Face Spaces P0
+
+### BugFix
+
+- [] title and slogan need to show all the time
