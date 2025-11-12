@@ -12,15 +12,15 @@
     * [] 直接使用多模态数据（图表、图片等） P0
 - [] 默认支持更多的tts语音 P0
 - [] 支持更多LLM模型，例如Qwen系列、DeepSeek系列等 P0
-- [] 支持一个segment中多个字幕切换，防止文字超长 P0
+- [] 支持一个segment中多个字幕切换，防止文字超长 P1
 - [] 支持文生视频 P1
 - [] 支持更复杂的前景设计和背景特效 P1
 
 ### 稳定性
 
 - [] 增加manim动画的稳定性 P0
-- [] 提升生成速度 P0
-- [] 支持利用多模态模型分析视频问题，减少人工反馈成本 P1
+- [] 提升生成速度，尤其是缩小video生成的大量时间占用 P0
+- [] 支持利用多模态模型分析视频问题，减少人工反馈成本 P0
 - [] 支持代码修复的memory管理 P1
 
 ### 端到端
@@ -40,15 +40,15 @@ This ROADMAP is to be completed by the end of S4 2025, i.e., December 31st.
     * [] Directly use multimodal data (charts, images, etc.) P0
 - [] Support more TTS voices by default P0
 - [] Support more LLM models, such as Qwen series, DeepSeek series, etc. P0
-- [] Support multiple subtitles in one segment P0
+- [] Support multiple subtitles in one segment P1
 - [] Support text-to-video generation P1
 - [] Support more complex foreground design and background effects P1
 
 ### Stability
 
 - [] Increase stability of Manim animations P0
-- [] Improve generation speed P0
-- [] Support using multimodal models to analyze video issues and reduce manual feedback costs P1
+- [] Improve generation speed, especially for the process of video file generation P0
+- [] Support using multimodal models to analyze video issues and reduce manual feedback costs P0
 - [] Support memory management for code fixes P1
 
 ### End-to-End
