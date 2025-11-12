@@ -80,6 +80,10 @@ ms-agent run --config "ms-agent/projects/SingularityCinema" --query "Your custom
 
 4. The run takes approximately 20 minutes. The video is generated at output/final_video.mp4. After generation, you can review this file, compile the parts that don't meet requirements, input them into the command line input, and the workflow will continue improving. If requirements are met, input quit or exit and the program will automatically terminate.
 
+5. If the execution fails, such as URL call timeout or file generation failure, you can re-run the command above. ms-agent saves execution information in the output/memory folder, and after re-running the command, it will continue from where it failed.
+    * If you want to regenerate from scratch, please rename or move the output folder elsewhere, or delete the corresponding memory and input files.
+    * You can delete input files for only specific scenes/shots, so that re-execution will only process those corresponding scenes/shots. This is also the principle behind the manual feedback correction in the final step.
+
 ## Technical Principles
 
 1. Generate basic script based on user requirements

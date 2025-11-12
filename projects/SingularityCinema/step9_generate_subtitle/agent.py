@@ -106,42 +106,64 @@ Now translate:
     def smart_wrap_text(self, text, max_lines=2, chars_per_line=50):
         import string
 
-        # Define punctuation marks (both Chinese and English)
-        punctuation = string.punctuation + '。！？；，、：""' '《》【】（）'
+        # Define sentence-ending punctuation (highest priority for breaks)
+        sentence_enders = '.!?。！？'
+        # Define clause-ending punctuation (medium priority)
+        clause_enders = ',;:，；：、'
+        # All punctuation marks
+        all_punctuation = string.punctuation + '。！？；，、：""' '《》【】（）'
 
         def is_only_punctuation(s):
             """Check if string contains only punctuation and whitespace"""
-            return all(c in punctuation or c.isspace() for c in s)
-
-        def strip_line_punctuation(s):
-            """Remove punctuation from the end of line"""
-            _punctuation = string.punctuation + '。！？；，、：""' '《》【】（）'
-            # Strip trailing punctuation
-            while s and s[-1] in _punctuation:
-                s = s[:-1]
-            return s
+            return all(c in all_punctuation or c.isspace() for c in s)
 
         def is_chinese(char):
             """Check if character is Chinese"""
             return '\u4e00' <= char <= '\u9fff'
 
-        def can_break_here(text, pos):
-            """Check if we can break at this position"""
-            if pos >= len(text):
-                return True
-            # Can break at space
-            if text[pos].isspace():
-                return True
-            # Can break after punctuation
-            if pos > 0 and text[pos - 1] in punctuation:
-                return True
-            # Can break between Chinese characters
-            if pos > 0 and is_chinese(text[pos - 1]):
-                return True
-            return False
+        def find_best_break_point(text, max_pos):
+            """Find the best position to break text, prioritizing sentence boundaries"""
+            if max_pos >= len(text):
+                return len(text), False
+            
+            # Priority 1: Look for sentence-ending punctuation within reasonable range
+            # Search backward from max_pos, willing to go back up to 30% of line length
+            search_start = max(0, int(max_pos * 0.7))
+            for i in range(max_pos, search_start, -1):
+                if i > 0 and i < len(text) and text[i - 1] in sentence_enders:
+                    # Found sentence end, break after it
+                    return i, False
+            
+            # Priority 2: Look for clause-ending punctuation
+            for i in range(max_pos, search_start, -1):
+                if i > 0 and i < len(text) and text[i - 1] in clause_enders:
+                    return i, False
+            
+            # Priority 3: Look for whitespace
+            for i in range(max_pos, search_start, -1):
+                if i < len(text) and text[i].isspace():
+                    return i, False
+            
+            # Priority 4: For Chinese text, can break between characters
+            if max_pos > 0 and max_pos < len(text) and is_chinese(text[max_pos - 1]):
+                return max_pos, False
+            
+            # Priority 5: For English, try to break at word boundary with hyphen
+            # Look back for space
+            for i in range(max_pos, max(0, max_pos - 15), -1):
+                if i < len(text) and text[i].isspace():
+                    return i, False
+            
+            # Last resort: force break with hyphen for English words
+            if max_pos > 0 and max_pos < len(text):
+                if (text[max_pos - 1].isalpha() and text[max_pos].isalpha() and
+                    not is_chinese(text[max_pos - 1]) and not is_chinese(text[max_pos])):
+                    return max_pos - 1, True  # True indicates we need to add hyphen
+            
+            return max_pos, False
 
         def break_line(text, max_chars):
-            """Break text into lines with smart word breaking"""
+            """Break text into lines with smart sentence-aware breaking"""
             if len(text) <= max_chars:
                 return [text]
 
@@ -155,39 +177,23 @@ Now translate:
                     lines.append(remaining)
                     break
 
-                # Try to find a good break point
-                break_pos = max_chars
-                found_break = False
-
-                # Look backward for a natural break point
-                for i in range(max_chars, max(0, max_chars - 10), -1):
-                    if can_break_here(remaining, i):
-                        break_pos = i
-                        found_break = True
-                        break
-
-                # If no natural break found and we're in a word, add hyphen
-                if not found_break and break_pos < len(remaining):
-                    # Check if we're breaking in the middle of an English word
-                    if (break_pos > 0 and remaining[break_pos - 1].isalpha()
-                            and break_pos < len(remaining)
-                            and remaining[break_pos].isalpha()
-                            and not is_chinese(remaining[break_pos - 1])
-                            and not is_chinese(remaining[break_pos])):
-                        # Add hyphen for word break
-                        line = remaining[:break_pos - 1] + '-'
-                        lines.append(line)
-                        current_pos += break_pos - 1
-                        continue
-
-                # Extract the line
-                line = remaining[:break_pos].rstrip()
-                lines.append(line)
-                current_pos += break_pos
-
-                # Skip any leading whitespace for the next line
-                while current_pos < len(text) and text[current_pos].isspace():
-                    current_pos += 1
+                # Find best break point
+                break_pos, needs_hyphen = find_best_break_point(remaining, max_chars)
+                
+                if needs_hyphen:
+                    # Add hyphen for word break
+                    line = remaining[:break_pos] + '-'
+                    lines.append(line)
+                    current_pos += break_pos
+                else:
+                    # Extract the line
+                    line = remaining[:break_pos].rstrip()
+                    lines.append(line)
+                    current_pos += break_pos
+                    
+                    # Skip any leading whitespace for the next line
+                    while current_pos < len(text) and text[current_pos].isspace():
+                        current_pos += 1
 
             return lines
 
@@ -208,12 +214,8 @@ Now translate:
             if is_only_punctuation(line):
                 continue
 
-            # Remove punctuation from start and end
-            cleaned_line = strip_line_punctuation(line)
-
-            # Only add non-empty cleaned lines
-            if cleaned_line.strip():
-                processed_lines.append(cleaned_line.strip())
+            # Keep the line (don't strip ending punctuation - we want sentence enders)
+            processed_lines.append(line)
 
         # Limit to max_lines
         if len(processed_lines) > max_lines:

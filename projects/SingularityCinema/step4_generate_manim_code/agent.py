@@ -106,6 +106,7 @@ class GenerateManimCode(CodeAgent):
 • Use subtle fill colors with transparency when appropriate: fill_opacity=0.1
 • Ensure high contrast between elements for clarity
 • Apply consistent spacing and alignment throughout
+• Use less stick man unless the user wants to, to prevent the animation from being too naive, try to make your effects more dazzling/spectacular/blingbling
 
 **Layout Suggestions**:
 • Content clearly layered
@@ -132,7 +133,7 @@ class GenerateManimCode(CodeAgent):
 • You need to explicitly specify element colors and make these colors coordinated and elegant in style.
 • Consider the advices from the storyboard designer.
 • Don't use light yellow, light blue, etc., as this will make the animation look superficial.
-• Consider more colors like white, black, dark blue, dark purple, dark orange, etc.
+• Consider more colors like white, black, dark blue, dark purple, dark orange, etc. DO NOT use grey color, it's not easy to read
 
 Please create Manim animation code that meets the above requirements.""" # noqa
 
