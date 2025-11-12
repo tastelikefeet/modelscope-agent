@@ -48,6 +48,7 @@ prompt:
     - DO NOT use Chinese quotes，use [] instead，e.g. [attention]
 
     - For tech-related short videos, they should have a technical and professional feel. For product-related short videos, they should be gentle and authentic, avoiding exaggerated expressions such as "shocking", "solved by xxx", etc.
+        * Don't excessively praise or hype up what's described in the video. Instead, describe things objectively and accurately. Avoid using descriptions like 'game-changing,' 'rule-breaking,' or 'truly achieved xx'.
 
     Example Style:
     "It's just like when you're looking for a restroom in a mall, AI is that super navigator..." (humorous metaphor)
@@ -97,6 +98,11 @@ voices:
     voice: zh-CN-YunyeNeural
     rate: '-5%'
     pitch: '-50Hz'
+
+  emma:
+    voice: en-US-EmmaMultilingualNeural
+    rate: '0%'
+    pitch: '+0Hz'
 
 
 max_chat_round: 20
