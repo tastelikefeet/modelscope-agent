@@ -33,7 +33,9 @@ class GenerateSubtitle(CodeAgent):
         logger.info(f'Generating subtitles.')
         for i, seg in enumerate(segments):
             text = seg.get('content', '')
-            subtitle = await self.translate_text(text, self.subtitle_lang)
+            subtitle = None
+            if self.subtitle_lang:
+                subtitle = await self.translate_text(text, self.subtitle_lang)
             output_file = os.path.join(self.subtitle_dir,
                                        f'bilingual_subtitle_{i + 1}.png')
             if os.path.exists(output_file):
@@ -285,29 +287,29 @@ Now translate:
                                         target='',
                                         width=1720,
                                         height=180):
-        zh_font_size = 32
-        en_font_size = 22
-        zh_en_gap = 6
+        main_font_size = 32
+        target_font_size = 22
+        main_target_gap = 6
         chars_per_line = 50
-        
-        zh_img, zh_height = GenerateSubtitle.create_subtitle_image(
-            source, width, height, zh_font_size, 'black', chars_per_line=chars_per_line)
+
+        main_img, main_height = GenerateSubtitle.create_subtitle_image(
+            source, width, height, main_font_size, 'black', chars_per_line=chars_per_line)
 
         if target.strip():
             # For English, allow more characters per line due to narrower chars
-            en_chars_per_line = 100
-            en_img, en_height = GenerateSubtitle.create_subtitle_image(
-                target, width, height, en_font_size, 'gray', chars_per_line=en_chars_per_line)
-            total_height = zh_height + en_height + zh_en_gap
+            target_chars_per_line = 100
+            target_img, target_height = GenerateSubtitle.create_subtitle_image(
+                target, width, height, target_font_size, 'gray', chars_per_line=target_chars_per_line)
+            total_height = main_height + target_height + main_target_gap
             combined_img = Image.new('RGBA', (width, total_height),
                                      (0, 0, 0, 0))
-            combined_img.paste(zh_img, (0, 0), zh_img)
-            combined_img.paste(en_img, (0, zh_height + zh_en_gap), en_img)
+            combined_img.paste(main_img, (0, 0), main_img)
+            combined_img.paste(target_img, (0, main_height + main_target_gap), target_img)
             final_img = combined_img
             final_height = total_height
         else:
-            final_img = zh_img
-            final_height = zh_height
+            final_img = main_img
+            final_height = main_height
 
         final_img.save(output_file)
         return final_height

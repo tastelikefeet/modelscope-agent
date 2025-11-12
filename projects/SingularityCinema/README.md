@@ -28,9 +28,10 @@ SingularityCinema基于大模型生成台本和分镜，并生成短视频。
 ### 适配性
 
 - 短视频类型：科普类、经济类，尤其包含报表、公式、原理性解释的短视频
-- 语言：不限
+- 语言：不限，字幕和语音语种跟随你的原始query和文档材料
 - 读取外部材料：支持纯文本，不支持多模态
-- 二次开发：完整代码均在stepN/agent.py中，没有license限制，可自由二次开发
+- 二次开发：完整代码均在stepN/agent.py中，没有license限制，可自由二次开发和商用
+  - 请注意并遵循你使用的背景音乐、字体的商用许可
 
 ### 局限性
 
@@ -81,26 +82,57 @@ ms-agent run --config "ms-agent/projects/SingularityCinema" --query "你的自�
 
 ## 技术原理
 
-本工作流
+1. 根据用户需求生成基本台本
+    * 输入：用户需求，可能读取用户指定的文件
+    * 输出：台本文件script.txt，原始需求文件topic.txt，短视频名称文件title.txt
+2. 根据台本切分分镜设计
+    * 输入：topic.txt, script.txt
+    * 输出：segments.txt，描述旁白、背景图片生成要求、前景manim动画要求的分镜列表
+3. 生成分镜的音频讲解
+    * 输入：segments.txt
+    * 输出：audio/audio_N.mp3列表，N为segment序号从1开始，以及根目录audio_info.txt，包含audio时长
+4. 根据语音时长生成manim动画代码
+    * 输入：segments.txt，audio_info.txt
+    * 输出：manim代码文件列表 manim_code/segment_N.py，N为segment序号从1开始
+5. 修复manim代码
+    * 输入：manim_code/segment_N.py N为segment序号从1开始，code_fix/code_fix_N.txt 预错误文件
+    * 输出：更新的manim_code/segment_N.py文件
+6. 渲染manim代码
+    * 输入：manim_code/segment_N.py
+    * 输出：manim_render/scene_N文件夹列表，如果segments.txt中对某个步骤包含了manim要求，则对应文件夹中会有manim.mov文件
+7. 生成文生图提示词
+    * 输入：segments.txt
+    * 输出：illustration_prompts/segment_N.txt，N为segment序号从1开始
+8. 文生图
+    * 输入：illustration_prompts/segment_N.txt列表
+    * 输出：images/illustration_N.png列表，N为segment序号从1开始
+9. 生成字幕
+    * 输入：segments.txt
+    * 输出：subtitles/bilingual_subtitle_N.png列表，N为segment序号从1开始
+10. 生成背景，为纯色带有短视频title和slogans的图片
+    * 输入：title.txt
+    * 输出：background.jpg
+11. 拼合整体视频
+    * 输入：前序所有的文件信息
+    * 输出：final_video.mp4
+12. 人工反馈
 
-## 目录说明
-- `video_agent.py`：三步逻辑的 Agent 封装
-- `workflow.yaml`：三步编排；`workflow_from_assets.yaml`：只合成编排
-- `core/workflow.py`：主流程；`core/human_animation_studio.py`：人工工作室
-- `core/asset/`：字体与背景音乐
-- `output/`：运行产物
-- `scripts/compose_from_asset_info.py`：从现有 `asset_info.json` 直接合成的辅助脚本
+## 可调参数
 
-## 常见问题
-- 退出码 1：
-	- 检查是否缺少 MODELSCOPE_API_KEY（全自动模式常见）
-	- 检查 ffmpeg / manim 是否可执行（PATH）
-	- 查看终端最后 80 行日志定位具体异常
-- 字体/背景不一致：
-	- 背景由 `create_manual_background` 生成，字体/音乐来自 `core/asset/`；确保该目录可读
-- TTS/事件循环冲突：
-	- 已内置 loop-safe 处理；若仍报错，重试并贴出日志尾部
+所有的可调参数大部分都在agent.yaml中。在运行前，你可以调节这个文件来进行自定义。
 
-## 许可证与注意
-- 自定义字体文件标注为“商用需授权”，请在合规授权范围内使用
-- 背景音乐仅作示例，商业使用请更换或确保版权无虞
+下面列出一些比较重要的参数：
+
+- llm: 该组参数控制大模型的url、apikey等
+- generation_config: 该组参数控制大模型生成的参数
+- prompt.system: 控制台本生成阶段的system
+  - 如果你想修改分镜生成的system，可以修改step2_segment/agent.py的system
+- text2image: 文生图模型的参数，包括url、模型id等
+  - t2i_transition: 背景图片的效果，默认为ken-burns效果
+  - t2i_style: 图片风格，可以设置你期望的文生图风格
+- t2i_num_parallel: 文生图调用并行度。默认为1防止被限流
+- llm_num_parallel: 大模型调用并行度，默认为10
+- video: 视频生成的比特率等参数
+- voice/voices: edge_tts的声音设置，如果你有其他声音选项，可以添加到这里
+- subtitle_lang: 多语言字幕的语种，如果不设置则不进行翻译
+- slogan: 展示在屏幕右侧，一般展示出品人名字和短视频集合
