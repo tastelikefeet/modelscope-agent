@@ -3,6 +3,7 @@ import argparse
 import asyncio
 import os
 
+from litellm.proxy.common_utils.callback_utils import blue_color_code
 from ms_agent.config import Config
 from ms_agent.utils import strtobool
 from ms_agent.utils.constants import AGENT_CONFIG_FILE, MS_AGENT_ASCII
@@ -113,19 +114,17 @@ class RunCMD(CLICommand):
         if os.path.exists(author_file):
             with open(author_file, 'r') as f:
                 author = f.read()
-        print('\033[34m' + MS_AGENT_ASCII + '\033[0m', flush=True)
+        blue_color_prefix = '\033[34m'
+        blue_color_suffix = '\033[0m'
+        print(
+            blue_color_prefix + MS_AGENT_ASCII + blue_color_suffix, flush=True)
+        line_start = '═════════════════════════Workflow Contributed By════════════════════════════'
+        line_end = '════════════════════════════════════════════════════════════════════════════'
         if author:
             print(
-                '\033[34m' +
-                '═════════════════════════Workflow Contributed By════════════════════════════'
-                + '\033[0m',
-                flush=True)  # noqa
-            print('\033[34m' + author + '\033[0m', flush=True)
-            print(
-                '\033[34m' +
-                '════════════════════════════════════════════════════════════════════════════'
-                + '\033[0m',
-                flush=True)  # noqa
+                blue_color_suffix + line_start + blue_color_suffix, flush=True)
+            print(blue_color_prefix + author + blue_color_suffix, flush=True)
+            print(blue_color_prefix + line_end + blue_color_suffix, flush=True)
 
         config = Config.from_task(self.args.config)
 
