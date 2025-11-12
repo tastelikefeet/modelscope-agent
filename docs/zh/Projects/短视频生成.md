@@ -75,7 +75,7 @@ t2i_api_key=ms-xxx-xxx
 3. 运行命令
 
 ```shell
-ms-agent run --config "ms-agent/projects/SingularityCinema" --query "你的自定义主题，见上面描述" --load_cache true --trust_remote_code true
+ms-agent run --config "projects/SingularityCinema" --query "你的自定义主题，见上面描述" --load_cache true --trust_remote_code true
 ```
 
 4. 运行持续约20min左右。视频生成在output/final_video.mp4。生成完成后你可以查看这个文件，把不满足要求的地方汇总起来，输入命令行input中，工作流会继续改进。如果达到了要求，输入quit或者exit程序会自动退出。

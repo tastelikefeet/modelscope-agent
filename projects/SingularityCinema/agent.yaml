@@ -72,7 +72,7 @@ llm_num_parallel: 10
 
 video:
   bitrate: 2500k
-  preset: faster
+  preset: ultrafast
   fps: 24
 
 voice: male

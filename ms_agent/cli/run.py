@@ -3,7 +3,6 @@ import argparse
 import asyncio
 import os
 
-from litellm.proxy.common_utils.callback_utils import blue_color_code
 from ms_agent.config import Config
 from ms_agent.utils import strtobool
 from ms_agent.utils.constants import AGENT_CONFIG_FILE, MS_AGENT_ASCII
