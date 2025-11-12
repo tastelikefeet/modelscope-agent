@@ -16,6 +16,7 @@ class Segment(LLMAgent):
 
 1. Each storyboard panel will carry a piece of narration, (at most) one manim technical animation, one generated image background, and one subtitle
     * You can freely decide whether the manim animation exists. If the manim animation is not needed, the manim key can be omitted from the return value
+    * For tech-related short videos, they should have a technical and professional feel. For product-related short videos, they should be gentle and authentic, avoiding exaggerated expressions such as "shocking", "solved by xxx", etc.
 2. Each of your storyboard panels should take about 5 seconds to 15 seconds(at most) to read at normal speaking speed. Too short will cause a sense of frequent switching, and too long will appear too static
     * If a storyboard panel has no manim animation, it should not exceed 5s to 10s at most
     * Pay attention to the coordination between the background image and the manim animation. 

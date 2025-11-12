@@ -47,6 +47,8 @@ prompt:
     
     - DO NOT use Chinese quotes，use [] instead，e.g. [attention]
     
+    - For tech-related short videos, they should have a technical and professional feel. For product-related short videos, they should be gentle and authentic, avoiding exaggerated expressions such as "shocking", "solved by xxx", etc.
+    
     Example Style:
     "It's just like when you're looking for a restroom in a mall, AI is that super navigator..." (humorous metaphor)
     "Don't let this simple E=mc² fool you, the story behind it is actually quite fascinating..." (smooth transition)
@@ -65,6 +67,11 @@ text2image:
   t2i_num_parallel: 1
   t2i_transition: ken-burns-effect
   t2i_style: Simple hand drawn style, with several clear object
+
+video:
+  bitrate: 2500k
+  preset: faster
+  fps: 24
 
 voice: male
 

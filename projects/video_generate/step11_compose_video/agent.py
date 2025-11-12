@@ -21,12 +21,15 @@ class ComposeVideo(CodeAgent):
                  **kwargs):
         super().__init__(config, tag, trust_remote_code, **kwargs)
         self.work_dir = getattr(self.config, 'output_dir', 'output')
-        self.transition = getattr(self.config, 't2i_transition', 'ken-burns-effect')
+        self.transition = getattr(self.config, 't2i_transition', None)
         self.bg_path = os.path.join(self.work_dir, 'background.jpg')
         self.render_dir = os.path.join(self.work_dir, 'manim_render')
         self.tts_dir = os.path.join(self.work_dir, 'audio')
         self.images_dir = os.path.join(self.work_dir, 'images')
         self.subtitle_dir = os.path.join(self.work_dir, 'subtitles')
+        self.bitrate = getattr(self.config.video, 'bitrate', '5000k')
+        self.preset = getattr(self.config.video, 'preset', 'faster')
+        self.fps = getattr(self.config.video, 'fps', 24)
 
     def compose_final_video(self, background_path, foreground_paths,
                             audio_paths, subtitle_paths, illustration_paths,
@@ -70,7 +73,7 @@ class ComposeVideo(CodeAgent):
         for i, (duration,
                 segment) in enumerate(zip(segment_durations, segments)):
             logger.info(
-                f"Processing {i + 1} segment: {segment.get('type', 'unknown')} - {duration:.1f} seconds."
+                f"Processing {i + 1} segment - {duration:.1f} seconds."
             )
 
             current_video_clips = []
@@ -148,6 +151,7 @@ class ComposeVideo(CodeAgent):
                     illustration_clip = illustration_clip.with_position('center')
                     
                 elif self.transition == 'slide':
+                    # TODO legacy code, untested
                     # Default slide left animation
                     def illustration_pos_factory(idx, start_x, end_x, new_h,
                                                  start_animation_time,
@@ -197,7 +201,7 @@ class ComposeVideo(CodeAgent):
                 # Position in the center of the top 3/4 area
                 # Center horizontally, vertically centered in top 810px region
                 # Y coordinate: (810 / 2) - (clip_height / 2) = center of top 3/4
-                top_area_center_y = 800 // 2 - 250  # 405px from top
+                # top_area_center_y = 800 // 2 - 250  # 405px from top # not work
                 fg_clip = fg_clip.with_position(('center', 'center'))
                 fg_clip = fg_clip.with_duration(duration)
                 current_video_clips.append(fg_clip)
@@ -225,9 +229,6 @@ class ComposeVideo(CodeAgent):
                 segment_video = mp.CompositeVideoClip(
                     current_video_clips, size=(1920, 1080))
                 segment_videos.append(segment_video)
-
-        if not segment_videos:
-            return None
 
         logger.info('Step2: Combine all video segments.')
         final_video = mp.concatenate_videoclips(
@@ -307,17 +308,17 @@ class ComposeVideo(CodeAgent):
 
         final_video.write_videofile(
             output_path,
-            fps=15,
+            fps=self.fps,
             codec='libx264',
             audio_codec='aac',
             temp_audiofile='temp-audio.m4a',
             remove_temp=True,
             logger=None,
             threads=16,
-            bitrate='2500k',
+            bitrate=self.bitrate,
             audio_bitrate='192k',
             audio_fps=44100,
-            preset='faster',
+            preset=self.preset,
             write_logfile=False)
 
         if os.path.exists(output_path) and os.path.getsize(output_path) > 1024:
