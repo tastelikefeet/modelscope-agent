@@ -23,6 +23,7 @@ MS-Agent DOCUMENTATION
    Instruction/Tools.md
    Instruction/DeepResearch.md
    Instruction/CodeScratch.md
+   Instruction/VideoGeneration.md
 
 Indices and tables
 ==================

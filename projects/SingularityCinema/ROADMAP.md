@@ -1,8 +1,10 @@
 # ROADMAP
 
+## 中文
+
 本ROADMAP截止到2025年S4完成，即12月31日。
 
-## 功能性
+### 功能性
 
 - [] 支持前景部分可选文生图 P0
 - [] 支持输入多模态数据 P0
@@ -13,14 +15,41 @@
 - [] 支持文生视频 P1
 - [] 支持更复杂的前景设计和背景特效 P1
 
-## 稳定性
+### 稳定性
 
 - [] 增加manim动画的稳定性 P0
 - [] 提升生成速度 P0
 - [] 支持利用多模态模型分析视频问题，减少人工反馈成本 P1
 - [] 支持代码修复的memory管理 P1
 
-## 端到端
+### 端到端
 
 - [] 支持web-ui生成 P0
 - [] 创空间和space部署 P0
+
+## English
+
+This ROADMAP is to be completed by the end of S4 2025, i.e., December 31st.
+
+### Functionality
+
+- [] Support optional text-to-image generation for foreground elements P0
+- [] Support multimodal data input P0
+    * [] Analyze multimodal data P0
+    * [] Directly use multimodal data (charts, images, etc.) P0
+- [] Support more TTS voices by default P0
+- [] Support more LLM models, such as Qwen series, DeepSeek series, etc. P0
+- [] Support text-to-video generation P1
+- [] Support more complex foreground design and background effects P1
+
+### Stability
+
+- [] Increase stability of Manim animations P0
+- [] Improve generation speed P0
+- [] Support using multimodal models to analyze video issues and reduce manual feedback costs P1
+- [] Support memory management for code fixes P1
+
+### End-to-End
+
+- [] Support web UI generation P0
+- [] Create space and deploy to Hugging Face Spaces P0

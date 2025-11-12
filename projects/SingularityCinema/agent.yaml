@@ -109,6 +109,14 @@ subtitle_lang: English
 
 slogan: ['AI敲门砖', '魔搭社区']
 
+fonts:
+  - Alibaba PuHuiTi
+  - PingFang SC
+  - Heiti SC
+  - STHeiti
+  - SimHei
+  - Microsoft YaHei
+
 tools:
   file_system:
     mcp: false

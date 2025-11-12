@@ -27,6 +27,7 @@ class GenerateSubtitle(CodeAgent):
         self.subtitle_lang = getattr(self.config, 'subtitle_lang', 'English')
         self.subtitle_dir = os.path.join(self.work_dir, 'subtitles')
         os.makedirs(self.subtitle_dir, exist_ok=True)
+        self.fonts = self.config.fonts
 
     async def execute_code(self, messages, **kwargs):
         with open(os.path.join(self.work_dir, 'segments.txt'), 'r') as f:
@@ -91,19 +92,18 @@ Now translate:
         _response_message = self.llm.generate(messages)
         return _response_message.content
 
-    @staticmethod
-    def load_font(font_size):
-        try:
-            font = ImageFont.truetype('Alibaba-PuHuiTi-Medium.otf', font_size)
-        except OSError or ValueError:
+    def get_font(self, size):
+        """Get font using system font manager, same as CreateBackground agent"""
+        import matplotlib.font_manager as fm
+        for font_name in self.fonts:
             try:
-                font = ImageFont.truetype('arial.ttf', font_size)
-            except OSError or ValueError:
-                font = ImageFont.load_default(font_size)
-        return font
+                font_path = fm.findfont(fm.FontProperties(family=font_name))
+                return ImageFont.truetype(font_path, size)
+            except (OSError, ValueError):
+                continue
+        return ImageFont.load_default()
 
-    @staticmethod
-    def smart_wrap_text(text, max_lines=2, chars_per_line=50):
+    def smart_wrap_text(self, text, max_lines=2, chars_per_line=50):
         import string
 
         # Define punctuation marks (both Chinese and English)
@@ -225,23 +225,23 @@ Now translate:
 
         return processed_lines
 
-    @staticmethod
-    def create_subtitle_image(text,
+    def create_subtitle_image(self,
+                              text,
                               width=1720,
                               height=120,
                               font_size=28,
                               text_color='black',
                               bg_color='rgba(0,0,0,0)',
                               chars_per_line=50):
-        font = GenerateSubtitle.load_font(font_size)
+        font = self.get_font(font_size)
         min_font_size = 18
         max_height = 500
         original_font_size = font_size
         lines = []
         while font_size >= min_font_size:
             if font_size != original_font_size:
-                font = GenerateSubtitle.load_font(font_size)
-            lines = GenerateSubtitle.smart_wrap_text(
+                font = self.get_font(font_size)
+            lines = self.smart_wrap_text(
                 text, max_lines=2, chars_per_line=chars_per_line)
             line_height = font_size + 8
             total_text_height = len(lines) * line_height
@@ -281,8 +281,8 @@ Now translate:
                 draw.text((x, y), line, fill=text_color, font=font)
         return img, actual_height
 
-    @staticmethod
-    def create_bilingual_subtitle_image(source,
+    def create_bilingual_subtitle_image(self,
+                                        source,
                                         output_file,
                                         target='',
                                         width=1720,
@@ -292,7 +292,7 @@ Now translate:
         main_target_gap = 6
         chars_per_line = 50
 
-        main_img, main_height = GenerateSubtitle.create_subtitle_image(
+        main_img, main_height = self.create_subtitle_image(
             source,
             width,
             height,
@@ -303,7 +303,7 @@ Now translate:
         if target.strip():
             # For English, allow more characters per line due to narrower chars
             target_chars_per_line = 100
-            target_img, target_height = GenerateSubtitle.create_subtitle_image(
+            target_img, target_height = self.create_subtitle_image(
                 target,
                 width,
                 height,

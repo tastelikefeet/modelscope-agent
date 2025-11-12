@@ -115,11 +115,17 @@ class RunCMD(CLICommand):
                 author = f.read()
         print('\033[34m' + MS_AGENT_ASCII + '\033[0m', flush=True)
         if author:
-            print('\033[34m' + '═════════════════════════Workflow Contributed By════════════════════════════' + '\033[0m', flush=True) # noqa
+            print(
+                '\033[34m' +
+                '═════════════════════════Workflow Contributed By════════════════════════════'
+                + '\033[0m',
+                flush=True)  # noqa
             print('\033[34m' + author + '\033[0m', flush=True)
-            print('\033[34m' + '════════════════════════════════════════════════════════════════════════════' + '\033[0m', flush=True) # noqa
-
-
+            print(
+                '\033[34m' +
+                '════════════════════════════════════════════════════════════════════════════'
+                + '\033[0m',
+                flush=True)  # noqa
 
         config = Config.from_task(self.args.config)
 

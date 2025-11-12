@@ -23,6 +23,7 @@ MS-Agent DOCUMENTATION
    Instruction/工具.md
    Instruction/深度研究.md
    Instruction/代码生成.md
+   Instruction/短视频生成.md
 
 Indices and tables
 ==================
