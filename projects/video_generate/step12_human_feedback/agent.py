@@ -9,72 +9,82 @@ logger = get_logger()
 
 class HumanFeedback(LLMAgent):
 
-    system = """你是一个负责协助解决短视频生成中的人工反馈问题的助手。你的职责是根据人工反馈的问题，定位问题出现在哪个工作流程中，并适当删除前置任务的配置文件，以触发任务的重新执行。
+    system = """You are an assistant responsible for helping resolve human feedback issues in short video generation. Your role is to identify which workflow step the reported problem occurs in based on human feedback, and appropriately delete configuration files of prerequisite tasks to trigger task re-execution.
 
-前置工作流：
-首先有一个根目录文件夹用于存储所有文件，以下描述的所有文件，或你的所有工具命令都基于这个根目录进行，你无需关心根目录位置，仅需要关注相对目录即可
-1. 根据用户需求生成基本台本
+Workflow Overview:
+First, there is a root directory folder for storing all files. All files described below and all your tool commands are based on this root directory. You don't need to worry about the root directory location, just focus on relative directories.
+
+1. Generate basic script based on user requirements
     * memory: memory/generate_script.json memory/generate_script.yaml
-    * 输入：用户需求，可能读取用户指定的文件
-    * 输出：台本文件script.txt，原始需求文件topic.txt，短视频名称文件title.txt
-2. 根据台本切分分镜设计
+    * Input: user requirements, may read user-specified files
+    * Output: script file script.txt, original requirements file topic.txt, video title file title.txt
+
+2. Segment design based on script
     * memory: memory/segment.json memory/segment.yaml
-    * 输入：topic.txt, script.txt
-    * 输出：segments.txt，描述旁白、背景图片生成要求、前景manim动画要求的分镜列表
-3. 生成分镜的音频讲解
+    * Input: topic.txt, script.txt
+    * Output: segments.txt, describing a list of shots including narration, background image generation requirements, and foreground Manim animation requirements
+
+3. Generate audio narration for segments
     * memory: memory/generate_audio.json memory/generate_audio.yaml
-    * 输入：segments.txt
-    * 输出：audio/audio_N.mp3列表，N为segment序号从1开始，以及根目录audio_info.txt，包含audio时长
-4. 根据语音时长生成manim动画代码
+    * Input: segments.txt
+    * Output: list of audio/audio_N.mp3 files, where N is the segment number starting from 1, and audio_info.txt in root directory containing audio duration
+
+4. Generate Manim animation code based on audio duration
     * memory: memory/generate_manim_code.json memory/generate_manim_code.yaml
-    * 输入：segments.txt，audio_info.txt
-    * 输出：manim代码文件列表 manim_code/segment_N.py，N为segment序号从1开始
-5. 修复manim代码
+    * Input: segments.txt, audio_info.txt
+    * Output: list of Manim code files manim_code/segment_N.py, where N is the segment number starting from 1
+
+5. Fix Manim code
     * memory: memory/fix_manim_code.json memory/fix_manim_code.yaml
-    * 输入：manim_code/segment_N.py N为segment序号从1开始，code_fix/code_fix_N.txt 预错误文件
-    * 输出：更新的manim_code/segment_N.py文件
-    * 备注：如果manim动画出现问题，你应该新建code_fix/code_fix_N.txt交给本步骤重新执行
-6. 渲染manim代码
+    * Input: manim_code/segment_N.py where N is segment number starting from 1, code_fix/code_fix_N.txt error description files
+    * Output: updated manim_code/segment_N.py files
+    * Note: If Manim animation has issues, you should create code_fix/code_fix_N.txt and pass it to this step for re-execution
+
+6. Render Manim code
     * memory: memory/render_manim.json memory/render_manim.yaml
-    * 输入：manim_code/segment_N.py
-    * 输出：manim_render/scene_N文件夹列表，如果segments.txt中对某个步骤包含了manim要求，则对应文件夹中会有manim.mov文件
-7. 生成文生图提示词
+    * Input: manim_code/segment_N.py
+    * Output: list of manim_render/scene_N folders. If segments.txt contains Manim requirements for a certain step, the corresponding folder will have a manim.mov file
+
+7. Generate text-to-image prompts
     * memory: memory/generate_illustration_prompts.json memory/generate_illustration_prompts.yaml
-    * 输入：segments.txt
-    * 输出：illustration_prompts/segment_N.txt，N为segment序号从1开始
-8. 文生图
+    * Input: segments.txt
+    * Output: illustration_prompts/segment_N.txt, where N is segment number starting from 1
+
+8. Text-to-image generation
     * memory: memory/generate_images.json memory/generate_images.yaml
-    * 输入：illustration_prompts/segment_N.txt列表
-    * 输出：images/illustration_N.png列表，N为segment序号从1开始
-9. 生成字幕
+    * Input: list of illustration_prompts/segment_N.txt
+    * Output: list of images/illustration_N.png, where N is segment number starting from 1
+
+9. Generate subtitles
     * memory: memory/generate_subtitle.json memory/generate_subtitle.yaml
-    * 输入：segments.txt
-    * 输出：subtitles/bilingual_subtitle_N.png列表，N为segment序号从1开始
-10. 生成背景，为纯色带有短视频title和slogans的图片
+    * Input: segments.txt
+    * Output: list of subtitles/bilingual_subtitle_N.png, where N is segment number starting from 1
+
+10. Create background, a solid color image with video title and slogans
     * memory: memory/create_background.json memory/create_background.yaml
-    * 输入：title.txt
-    * 输出：background.jpg
-11. 拼合整体视频
+    * Input: title.txt
+    * Output: background.jpg
+
+11. Compose final video
     * memory: memory/compose_video.json memory/compose_video.yaml
-    * 输入：前序所有的文件信息
-    * 输出：final_video.mp4
+    * Input: all file information from previous steps
+    * Output: final_video.mp4
 
-注意：
-1. 删除某个步骤的memory的json和yaml文件会让本步骤重新执行
-2. 重新执行某个步骤时，如果对应输出文件存在，则会跳过执行。例如如果某个segment对应的segment_N.png已经生成了，那么只会执行其他没有本地文件的segment的生成操作
+Notes:
+1. Deleting the json and yaml memory files of a certain step will cause that step to re-execute
+2. When re-executing a step, if the corresponding output file exists, execution will be skipped. For example, if segment_N.png for a certain segment has already been generated, only the generation operations for other segments without local files will be executed
 
-对你的要求：
-1. 获取用户提交的问题之后，你应当读取segments.txt、topic.txt来获取对任务的基本认识
-2. 分析用户描述的问题出现在segments的哪几个序号中，哪几个步骤中
-3. 如果是manim动画出现问题，你可以构造code_fix/code_fix_N.txt，N从1开始
-4. 当你确定了序号和步骤之后，你应当删除对应序号的本地文件，以及对应步骤和之后步骤的所有memory文件
-    * 如果在bug严重时需要重新生成manim动画，你需要删除manim_code文件夹对应的分镜，并删除第4步的memory
-    * 如果动画错误可以基于现有代码修复，不要删除manim_code文件夹，并从第5步开始重新执行，并删除manim_render文件夹的对应分镜的子文件夹
-5. 工作流会自动重新执行，生成缺失文件
-6. 如果你发现提出的问题来源于segment设计问题，例如难以修改的manim动画bug等，或者考虑删除代码文件重新生成（而非修复）
-    * 你需要考虑以最小改动修复问题，防止视频发生大的感官变化
-    * 尽量不要更新分镜（segments.txt），否则会让整个视频完全重做
-"""
+Requirements for you:
+1. After receiving the user's reported issue, you should read segments.txt and topic.txt to gain basic understanding of the task
+2. Analyze which segment numbers and which steps the user-described problem occurs in
+3. If there's a Manim animation issue, you can construct code_fix/code_fix_N.txt, where N starts from 1
+4. After determining the segment numbers and steps, you should delete the corresponding local files for those segment numbers, as well as all memory files for the corresponding step and subsequent steps
+    * If bugs are severe and Manim animation needs to be regenerated, you need to delete the corresponding segments in the manim_code folder and delete step 4's memory
+    * If animation errors can be fixed based on existing code, don't delete the manim_code folder, start re-execution from step 5, and delete the corresponding segment subfolders in the manim_render folder
+5. The workflow will automatically re-execute to generate missing files
+6. If you find the reported problem stems from segment design issues, such as difficult-to-fix Manim animation bugs, or consider deleting code files for regeneration (rather than fixing):
+    * You need to consider fixing the problem with minimal changes to prevent major perceptual changes to the video
+    * Try not to update segments (segments.txt), otherwise the entire video will be completely redone"""
 
     def __init__(self,
                  config: DictConfig,
@@ -101,7 +111,14 @@ class HumanFeedback(LLMAgent):
         ]
 
     async def run(self, inputs, **kwargs):
-        logger.info(f'Human eval')
+        logger.info(f'请查看输出文件夹中的final_video.mp4,并给出你的修改意见。请注意:\n'
+                    f'    * 重新生成素材合成video需要一定时间，建议将问题总结起来一并反馈\n'
+                    f'    * 请具体描述问题现象,并尽量描述清楚发生在哪个分镜中,例如在展示...信息时动画向...越界了...重叠了\n'
+                    f'    * 可以给出对整体视频的评价,例如建议模型重新生成动画,或者对现有动画比较满意直接修改\n')
+        logger.info(f'Please review final_video.mp4 in the output folder and provide your feedback. Please note:\n'
+                    f'    * Regenerating assets and composing the video takes time, so it is recommended to summarize all issues and provide feedback together\n'
+                    f'    * Please describe the problem specifically and try to clearly indicate which segment it occurs in, for example: when displaying ... information, the animation went out of bounds ... overlapped ...\n'
+                    f'    * You can provide an overall evaluation of the video, such as suggesting the model regenerate the animation, or if you are satisfied with the existing animation, just make direct modifications\n')
         while True:
             self._query = input('>>>')
             if self._query.strip() == 'exit':
