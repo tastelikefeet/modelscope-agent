@@ -36,6 +36,7 @@ MS-Agent is a lightweight framework designed to empower agents with autonomous e
 - **Multi-Agent for general purpose**: Chat with agent with tool-calling capabilities based on MCP.
 - **Deep Research**: To enable advanced capabilities for autonomous exploration and complex task execution.
 - **Code Generation**: Supports code generation tasks with artifacts.
+- **Short Video Generation**：Support video generation of about 5 minutes.
 - **Agent Skills**: Implementation of [Anthropic-Agent-Skills](https://docs.claude.com/en/docs/agents-and-tools/agent-skills) Protocol.
 - **Lightweight and Extensible**: Easy to extend and customize for various applications.
 
