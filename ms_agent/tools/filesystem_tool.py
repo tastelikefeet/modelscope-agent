@@ -21,7 +21,8 @@ class FileSystemTool(ToolBase):
         super(FileSystemTool, self).__init__(config)
         self.exclude_func(getattr(config.tools, 'file_system', None))
         self.output_dir = getattr(config, 'output_dir', DEFAULT_OUTPUT_DIR)
-        self.allow_read_all_files = getattr(config.tools.file_system, 'allow_read_all_files', False)
+        self.allow_read_all_files = getattr(config.tools.file_system,
+                                            'allow_read_all_files', False)
 
     async def connect(self):
         logger.warning_once(
@@ -194,13 +195,19 @@ class FileSystemTool(ToolBase):
                     target_path = os.path.join(self.output_dir, path)
                 target_path_real = os.path.realpath(target_path)
                 output_dir_real = os.path.realpath(self.output_dir)
-                is_in_output_dir = target_path_real.startswith(output_dir_real + os.sep) or target_path_real == output_dir_real
-                
+                is_in_output_dir = target_path_real.startswith(
+                    output_dir_real
+                    + os.sep) or target_path_real == output_dir_real
+
                 if not is_in_output_dir and not self.allow_read_all_files:
-                    results[path] = f'Access denied: Reading file <{path}> outside output directory is not allowed. Set allow_read_all_files=true in config to enable.'
-                    logger.warning(f'Attempt to read file outside output directory blocked: {path} -> {target_path_real}')
+                    results[path] = (
+                        f'Access denied: Reading file <{path}> outside output directory is not allowed. '
+                        f'Set allow_read_all_files=true in config to enable.')
+                    logger.warning(
+                        f'Attempt to read file outside output directory blocked: {path} -> {target_path_real}'
+                    )
                     continue
-                
+
                 with open(target_path_real, 'r') as f:
                     results[path] = f.read()
             except Exception as e:

@@ -123,7 +123,7 @@ Now translate:
             """Find the best position to break text, prioritizing sentence boundaries"""
             if max_pos >= len(text):
                 return len(text), False
-            
+
             # Priority 1: Look for sentence-ending punctuation within reasonable range
             # Search backward from max_pos, willing to go back up to 30% of line length
             search_start = max(0, int(max_pos * 0.7))
@@ -131,34 +131,36 @@ Now translate:
                 if i > 0 and i < len(text) and text[i - 1] in sentence_enders:
                     # Found sentence end, break after it
                     return i, False
-            
+
             # Priority 2: Look for whitespace
             for i in range(max_pos, search_start, -1):
                 if i < len(text) and text[i].isspace():
                     return i, False
-            
+
             # Priority 3: Look for existing hyphens in compound words (e.g., "Megatron-LM")
             # Break after the hyphen to keep compound words together
             for i in range(max_pos, search_start, -1):
                 if i > 0 and i < len(text) and text[i - 1] == '-':
                     return i, False
-            
+
             # Priority 4: For Chinese text, can break between characters
-            if max_pos > 0 and max_pos < len(text) and is_chinese(text[max_pos - 1]):
+            if max_pos > 0 and max_pos < len(text) and is_chinese(
+                    text[max_pos - 1]):
                 return max_pos, False
-            
+
             # Priority 5: For English, try to break at word boundary
             # Look back for space
             for i in range(max_pos, max(0, max_pos - 15), -1):
                 if i < len(text) and text[i].isspace():
                     return i, False
-            
+
             # Last resort: force break with hyphen for English words
             if max_pos > 0 and max_pos < len(text):
-                if (text[max_pos - 1].isalpha() and text[max_pos].isalpha() and
-                    not is_chinese(text[max_pos - 1]) and not is_chinese(text[max_pos])):
+                if (text[max_pos - 1].isalpha() and text[max_pos].isalpha()
+                        and not is_chinese(text[max_pos - 1])
+                        and not is_chinese(text[max_pos])):
                     return max_pos - 1, True  # True indicates we need to add hyphen
-            
+
             return max_pos, False
 
         def break_line(text, max_chars):
@@ -177,8 +179,9 @@ Now translate:
                     break
 
                 # Find best break point
-                break_pos, needs_hyphen = find_best_break_point(remaining, max_chars)
-                
+                break_pos, needs_hyphen = find_best_break_point(
+                    remaining, max_chars)
+
                 if needs_hyphen:
                     # Add hyphen for word break
                     line = remaining[:break_pos] + '-'
@@ -189,9 +192,10 @@ Now translate:
                     line = remaining[:break_pos].rstrip()
                     lines.append(line)
                     current_pos += break_pos
-                    
+
                     # Skip any leading whitespace for the next line
-                    while current_pos < len(text) and text[current_pos].isspace():
+                    while current_pos < len(
+                            text) and text[current_pos].isspace():
                         current_pos += 1
 
             return lines

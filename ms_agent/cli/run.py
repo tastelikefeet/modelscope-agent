@@ -123,7 +123,9 @@ class RunCMD(CLICommand):
         if author:
             print(
                 blue_color_prefix + line_start + blue_color_suffix, flush=True)
-            print(blue_color_prefix + author.strip() + blue_color_suffix, flush=True)
+            print(
+                blue_color_prefix + author.strip() + blue_color_suffix,
+                flush=True)
             print(blue_color_prefix + line_end + blue_color_suffix, flush=True)
 
         config = Config.from_task(self.args.config)
