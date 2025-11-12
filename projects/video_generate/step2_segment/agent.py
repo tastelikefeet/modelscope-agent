@@ -42,6 +42,7 @@ An example:
 ```json
 [
     {
+        "index": 1, # index of the segment, start from 1
         "content": "Now let's explain...",
         "background": "An image describe... color ... (your detailed requirements here)",
         "manim": "The animation should ... line thick... element color ... position ... (your detailed requirements here)",

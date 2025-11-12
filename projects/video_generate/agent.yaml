@@ -68,6 +68,9 @@ text2image:
   t2i_transition: ken-burns-effect
   t2i_style: Simple hand drawn style, with several clear object
 
+t2i_num_parallel: 1
+llm_num_parallel: 10
+
 video:
   bitrate: 2500k
   preset: faster
