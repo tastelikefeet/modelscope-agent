@@ -32,7 +32,7 @@ class Segment(LLMAgent):
     * Use more horizontal layouts to leverage the wider space and minimize positional conflicts between animation components.
     * Consider the synchronization between animations and content. When read at a normal speaking pace, the content should align with the animation's progression.
     * Specify the language of the manim texts, it should be the same with the script and the storyboard content(Chinese/English for example)
-    * Use less stick man unless the user wants to, to prevent the animation from being too naive, try to make your effects more dazzling/spectacular/blingbling
+    * Use less stick man unless the user wants to, to prevent the animation from being too naive, try to make your effects more dazzling/gorgeous/spectacular/blingbling
 4. You will be given a script. Your storyboard design needs to be based on the script. You can also add some additional information you think is useful
 5. You will be provided with the original requirements, which may contain one or more user-specified documents with content to be explained. Read through them, integrate with the script, and refine the short video's screenplay and animations. When documents are available, you can design animations based on their formulas, charts, and other visual elements.
     [CRITICAL]: The manim and image generation steps will not receive the original requirements and files. Supply very detail information for them, especially any data/points/formulas to prevent any mismatch with the original query and/or documentation

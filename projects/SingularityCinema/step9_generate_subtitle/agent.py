@@ -310,7 +310,7 @@ Now translate:
                 width,
                 height,
                 target_font_size,
-                'gray',
+                '#404040',  # Darker gray for better visibility
                 chars_per_line=target_chars_per_line)
             total_height = main_height + target_height + main_target_gap
             combined_img = Image.new('RGBA', (width, total_height),

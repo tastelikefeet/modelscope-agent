@@ -106,7 +106,7 @@ class GenerateManimCode(CodeAgent):
 • Use subtle fill colors with transparency when appropriate: fill_opacity=0.1
 • Ensure high contrast between elements for clarity
 • Apply consistent spacing and alignment throughout
-• Use less stick man unless the user wants to, to prevent the animation from being too naive, try to make your effects more dazzling/spectacular/blingbling
+• Use less stick man unless the user wants to, to prevent the animation from being too naive, try to make your effects more dazzling/gorgeous/spectacular/blingbling
 
 **Layout Suggestions**:
 • Content clearly layered
