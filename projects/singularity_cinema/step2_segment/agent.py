@@ -31,6 +31,7 @@ class Segment(LLMAgent):
         - Consider more colors like white, black, dark blue, dark purple, dark orange, etc, which will make your design elegant, avoid using light yellow/blue, which will make your animation look superficial, DO NOT use grey color, it's not easy to read
     * You can estimate the reading duration of this storyboard panel to estimate the duration of the manim animation. The actual duration will be completely determined in the next step of voice generation
     * The video resolution is around 1920*1080(bottom 1920*300 for subtitles only), manim can use top 1920*700. Lines that are too thin are easily difficult to see clearly. You need to explicitly specify the line thickness of the manim animation, emphasis elements should use thicker lines
+    * Ensure proper font size control in Manim animations to prevent text from going beyond the frame or boundaries
     * Use more horizontal layouts to leverage the wider space and minimize positional conflicts between animation components.
     * Consider the synchronization between animations and content. When read at a normal speaking pace, the content should align with the animation's progression.
     * Specify the language of the manim texts, it should be the same with the script and the storyboard content(Chinese/English for example)
