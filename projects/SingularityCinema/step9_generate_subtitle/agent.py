@@ -24,7 +24,7 @@ class GenerateSubtitle(CodeAgent):
         super().__init__(config, tag, trust_remote_code, **kwargs)
         self.work_dir = getattr(self.config, 'output_dir', 'output')
         self.llm: OpenAI = LLM.from_config(self.config)
-        self.subtitle_lang = getattr(self.config, 'subtitle_lang', 'Chinese')
+        self.subtitle_lang = getattr(self.config, 'subtitle_lang', None)
         self.subtitle_dir = os.path.join(self.work_dir, 'subtitles')
         os.makedirs(self.subtitle_dir, exist_ok=True)
         self.fonts = self.config.fonts
@@ -49,25 +49,6 @@ class GenerateSubtitle(CodeAgent):
                 width=1720,
                 height=180)
         return messages
-
-    @staticmethod
-    def _split_subtitles(text: str, max_chars: int = 30) -> List[str]:
-        # Only split at sentence endings (.!?), NOT at commas
-        sentences = re.split(r'([。！？.!?])', text)
-        subs, cur = [], ''
-        for s in sentences:
-            if not s.strip():
-                continue
-            test = cur + s
-            if len(test) <= max_chars:
-                cur = test
-            else:
-                if cur:
-                    subs.append(cur.strip())
-                cur = s
-        if cur.strip():
-            subs.append(cur.strip())
-        return subs
 
     async def translate_text(self, text, to_lang):
 
@@ -105,52 +86,39 @@ Now translate:
         return ImageFont.load_default()
 
     def smart_wrap_text(self, text, max_lines=2, chars_per_line=50):
-        import string
-
-        # Only break at sentence endings (.!?), NOT commas
+        """Break text into lines at sentence boundaries, never at commas."""
         sentence_enders = '.!?。！？'
-        all_punctuation = string.punctuation + '。！？；，、：""' '《》【】（）'
-
-        def is_chinese(char):
-            return '\u4e00' <= char <= '\u9fff'
-
-        def find_best_break(text, max_pos):
-            if max_pos >= len(text):
-                return len(text), False
-            
-            # Priority 1: Sentence endings (.!?)
-            for i in range(max_pos, max(0, max_pos - 30), -1):
-                if i > 0 and text[i-1] in sentence_enders:
-                    return i, False
-            
-            # Priority 2: Whitespace
-            for i in range(max_pos, max(0, max_pos - 20), -1):
-                if text[i].isspace():
-                    return i, False
-            
-            # Priority 3: Chinese characters
-            if is_chinese(text[max_pos-1] if max_pos > 0 else text[0]):
-                return max_pos, False
-            
-            return max_pos, False
-
         lines = []
         pos = 0
-        while pos < len(text):
-            remaining = text[pos:]
-            if len(remaining) <= chars_per_line:
-                lines.append(remaining.strip())
+
+        while pos < len(text) and len(lines) < max_lines:
+            remaining = text[pos:].lstrip()
+            if not remaining:
                 break
-            
-            break_pos, _ = find_best_break(remaining, chars_per_line)
-            line = remaining[:break_pos].strip()
-            if line:
-                lines.append(line)
-            pos += break_pos
-            while pos < len(text) and text[pos].isspace():
-                pos += 1
-        
-        return lines[:max_lines] if lines else [text]
+
+            if len(remaining) <= chars_per_line:
+                lines.append(remaining)
+                break
+
+            break_pos = -1
+            for i in range(chars_per_line, 0, -1):
+                if i <= len(remaining) and remaining[i - 1] in sentence_enders:
+                    break_pos = i
+                    break
+
+            if break_pos == -1:
+                for i in range(chars_per_line, 0, -1):
+                    if i <= len(remaining) and remaining[i - 1] == ' ':
+                        break_pos = i
+                        break
+
+            if break_pos == -1:
+                break_pos = min(chars_per_line, len(remaining))
+
+            lines.append(remaining[:break_pos].strip())
+            pos = break_pos + 1
+
+        return lines if lines else [text]
 
     def create_subtitle_image(self,
                               text,
@@ -217,7 +185,11 @@ Now translate:
         main_font_size = 32
         target_font_size = 22
         main_target_gap = 6
-        chars_per_line = 50
+        pattern = r'^[a-zA-Z0-9\s.,!?;:\'"()-]+$'
+        chars_per_line = 50 if not bool(re.match(pattern, source)) else 100
+        if target:
+            target_chars_per_line = 50 if not bool(re.match(pattern,
+                                                            target)) else 100
 
         main_img, main_height = self.create_subtitle_image(
             source,
@@ -228,7 +200,6 @@ Now translate:
             chars_per_line=chars_per_line)
 
         if target and target.strip():
-            # For English, allow more characters per line due to narrower chars
             target_chars_per_line = 100
             target_img, target_height = self.create_subtitle_image(
                 target,
