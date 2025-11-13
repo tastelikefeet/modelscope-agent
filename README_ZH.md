@@ -511,13 +511,11 @@ OPENAI_API_KEY=xxx-xxx T2I_API_KEY=ms-xxx-xxx ms-agent run --config "projects/si
 
 **运行结果**：
 
-<video src="docs/resources/deepspeed-zero.mp4" controls="controls" style="max-width: 730px;">
-</video>
+[![Video Preview](./docs/resources/deepspeed_preview.jpg)](https://modelscope-open.oss-cn-hangzhou.aliyuncs.com/deepspeed-zero.mp4)
 
-**A introduction of Deepspeed ZeRO**
+**An introduction to Deepspeed ZeRO**
 
-<video src="docs/resources/a-history-of-us-gdp.mp4" controls="controls" style="max-width: 730px;">
-</video>
+[![Video Preview](./docs/resources/gdp_preview.jpg)](https://modelscope-open.oss-cn-hangzhou.aliyuncs.com/a-history-of-us-gdp.mp4)
 
 **A history of US GDP**
 
