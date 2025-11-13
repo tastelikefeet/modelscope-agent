@@ -538,6 +538,9 @@ We are committed to continuously improving and expanding the MS-Agent framework 
 - [ ] **FinResearch** – A financial deep-research agent dedicated to in-depth analysis and research in the finance domain.
   - [x] Long-term deep financial analysis report generation
   - [ ] Near real-time event-driven report generation
+- [ ] **Singularity Cinema**
+  - [ ] Support more complex scenarios
+  - [ ] Improve stabilises
 - [ ] **Multimodal Agentic Search** – Supporting large-scale multimodal document retrieval and generation of search results combining text and images.
 - [ ] Enhanced **Agent Skills** – Providing a richer set of predefined skills and tools to expand agent capabilities and enabling multi-skill collaboration for complex task execution.
 - [ ] **Agent-Workstation** - An unified WebUI with one-click local deployment support with combining all agent capabilities of MS-Agent, such as AgentChat, MCP, AgentSkills, DeepResearch, DocResearch, CodeScratch, etc.

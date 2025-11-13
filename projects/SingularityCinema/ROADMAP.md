@@ -6,31 +6,31 @@
 
 ### 功能性
 
-- [] 支持前景部分可选文生图 P0
-- [] 支持输入多模态数据 P0
-    * [] 分析多模态数据 P0
-    * [] 直接使用多模态数据（图表、图片等） P0
-- [] 默认支持更多的tts语音 P0
-- [] 支持更多LLM模型，例如Qwen系列、DeepSeek系列等 P0
-- [] 支持一个segment中多个字幕切换，防止文字超长 P1
-- [] 支持文生视频 P1
-- [] 支持更复杂的前景设计和背景特效 P1
+- [ ] 支持前景部分可选文生图 P0
+- [ ] 支持输入多模态数据 P0
+    * [ ] 分析多模态数据 P0
+    * [ ] 直接使用多模态数据（图表、图片等） P0
+- [ ] 默认支持更多的tts语音 P0
+- [ ] 支持更多LLM模型，例如Qwen系列、DeepSeek系列等 P0
+- [ ] 支持一个segment中多个字幕切换，防止文字超长 P1
+- [ ] 支持文生视频 P1
+- [ ] 支持更复杂的前景设计和背景特效 P1
 
 ### 稳定性
 
-- [] 增加manim动画的稳定性, 并防止截断 P0
-- [] 提升生成速度，尤其是缩小video生成的大量时间占用 P0
-- [] 支持利用多模态模型分析视频问题，减少人工反馈成本 P0
-- [] 支持代码修复的memory管理 P1
+- [ ] 增加manim动画的稳定性, 并防止截断 P0
+- [ ] 提升生成速度，尤其是缩小video生成的大量时间占用 P0
+- [ ] 支持利用多模态模型分析视频问题，减少人工反馈成本 P0
+- [ ] 支持代码修复的memory管理 P1
 
 ### 端到端
 
-- [] 支持web-ui生成 P0
-- [] 创空间和space部署 P0
+- [ ] 支持web-ui生成 P0
+- [ ] 创空间和space部署 P0
 
 ### Bug修复
 
-- [] title和slogan需要始终展示，目前在没有manim动画时看不到
+- [ ] title和slogan需要始终展示，目前在没有manim动画时看不到
 
 ## English
 
@@ -38,28 +38,28 @@ This ROADMAP is to be completed by the end of S4 2025, i.e., December 31st.
 
 ### Functionality
 
-- [] Support optional text-to-image generation for foreground elements P0
-- [] Support multimodal data input P0
-    * [] Analyze multimodal data P0
-    * [] Directly use multimodal data (charts, images, etc.) P0
-- [] Support more TTS voices by default P0
-- [] Support more LLM models, such as Qwen series, DeepSeek series, etc. P0
-- [] Support multiple subtitles in one segment P1
-- [] Support text-to-video generation P1
-- [] Support more complex foreground design and background effects P1
+- [ ] Support optional text-to-image generation for foreground elements P0
+- [ ] Support multimodal data input P0
+    * [ ] Analyze multimodal data P0
+    * [ ] Directly use multimodal data (charts, images, etc.) P0
+- [ ] Support more TTS voices by default P0
+- [ ] Support more LLM models, such as Qwen series, DeepSeek series, etc. P0
+- [ ] Support multiple subtitles in one segment P1
+- [ ] Support text-to-video generation P1
+- [ ] Support more complex foreground design and background effects P1
 
 ### Stability
 
-- [] Increase stability of Manim animations, and preventing being cutting off P0
-- [] Improve generation speed, especially for the process of video file generation P0
-- [] Support using multimodal models to analyze video issues and reduce manual feedback costs P0
-- [] Support memory management for code fixes P1
+- [ ] Increase stability of Manim animations, and preventing being cutting off P0
+- [ ] Improve generation speed, especially for the process of video file generation P0
+- [ ] Support using multimodal models to analyze video issues and reduce manual feedback costs P0
+- [ ] Support memory management for code fixes P1
 
 ### End-to-End
 
-- [] Support web UI generation P0
-- [] Create space and deploy to Hugging Face Spaces P0
+- [ ] Support web UI generation P0
+- [ ] Create space and deploy to Hugging Face Spaces P0
 
 ### BugFix
 
-- [] title and slogan need to show all the time
+- [ ] title and slogan need to show all the time
