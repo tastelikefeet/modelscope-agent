@@ -484,7 +484,7 @@ aggregator:
 
 ### Singularity Cinema
 
-Singularity Cinema is an agent-powered workflow for generating short videos, capable of producing high-quality short videos with just a simple one-sentence prompt.
+Singularity Cinema is an Agent-powered workflow for generating short videos, capable of producing high-quality complex short videos using either a single-sentence prompt or knowledge-based documents.
 
 #### Core Features
 
