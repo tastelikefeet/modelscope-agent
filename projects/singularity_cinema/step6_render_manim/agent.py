@@ -1,4 +1,5 @@
 # Copyright (c) Alibaba, Inc. and its affiliates.
+import base64
 import os
 import re
 import shutil
@@ -24,8 +25,6 @@ class RenderManim(CodeAgent):
 1. LLM生成文字台本和分镜台本，其中分镜台本包含了约5~10秒的独白和动画要求。
 2. LLM根据动画要求生成manim代码，并渲染成为mov文件，给你的图片就是该mov文件中的一帧。
     * 短视频大小为1920*1080，但可用渲染范围为1500*750，其余部分留作它用
-
-目前给你的是{frame_name}
 
 你需要关注的不足之处：
 1. 是否有组件重叠
@@ -105,11 +104,11 @@ class RenderManim(CodeAgent):
         return RenderManim._render_manim_impl(llm, i, segment, code,
                                               audio_duration, work_dir,
                                               render_dir, window_size,
-                                              manim_render_timeout)
+                                              manim_render_timeout, config)
 
     @staticmethod
     def _render_manim_impl(llm, i, segment, code, audio_duration, work_dir,
-                           render_dir, window_size, manim_render_timeout):
+                           render_dir, window_size, manim_render_timeout, config):
         scene_name = f'Scene{i+1}'  # sometimes actual_scene_name cannot find matched class, so do not change this name
         logger.info(f'Rendering manim code for: scene_{i + 1}')
         output_dir = os.path.join(render_dir, f'scene_{i + 1}')
@@ -232,7 +231,7 @@ class RenderManim(CodeAgent):
                     llm, output_text, fix_history, code, manim_requirement,
                     class_name, content, audio_duration)
             else:
-                output_text = RenderManim.check_manim_quality(final_file_path, work_dir, i)
+                output_text = RenderManim.check_manim_quality(final_file_path, work_dir, i, config)
                 if output_text:
                     logger.info(f'Trying to fix manim code, because model checking not passed: \n{output_text}')
                     code, fix_history = RenderManim._fix_manim_code_impl(
@@ -250,9 +249,61 @@ class RenderManim(CodeAgent):
             raise FileNotFoundError(final_file_path)
 
     @staticmethod
-    def check_manim_quality(final_file_path, work_dir, i):
+    def check_manim_quality(final_file_path, work_dir, i, config):
+        _mm_config = DictConfig({
+            'llm': {
+                'service': 'openai',
+                'model': config.manim_auto_test.manim_test_model,
+                'openai_api_key': config.manim_auto_test.manim_test_api_key,
+                'openai_base_url': config.manim_auto_test.manim_test_base_url,
+            },
+            'generation_config': {
+                'temperature': 0.3
+            }
+        })
         test_images = RenderManim._extract_preview_frames_static(final_file_path, i, work_dir)
-        llm = LLM.from_config(config)
+        llm = LLM.from_config(_mm_config)
+
+        all_issues = []
+        frame_names = ['第一帧', '中间帧', '最后一帧']
+
+        all_issues = []
+        for idx, (image_path, frame_name) in enumerate(zip(test_images, frame_names)):
+            with open(image_path, 'rb') as image_file:
+                image_data = image_file.read()
+                base64_image = base64.b64encode(image_data).decode('utf-8')
+
+            content = [
+                {
+                    "type": "text",
+                    "text": f"当前分析的是{frame_name}，请仔细检查该帧中的动画布局问题。"
+                },
+                {
+                    "type": "image_url",
+                    "image_url": {
+                        "url": f"data:image/png;base64,{base64_image}",
+                        "detail": "high"
+                    }
+                }
+            ]
+
+            messages = [
+                Message(role='system', content=RenderManim.test_system),
+                Message(role='user', content=content),
+            ]
+            response = llm.generate(messages)
+            response_text = response.content
+
+            pattern = r'<result>(.*?)</result>'
+            issues = []
+            for issue in re.findall(pattern, response_text, re.DOTALL):
+                issues.append(issue)
+            issues = '\n'.join(issues).strip()
+            if issues:
+                issues = f'Current is the {frame_name}, problem checked by a MLLM: {issues}'
+            all_issues.append(issues)
+
+        return '\n'.join(all_issues).strip()
 
     @staticmethod
     def _extract_preview_frames_static(video_path, segment_id, work_dir):

@@ -77,7 +77,6 @@ video:
   fps: 24
 
 manim_auto_test:
-  service: openai
   manim_test_model: gemini-2.5-flash
   manim_test_api_key:
   manim_test_base_url: https://dashscope.aliyuncs.com/compatible-mode/v1
