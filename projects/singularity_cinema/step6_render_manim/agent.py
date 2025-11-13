@@ -18,6 +18,35 @@ logger = get_logger()
 
 class RenderManim(CodeAgent):
 
+    test_system = """你是一个帮助检查动画布局问题的专家。你会被给与一张图片，该图片可能是某个完整manim动画的第一帧、中间帧或最后一帧。你需要帮助给出该图片动画中所有不合理的布局之处。
+
+你在一个短视频制作的工作流程中，该流程大致为：
+1. LLM生成文字台本和分镜台本，其中分镜台本包含了约5~10秒的独白和动画要求。
+2. LLM根据动画要求生成manim代码，并渲染成为mov文件，给你的图片就是该mov文件中的一帧。
+    * 短视频大小为1920*1080，但可用渲染范围为1500*750，其余部分留作它用
+
+目前给你的是{frame_name}
+
+你需要关注的不足之处：
+1. 是否有组件重叠
+2. 是否有组件位置不合理，例如：
+    * 同一功能的两个组件上下不对齐，左右不等高
+    * 子母组件不协调，例如子box没有完整位于内部，而是和外部母组件重叠
+    * 线图、饼图等渲染位置错误，导致圆心不在一个坐标
+    * 组件不对称，位于屏幕右侧或左侧，另一侧完全空白，或组件太小太大，不协调
+3. 是否有组件字体过小或过大，线过于细
+4. 是否有组件颜色不容易辨认
+5. 你认为不合理的其他问题
+
+你需要详细描述哪个组件有什么样的问题，例如：
+
+- 位于左侧的xx组件，文字为xx，该组件和另一个组件xx在xx位置上重叠，建议xx组件向x方向挪动xx像素
+- xx组件文字为：xxx，该文字字体过大，可能会超出边界，建议挪动位置到xx，字号缩小
+
+你反馈的问题必须要包装在<result>问题列表</result>中，如果没有发现明显问题，应当返回<result></result>，即内部为空内容。
+下面开始：
+"""
+
     window_size = (1800, 900)
 
     def __init__(self,
@@ -203,7 +232,15 @@ class RenderManim(CodeAgent):
                     llm, output_text, fix_history, code, manim_requirement,
                     class_name, content, audio_duration)
             else:
-                break
+                output_text = RenderManim.check_manim_quality(final_file_path, work_dir, i)
+                if output_text:
+                    logger.info(f'Trying to fix manim code, because model checking not passed: \n{output_text}')
+                    code, fix_history = RenderManim._fix_manim_code_impl(
+                        llm, output_text, fix_history, code, manim_requirement,
+                        class_name, content, audio_duration)
+                    continue
+                else:
+                    break
         if final_file_path:
             manim_code_dir = os.path.join(work_dir, 'manim_code')
             manim_file = os.path.join(manim_code_dir, f'segment_{i + 1}.py')
@@ -211,6 +248,37 @@ class RenderManim(CodeAgent):
                 f.write(code)
         else:
             raise FileNotFoundError(final_file_path)
+
+    @staticmethod
+    def check_manim_quality(final_file_path, work_dir, i):
+        test_images = RenderManim._extract_preview_frames_static(final_file_path, i, work_dir)
+        llm = LLM.from_config(config)
+
+    @staticmethod
+    def _extract_preview_frames_static(video_path, segment_id, work_dir):
+        from moviepy import VideoFileClip
+        
+        test_dir = os.path.join(work_dir, 'manim_test')
+        os.makedirs(test_dir, exist_ok=True)
+        video = VideoFileClip(video_path)
+        duration = video.duration
+
+        timestamps = {
+            0: 0,
+            1: duration / 2,
+            2: max(0, duration - 1)
+        }
+
+        preview_paths = []
+        for frame_idx, timestamp in timestamps.items():
+            output_path = os.path.join(
+                test_dir,
+                f'segment_{segment_id + 1}_{frame_idx}.png'
+            )
+            video.save_frame(output_path, t=timestamp)
+            preview_paths.append(output_path)
+        video.close()
+        return preview_paths
 
     @staticmethod
     def _fix_manim_code_impl(llm, error_log, fix_history, manim_code,
