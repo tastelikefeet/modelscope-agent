@@ -53,6 +53,8 @@ MS-Agent is a lightweight framework designed to empower agents with autonomous e
 
 ## 🎉 News
 
+* 🎬 Nov 13, 2025: Release Singularity Cinema, to support short video generation for complex scenarios, check [here](projects/singularity_cinema/README_EN.md)
+
 * 🚀 Nov 12, 2025: Release MS-Agent v1.5.0, which includes the following updates:
   - 🔥 We present [FinResearch](projects/fin_research/README.md), a multi-agent workflow tailored for financial research
   - Support financial data collection via [Akshare](https://github.com/akfamily/akshare) and [Baostock](http://baostock.com/mainContent?file=home.md)

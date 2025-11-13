@@ -6,6 +6,10 @@
 
 ### 功能性
 
+- [x] 支持基础短视频生成pipeline P0
+- [x] 支持读取知识类文件并转为短视频 P0
+- [x] 支持manim动画 P0
+- [x] 支持生图 P0
 - [ ] 支持前景部分可选文生图 P0
 - [ ] 支持输入多模态数据 P0
     * [ ] 分析多模态数据 P0
@@ -38,6 +42,10 @@ This ROADMAP is to be completed by the end of S4 2025, i.e., December 31st.
 
 ### Functionality
 
+- [x] Support the basic pipeline framework P0
+- [x] Support read documentation to generate videos P0
+- [x] Support manim animation P0
+- [x] Support image generation for backgrounds P0
 - [ ] Support optional text-to-image generation for foreground elements P0
 - [ ] Support multimodal data input P0
     * [ ] Analyze multimodal data P0
