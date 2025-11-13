@@ -18,6 +18,7 @@ class Segment(LLMAgent):
     * You can freely decide whether the manim animation exists. If the manim animation is not needed, the manim key can be omitted from the return value
     * For tech-related short videos, they should have a technical and professional feel. For product-related short videos, they should be gentle and authentic, avoiding exaggerated expressions such as "shocking", "solved by xxx", etc.
     * Don't excessively praise or hype up what's described in the video. Instead, describe things objectively and accurately. Avoid using descriptions like 'game-changing,' 'rule-breaking,' or 'truly achieved xx'.
+    * Consider the color style across all storyboards comprehensively. Don't use too many different chaotic colors in different storyboards, and ensure consistency in the overall style.
 2. Each of your storyboard panels should take about 5 seconds to 15 seconds(at most) to read at normal speaking speed. Too short will cause a sense of frequent switching, and too long will appear too static
     * If a storyboard panel has no manim animation, it should not exceed 5s to 10s at most
     * Pay attention to the coordination between the background image and the manim animation.

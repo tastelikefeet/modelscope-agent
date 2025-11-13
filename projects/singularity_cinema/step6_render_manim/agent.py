@@ -19,7 +19,7 @@ logger = get_logger()
 
 class RenderManim(CodeAgent):
 
-    test_system = """你是一个帮助检查动画布局问题的专家。你会被给与一张图片，该图片可能是某个完整manim动画的第一帧、中间帧或最后一帧。你需要帮助给出该图片动画中所有不合理的布局之处。
+    test_system = """你是一个帮助检查动画布局问题的专家。你会被给与一张图片，该图片可能是某个完整manim动画的中间帧或最后一帧。你需要帮助给出该图片动画中所有不合理的布局之处。
 
 你在一个短视频制作的工作流程中，该流程大致为：
 1. LLM生成文字台本和分镜台本，其中分镜台本包含了约5~10秒的独白和动画要求。
@@ -233,6 +233,10 @@ class RenderManim(CodeAgent):
             else:
                 output_text = RenderManim.check_manim_quality(final_file_path, work_dir, i, config)
                 if output_text:
+                    try:
+                        os.remove(final_file_path)
+                    except OSError:
+                        pass
                     logger.info(f'Trying to fix manim code, because model checking not passed: \n{output_text}')
                     code, fix_history = RenderManim._fix_manim_code_impl(
                         llm, output_text, fix_history, code, manim_requirement,
@@ -265,7 +269,7 @@ class RenderManim(CodeAgent):
         llm = LLM.from_config(_mm_config)
 
         all_issues = []
-        frame_names = ['第一帧', '中间帧', '最后一帧']
+        frame_names = ['中间帧', '最后一帧']
 
         all_issues = []
         for idx, (image_path, frame_name) in enumerate(zip(test_images, frame_names)):
@@ -303,7 +307,12 @@ class RenderManim(CodeAgent):
                 issues = f'Current is the {frame_name}, problem checked by a MLLM: {issues}'
             all_issues.append(issues)
 
-        return '\n'.join(all_issues).strip()
+        all_issues = '\n'.join(all_issues).strip()
+        if all_issues:
+            all_issues = ('The middle and last frame of the rendered animation was sent to a multi-modal LLM to check '
+                          f'the layout problems, and here are the results:\n{all_issues}, '
+                          f'fix them according to the issues found and the original code:')
+        return all_issues
 
     @staticmethod
     def _extract_preview_frames_static(video_path, segment_id, work_dir):
@@ -315,7 +324,6 @@ class RenderManim(CodeAgent):
         duration = video.duration
 
         timestamps = {
-            0: 0,
             1: duration / 2,
             2: max(0, duration - 1)
         }
