@@ -21,6 +21,7 @@ MS-Agent DOCUMENTATION
    Components/工作流.md
    Components/支持的模型.md
    Components/工具.md
+   Components/贡献者指南.md
 
 .. toctree::
    :maxdepth: 2

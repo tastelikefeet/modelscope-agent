@@ -482,6 +482,47 @@ aggregator:
 - README: [FinResearch](projects/fin_research/README.md)
 - Documentation: [MS-Agent Documentation](https://ms-agent-en.readthedocs.io/en/latest/Projects/FinResearch.html)
 
+### Singularity Cinema
+
+Singularity Cinema is an agent-powered workflow for generating short videos, capable of producing high-quality short videos with just a simple one-sentence prompt.
+
+#### Core Features
+
+- 🎬 **Supports Both Simple and Complex Requirements**: Can work with a single-sentence description or handle complex information files
+
+- 🎹 **Sophisticated Tables and Formulas**: Can display and interpret formulas and charts within short videos that correspond to the script
+
+- 🎮 **End-to-End**: From requirements to script to storyboard, from voiceover to charts to subtitles, and finally human feedback and video generation—the entire end-to-end process completed with a single command
+
+- 🏁 **High Configurability**: Highly configurable with easy adjustments for voice, style, and materials through simple configuration
+
+- 🚧 **Customizable**: Clear and simple workflow, suitable for secondary development
+
+#### Quick Start
+
+**Usage Example**:
+
+```bash
+OPENAI_API_KEY=xxx-xxx t2i_api_key=ms-xxx-xxx ms-agent run --config "projects/SingularityCinema" --query "Your custom topic" --load_cache true --trust_remote_code true
+```
+
+**Results**:
+
+<video src="docs/resources/deepspeed-zero.mp4" controls="controls" style="max-width: 730px;">
+</video>
+
+**An introduction to Deepspeed ZeRO**
+
+<video src="docs/resources/a-history-of-us-gdp.mp4" controls="controls" style="max-width: 730px;">
+</video>
+
+**A history of US GDP**
+
+#### References
+
+- [Complete Documentation](./docs/zh/Projects/短视频生成.md)
+
+
 <br>
 
 ### Interesting works

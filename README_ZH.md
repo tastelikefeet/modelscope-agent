@@ -478,6 +478,47 @@ aggregator:
 - README：请参考[FinResearch](projects/fin_research/README_zh.md)
 - 说明文档: 请参考[MS-Agent文档](https://ms-agent.readthedocs.io/zh-cn/latest/Projects/%E9%87%91%E8%9E%8D%E6%B7%B1%E5%BA%A6%E7%A0%94%E7%A9%B6.html)
 
+### 奇点放映室
+
+奇点放映室是一个Agent生成短视频的工作流，可以在使用简单一句话的prompt的情况下支持高质量的短视频生成。
+
+#### 1) 核心特性
+
+- 🎬 **支持简单需求和复杂需求**：可以一句话描述需求，也可以提供复杂的信息文件
+
+- 🎹 **复杂精美的表格和公式**：可以在短视频内部展示和台本相应的公式和图表解读
+
+- 🎮 **端到端**：从需求到台本到分镜，从旁白音到图表到字幕，最后人工反馈和生成视频，端到端流程一个命令搞定
+
+- 🏁 **可配置性**：可配置性高，声音、风格、素材都可以通过简单配置调节
+
+- 🚧 **定制化**：工作流清晰简单，适合二次开发
+
+#### 2) 快速开始
+
+**使用示例**：
+
+
+```bash
+OPENAI_API_KEY=xxx-xxx t2i_api_key=ms-xxx-xxx ms-agent run --config "projects/SingularityCinema" --query "你的自定义主题" --load_cache true --trust_remote_code true
+```
+
+**运行结果**：
+
+<video src="docs/resources/deepspeed-zero.mp4" controls="controls" style="max-width: 730px;">
+</video>
+
+**A introduction of Deepspeed ZeRO**
+
+<video src="docs/resources/a-history-of-us-gdp.mp4" controls="controls" style="max-width: 730px;">
+</video>
+
+**A history of US GDP**
+
+#### 3) 参考文档
+
+- [完整文档](./docs/zh/Projects/短视频生成.md)
+
 <br>
 
 ### 有趣的工作

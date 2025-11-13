@@ -18,7 +18,7 @@ logger = get_logger()
 
 class RenderManim(CodeAgent):
 
-    window_size = (1500,750)
+    window_size = (1800,900)
 
     def __init__(self,
                  config: DictConfig,

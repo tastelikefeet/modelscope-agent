@@ -21,6 +21,7 @@ MS-Agent DOCUMENTATION
    Components/Workflow.md
    Components/SupportedModels.md
    Components/Tools.md
+   Components/ContributorGuide.md
 
 .. toctree::
    :maxdepth: 2

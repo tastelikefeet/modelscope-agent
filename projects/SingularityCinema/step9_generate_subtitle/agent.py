@@ -24,7 +24,7 @@ class GenerateSubtitle(CodeAgent):
         super().__init__(config, tag, trust_remote_code, **kwargs)
         self.work_dir = getattr(self.config, 'output_dir', 'output')
         self.llm: OpenAI = LLM.from_config(self.config)
-        self.subtitle_lang = getattr(self.config, 'subtitle_lang', None)
+        self.subtitle_lang = getattr(self.config, 'subtitle_lang', 'Chinese')
         self.subtitle_dir = os.path.join(self.work_dir, 'subtitles')
         os.makedirs(self.subtitle_dir, exist_ok=True)
         self.fonts = self.config.fonts
@@ -52,7 +52,8 @@ class GenerateSubtitle(CodeAgent):
 
     @staticmethod
     def _split_subtitles(text: str, max_chars: int = 30) -> List[str]:
-        sentences = re.split(r'([。！？；，、.!?;,])', text)
+        # Only split at sentence endings (.!?), NOT at commas
+        sentences = re.split(r'([。！？.!?])', text)
         subs, cur = [], ''
         for s in sentences:
             if not s.strip():
@@ -106,129 +107,50 @@ Now translate:
     def smart_wrap_text(self, text, max_lines=2, chars_per_line=50):
         import string
 
-        # Define sentence-ending punctuation (highest priority for breaks)
+        # Only break at sentence endings (.!?), NOT commas
         sentence_enders = '.!?。！？'
-        # All punctuation marks
         all_punctuation = string.punctuation + '。！？；，、：""' '《》【】（）'
 
-        def is_only_punctuation(s):
-            """Check if string contains only punctuation and whitespace"""
-            return all(c in all_punctuation or c.isspace() for c in s)
-
         def is_chinese(char):
-            """Check if character is Chinese"""
             return '\u4e00' <= char <= '\u9fff'
 
-        def find_best_break_point(text, max_pos):
-            """Find the best position to break text, prioritizing sentence boundaries"""
+        def find_best_break(text, max_pos):
             if max_pos >= len(text):
                 return len(text), False
-
-            # Priority 1: Look for sentence-ending punctuation within reasonable range
-            # Search backward from max_pos, willing to go back up to 30% of line length
-            search_start = max(0, int(max_pos * 0.7))
-            for i in range(max_pos, search_start, -1):
-                if i > 0 and i < len(text) and text[i - 1] in sentence_enders:
-                    # Found sentence end, break after it
+            
+            # Priority 1: Sentence endings (.!?)
+            for i in range(max_pos, max(0, max_pos - 30), -1):
+                if i > 0 and text[i-1] in sentence_enders:
                     return i, False
-
-            # Priority 2: Look for whitespace
-            for i in range(max_pos, search_start, -1):
-                if i < len(text) and text[i].isspace():
+            
+            # Priority 2: Whitespace
+            for i in range(max_pos, max(0, max_pos - 20), -1):
+                if text[i].isspace():
                     return i, False
-
-            # Priority 3: Look for existing hyphens in compound words (e.g., "Megatron-LM")
-            # Break after the hyphen to keep compound words together
-            for i in range(max_pos, search_start, -1):
-                if i > 0 and i < len(text) and text[i - 1] == '-':
-                    return i, False
-
-            # Priority 4: For Chinese text, can break between characters
-            if max_pos > 0 and max_pos < len(text) and is_chinese(
-                    text[max_pos - 1]):
+            
+            # Priority 3: Chinese characters
+            if is_chinese(text[max_pos-1] if max_pos > 0 else text[0]):
                 return max_pos, False
-
-            # Priority 5: For English, try to break at word boundary
-            # Look back for space
-            for i in range(max_pos, max(0, max_pos - 15), -1):
-                if i < len(text) and text[i].isspace():
-                    return i, False
-
-            # Last resort: force break with hyphen for English words
-            if max_pos > 0 and max_pos < len(text):
-                if (text[max_pos - 1].isalpha() and text[max_pos].isalpha()
-                        and not is_chinese(text[max_pos - 1])
-                        and not is_chinese(text[max_pos])):
-                    return max_pos - 1, True  # True indicates we need to add hyphen
-
+            
             return max_pos, False
 
-        def break_line(text, max_chars):
-            """Break text into lines with smart sentence-aware breaking"""
-            if len(text) <= max_chars:
-                return [text]
-
-            lines = []
-            current_pos = 0
-
-            while current_pos < len(text):
-                remaining = text[current_pos:]
-
-                if len(remaining) <= max_chars:
-                    lines.append(remaining)
-                    break
-
-                # Find best break point
-                break_pos, needs_hyphen = find_best_break_point(
-                    remaining, max_chars)
-
-                if needs_hyphen:
-                    # Add hyphen for word break
-                    line = remaining[:break_pos] + '-'
-                    lines.append(line)
-                    current_pos += break_pos
-                else:
-                    # Extract the line
-                    line = remaining[:break_pos].rstrip()
-                    lines.append(line)
-                    current_pos += break_pos
-
-                    # Skip any leading whitespace for the next line
-                    while current_pos < len(
-                            text) and text[current_pos].isspace():
-                        current_pos += 1
-
-            return lines
-
-        # Break text into initial lines
-        raw_lines = break_line(text.strip(), chars_per_line)
-
-        # Post-process lines
-        processed_lines = []
-        for line in raw_lines:
-            # Strip leading/trailing whitespace
-            line = line.strip()
-
-            # Skip empty lines
-            if not line:
-                continue
-
-            # Skip lines with only punctuation
-            if is_only_punctuation(line):
-                continue
-
-            # Keep the line (don't strip ending punctuation - we want sentence enders)
-            processed_lines.append(line)
-
-        # Limit to max_lines
-        if len(processed_lines) > max_lines:
-            processed_lines = processed_lines[:max_lines]
-
-        # If no valid lines, return original text as fallback
-        if not processed_lines:
-            processed_lines = [text.strip()]
-
-        return processed_lines
+        lines = []
+        pos = 0
+        while pos < len(text):
+            remaining = text[pos:]
+            if len(remaining) <= chars_per_line:
+                lines.append(remaining.strip())
+                break
+            
+            break_pos, _ = find_best_break(remaining, chars_per_line)
+            line = remaining[:break_pos].strip()
+            if line:
+                lines.append(line)
+            pos += break_pos
+            while pos < len(text) and text[pos].isspace():
+                pos += 1
+        
+        return lines[:max_lines] if lines else [text]
 
     def create_subtitle_image(self,
                               text,
@@ -305,7 +227,7 @@ Now translate:
             'black',
             chars_per_line=chars_per_line)
 
-        if target.strip():
+        if target and target.strip():
             # For English, allow more characters per line due to narrower chars
             target_chars_per_line = 100
             target_img, target_height = self.create_subtitle_image(
