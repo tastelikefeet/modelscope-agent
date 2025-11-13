@@ -14,6 +14,7 @@
 - [ ] 支持输入多模态数据 P0
     * [ ] 分析多模态数据 P0
     * [ ] 直接使用多模态数据（图表、图片等） P0
+    * [ ] 支持额外的梗图 P1
 - [ ] 默认支持更多的tts语音 P0
 - [ ] 支持更多LLM模型，例如Qwen系列、DeepSeek系列等 P0
 - [ ] 支持一个segment中多个字幕切换，防止文字超长 P1
@@ -50,6 +51,7 @@ This ROADMAP is to be completed by the end of S4 2025, i.e., December 31st.
 - [ ] Support multimodal data input P0
     * [ ] Analyze multimodal data P0
     * [ ] Directly use multimodal data (charts, images, etc.) P0
+    * [ ] Support for additional memes P1
 - [ ] Support more TTS voices by default P0
 - [ ] Support more LLM models, such as Qwen series, DeepSeek series, etc. P0
 - [ ] Support multiple subtitles in one segment P1
