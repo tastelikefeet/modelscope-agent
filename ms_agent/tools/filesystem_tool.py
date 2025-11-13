@@ -17,12 +17,15 @@ class FileSystemTool(ToolBase):
     TODO: This tool now is a simple implementation, sandbox or mcp TBD.
     """
 
-    def __init__(self, config):
+    def __init__(self, config, **kwargs):
         super(FileSystemTool, self).__init__(config)
         self.exclude_func(getattr(config.tools, 'file_system', None))
         self.output_dir = getattr(config, 'output_dir', DEFAULT_OUTPUT_DIR)
+        self.trust_remote_code = kwargs.get('trust_remote_code', False)
         self.allow_read_all_files = getattr(config.tools.file_system,
                                             'allow_read_all_files', False)
+        if not self.trust_remote_code:
+            self.allow_read_all_files = False
 
     async def connect(self):
         logger.warning_once(
