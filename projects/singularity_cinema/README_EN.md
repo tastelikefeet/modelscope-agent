@@ -55,7 +55,7 @@ OPENAI_API_KEY=xxx-xxx
 The default model is currently Qwen-Image. The ModelScope API Key can be applied for [here](https://www.modelscope.cn/my/myaccesstoken). Then set it in environment variables:
 
 ```shell
-t2i_api_key=ms-xxx-xxx
+T2I_API_KEY=ms-xxx-xxx
 ```
 
 2. Prepare your short video materials

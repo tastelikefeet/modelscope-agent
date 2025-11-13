@@ -503,7 +503,7 @@ Singularity Cinema is an Agent-powered workflow for generating short videos, cap
 **Usage Example**:
 
 ```bash
-OPENAI_API_KEY=xxx-xxx t2i_api_key=ms-xxx-xxx ms-agent run --config "projects/singularity_cinema" --query "Your custom topic" --load_cache true --trust_remote_code true
+OPENAI_API_KEY=xxx-xxx T2I_API_KEY=ms-xxx-xxx ms-agent run --config "projects/singularity_cinema" --query "Your custom topic" --load_cache true --trust_remote_code true
 ```
 
 **Results**:

@@ -500,7 +500,7 @@ aggregator:
 
 
 ```bash
-OPENAI_API_KEY=xxx-xxx t2i_api_key=ms-xxx-xxx ms-agent run --config "projects/singularity_cinema" --query "你的自定义主题" --load_cache true --trust_remote_code true
+OPENAI_API_KEY=xxx-xxx T2I_API_KEY=ms-xxx-xxx ms-agent run --config "projects/singularity_cinema" --query "你的自定义主题" --load_cache true --trust_remote_code true
 ```
 
 **运行结果**：

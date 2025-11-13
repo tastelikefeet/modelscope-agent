@@ -55,7 +55,7 @@ OPENAI_API_KEY=xxx-xxx
 目前默认模型是Qwen-Image，魔搭API Key可以在[这里](https://www.modelscope.cn/my/myaccesstoken)申请。之后在环境变量中设置：
 
 ```shell
-t2i_api_key=ms-xxx-xxx
+T2I_API_KEY=ms-xxx-xxx
 ```
 
 2. 准备你的短视频材料
