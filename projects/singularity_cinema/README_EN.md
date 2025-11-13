@@ -13,7 +13,7 @@ cd ms-agent
 2. Install dependencies
 ```shell
 pip install .
-cd projects/SingularityCinema
+cd projects/singularity_cinema
 pip install -r requirements.txt
 ```
 
@@ -75,7 +75,7 @@ Generate a short video describing large language model technology, read /home/us
 3. Run command
 
 ```shell
-ms-agent run --config "projects/SingularityCinema" --query "Your custom theme, see description above" --load_cache true --trust_remote_code true
+ms-agent run --config "projects/singularity_cinema" --query "Your custom theme, see description above" --load_cache true --trust_remote_code true
 ```
 
 4. The run takes approximately 20 minutes. The video is generated at output/final_video.mp4. After generation, you can review this file, compile the parts that don't meet requirements, input them into the command line input, and the workflow will continue improving. If requirements are met, input quit or exit and the program will automatically terminate.
