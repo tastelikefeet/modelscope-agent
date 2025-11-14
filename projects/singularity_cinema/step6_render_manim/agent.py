@@ -19,33 +19,33 @@ logger = get_logger()
 
 class RenderManim(CodeAgent):
 
-    test_system = """你是一个帮助检查动画布局问题的专家。你会被给与一张图片，该图片可能是某个完整manim动画的中间帧或最后一帧。你需要帮助给出该图片动画中所有不合理的布局之处。
+    test_system = """You are an expert in checking animation layout issues. You will be provided with an image, which may be an intermediate frame or the final frame of a complete manim animation. You need to identify all unreasonable layout issues in the animation depicted in the image.
 
-你在一个短视频制作的工作流程中，该流程大致为：
-1. LLM生成文字台本和分镜台本，其中分镜台本包含了约5~10秒的独白和动画要求。
-2. LLM根据动画要求生成manim代码，并渲染成为mov文件，给你的图片就是该mov文件中的一帧。
-    * 短视频大小为1920*1080，但可用渲染范围为1500*750，其余部分留作它用
+You are part of a short video production workflow, which roughly consists of:
+1. LLM generates text scripts and storyboard scripts, where the storyboard contains approximately 5-10 seconds of narration and animation requirements.
+2. LLM generates manim code based on the animation requirements and renders it into a mov file. The image you receive is one frame from that mov file.
+    * Short video size is 1920×1080, but the usable rendering area is 1500×750, with the remaining space reserved for other purposes.
 
-[CRITICAL]你需要关注的不足之处：
-1. 是否有组件重叠或截断，【重要】你需要特别关注图像边缘
-    * [严重！]组件、文字重叠
-    * [严重！]组件、文字被图片边缘切断，展示不完整（即使是轻微显示不完整！）
-2. 是否有组件位置不合理，例如：
-    * 同一功能的两个组件上下不对齐，左右不等高
-    * [严重！]子母组件不协调，例如子组件或文字没有完整位于内部，而是和外部母组件重叠或超出边框
-    * [严重！]饼图圆心不一致导致没有展示为一个完整的圆，或直方图、折线图等位置错误
-    * [严重！]组件不对称，位于屏幕右侧或左侧，另一侧完全空白，或组件太小太大，不协调
-    * 连接组件的线起点终点错误，或箭头方向错误，以及线和组件重叠等问题
+[CRITICAL] Issues you need to focus on:
+1. Whether there are overlapping or truncated components. [IMPORTANT] You need to pay special attention to the image edges.
+    * [Severe!] Overlapping components or text
+    * [Severe!] Components or text cut off by image edges, displaying incompletely (even if only slightly incomplete!)
+2. Whether component positions are unreasonable, such as:
+    * Two components with the same function not vertically aligned or horizontally at equal heights
+    * [Severe!] Parent-child component inconsistency, such as child components or text not fully contained inside but instead overlapping with or exceeding the parent component's boundaries
+    * [Severe!] Pie chart centers misaligned causing failure to display as a complete circle, or incorrect positions of histograms, line charts, etc.
+    * [Severe!] Asymmetric components positioned on the right or left side of the screen with the other side completely blank, or components too small or too large, causing disharmony
+    * Incorrect start/end points of lines connecting components, incorrect arrow directions, and issues like lines overlapping with components
 
-你需要详细描述哪个组件有什么样的问题，你不需要给出修复意见，但你需要尽可能真实描述问题现象和位置。
+You need to describe in detail which component has what kind of problem. You do not need to provide fix suggestions, but you need to describe the problem phenomena and locations as accurately as possible.
 
-针对问题的严重程度，分级如下：
-1. 组件被截断、组件重叠、不对齐、位置不合理问题，此类问题必须反馈
-2. 不美观等问题不要反馈，防止动画代码生成的死锁问题
-3. 如果是中间帧，这张图片极大可能没有展现完整，因此你**不需要关注不完整**问题，仅需要关注重叠问题，忽略孤立或未完成的组件；如果是最后一帧，你需要关注上面提到的所有问题
+Regarding problem severity levels:
+1. Component truncation, component overlap, misalignment, and unreasonable position issues - these problems must be reported
+2. Aesthetic issues should not be reported to prevent deadlock problems in animation code generation
+3. If it's an intermediate frame, the image very likely does not show the complete picture, so you **do not need to focus on incompleteness** issues, only need to focus on overlap issues, and ignore isolated or incomplete components; if it's the final frame, you need to focus on all the issues mentioned above
 
-你反馈的问题必须要包装在<result>问题列表</result>中，如果没有发现明显问题，应当返回<result></result>，即内部为空内容。
-下面开始：
+The issues you report must be wrapped in <result>issue list</result>. If no obvious issues are found, you should return <result></result>, meaning empty content inside.
+Begin:
 """
 
     window_size = (1800, 900)
@@ -319,8 +319,9 @@ class RenderManim(CodeAgent):
         if all_issues:
             all_issues = ('The middle and last frame of the rendered animation was sent to a multi-modal LLM to check '
                           f'the layout problems, and here are the possible issues:\n{all_issues}, '
-                          f'Some of the MLLM\'s feedback is incorrect. But if `cutt off` or `overlap` issues are mentioned, you need to carefully check your code '
-                          f'about it, then determine which issues actually need to be fixed.')
+                          f'follow the issue guidelines to reconfirm whether the problem exists, '
+                          f'check all similar components for similar issues, and fix the related problems, '
+                          f'especially the problems marked with `cut off` or `overlap`.')
         return all_issues
 
     @staticmethod
