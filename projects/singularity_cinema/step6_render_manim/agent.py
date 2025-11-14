@@ -40,12 +40,10 @@ You are part of a short video production workflow, which roughly consists of:
 You need to follow instructions:
 - Describe in detail which component has what kind of problem. 
 - No need to provide fix suggestions, but you need to describe the problem phenomena and locations as accurately as possible.
-- If you encounter a severe issue, you need to use more serious descriptions, such as [Severe!]...
-
-Regarding problem severity levels:
-1. Component truncation, component overlap, misalignment, and unreasonable position issues - these problems must be reported
-2. Aesthetic issues should not be reported to prevent deadlock problems in animation code generation
-3. If it's an intermediate frame, the image very likely does not show the complete picture, so you **do not need to focus on incompleteness** issues, only need to focus on overlap issues, and ignore isolated or incomplete components; if it's the final frame, you need to focus on all the issues mentioned above
+- Component truncation, component overlap, misalignment, and unreasonable position issues - these problems must be reported
+- Tiny aesthetic issues should not be reported
+- Some component positions look unreasonable because they are in motion. Ignore any issues you think meet this condition.
+- If it's an intermediate frame, the image very likely does not show the complete picture, so you **do not need to focus on incompleteness** issues, only need to focus on overlap issues, and ignore isolated or incomplete components; if it's the final frame, you need to focus on all the issues mentioned above
 
 The issues you report must be wrapped in <result>issue list</result>. If no obvious issues are found, you should return <result></result>, meaning empty content inside.
 Begin:
@@ -132,7 +130,7 @@ Begin:
             return output_path
         logger.info(f'Rendering scene {actual_scene_name}')
         fix_history = ''
-        mllm_max_check_round = 2
+        mllm_max_check_round = 3
         cur_check_round = 0
         for retry_idx in range(10):
             with open(code_file, 'w') as f:
@@ -240,8 +238,8 @@ Begin:
             else:
                 if cur_check_round >= mllm_max_check_round:
                     break
-                output_text = RenderManim.check_manim_quality(final_file_path, work_dir, i, config)
-                output_text = RenderManim.generate_fix_prompts(llm, output_text, code, segment)
+                mllm_output_text = RenderManim.check_manim_quality(final_file_path, work_dir, i, config)
+                output_text = RenderManim.generate_fix_prompts(llm, mllm_output_text, code, segment)
                 cur_check_round += 1
                 if output_text:
                     try:
@@ -298,7 +296,9 @@ Output: list of manim_render/scene_N folders. If segments.txt contains Manim req
 
 - Compose final video
 
-Your work is in step 5. An MLLM is used to analyze the layout problems, but some of the results are not accurate. You need to carefully check the issues and code files and give your fix prompts as accurately as possible.
+- Your work is in step 5. An MLLM is used to analyze the layout problems, but some of the results are not accurate. You need to carefully check the issues and code files and give your fix prompts as accurately as possible.
+
+- The MLLM model may not understand that certain components in the screenshot are in the process of running, and therefore may be in an unreasonable position and report an issue. You need to check the code and ignore problems that meet this condition.
 
 Now begin:"""
 
@@ -378,7 +378,7 @@ Now generate your fix prompts(DO NOT return other words like `Let me generate ..
             all_issues = ('The middle and last frame of the rendered animation was sent to a multi-modal LLM to check '
                           f'the layout problems, and here are the possible issues:\n{all_issues}, '
                           f'follow the issue guidelines to reconfirm whether the problem exists, '
-                          f'check all similar components for similar issues, and fix the related problems, '
+                          f'check all similar components for similar issues, '
                           f'especially the problems marked with `cut off` or `overlap`.')
         return all_issues
 
