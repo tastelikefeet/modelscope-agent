@@ -100,9 +100,9 @@ class RenderManim(CodeAgent):
             return output_path
         logger.info(f'Rendering scene {actual_scene_name}')
         fix_history = ''
-        mllm_max_check_round = 15
+        mllm_max_check_round = 3
         cur_check_round = 0
-        for retry_idx in range(50):
+        for retry_idx in range(10):
             with open(code_file, 'w') as f:
                 f.write(code)
 
@@ -268,7 +268,7 @@ Output: list of manim_render/scene_N folders. If segments.txt contains Manim req
 
 - Your work is in step 5. An MLLM is used to analyze the layout problems, but they are not accurate. You need to check the issues and code files and give your fix prompts as accurately as possible.
 
-- The MLLM model may not understand that certain components in the screenshot are in the process of running, and therefore may be in an unreasonable position and report an issue. You need to check the code and ignore problems that meet this condition.
+- The MLLM model may give incorrect feedbacks, you need to check the code and ignore problems that meet this condition, stand with your code if you insist you are right!
 
 - You need to trust your code if you believe the issue is a false positive
 
@@ -310,92 +310,45 @@ Now generate your fix prompts:
                 'temperature': 0.3
             }
         })
-        test_system = """You are a Manim animation quality inspector. You will receive ONE image that is either:
-- **Intermediate frame**: A snapshot during animation playback
-- **Final frame**: The last frame after all animations complete
+        test_system = """你是一个检查动画布局问题的专家。你将收到一张图片，这张图片可能是完整manim动画的中间帧或最终帧。你需要识别图片所展示的动画中所有不合理的布局问题。
 
-Your task: Identify ONLY objective layout defects, not subjective design preferences.
+你是短视频制作工作流的一部分，工作流大致包括：
+1. LLM生成文本脚本和分镜脚本，其中分镜包含大约5-10秒的旁白和动画需求。
+2. LLM根据动画需求生成manim代码并将其渲染成mov文件。你收到的图片就是该mov文件中的一帧。
+    * 短视频尺寸为1920×1080，但可用的渲染区域为1500×750，其余空间保留作其他用途。
 
-## Context
-- Video resolution: 1920×1080
-- Safe rendering area: 1500×750 (centered)
-- Animation duration: 5-10 seconds per scene
-- The image shows rendered output from LLM-generated manim code
+你需要关注的问题：
+1. 是否存在重叠或截断的组件。【重要】你需要特别注意图片边缘。
+    * 【严重！】组件或文本重叠
+    * 【严重！】组件或文本被图片边缘切断，显示不完整（即使只是轻微不完整！）
+2. 组件位置是否不合理，例如：
+    * 两个功能相同的组件未垂直对齐或水平等高
+    * 【严重！】父子组件不一致，例如子组件或文本未完全包含在内部，而是与父组件边界重叠或超出
+    * 【严重！】饼图中心未对齐导致无法显示为完整圆形，或柱状图、折线图等位置不正确
+    * 连接组件的线条起点/终点不正确，箭头方向错误，以及线条与组件重叠等问题
 
-## Inspection Rules
+你需要遵循的指示：
+- 详细描述哪个组件存在什么样的问题。
+- 给出对这张图片组件的详细描述，包括所有组件的位置，以及他们和边缘、其他组件的距离
+- 组件截断、组件重叠、未对齐和位置不合理问题 - 这些问题必须报告
+- 美学问题不应报告，以防止动画代码生成中的死锁问题
+- 某些组件位置看起来不合理是因为它们处于运动中。忽略任何你认为符合这种情况的问题。
+- 如果是中间帧，图片很可能没有显示完整画面，所以你**不需要关注不完整性**问题，只需要关注重叠问题，并忽略孤立或不完整的组件；如果是最终帧，你需要关注上述提到的所有问题
 
-### RULE 1: Edge Clipping (CRITICAL - Always Check)
-Report if ANY visual element is cut off by image boundaries:
-- Text with missing letters/words
-- Shapes with missing edges (circles, rectangles, arrows)
-- Chart components extending beyond frame
+你的回复：
+首先你需要描述这张图片，你对这张图片的详细描述放入<description></description>中
+其次，你报告的问题必须包裹在<result>问题列表</result>中。如果没有发现明显问题，你应该返回<result></result>，即内部为空内容。
+你的报告内容需要包括对修复的建议，例如挪动单个组件的位置，或整体布局有问题，其他组件需要进行的处理
 
-**Exception**: Elements intentionally animating out of frame (check if motion blur indicates movement)
 
-### RULE 2: Component Overlap (CRITICAL - Always Check)
-Report if visual elements overlap in ways that obscure content:
-- Text overlapping other text
-- Shapes covering text or other shapes
-- Chart labels overlapping chart elements
-
-**Exception**: Designed overlays (like labels attached to chart bars)
-
-### RULE 3: Spatial Alignment Defects
-Report ONLY if alignment inconsistency is **obvious** (>50 pixels deviation):
-- Multiple similar components not horizontally/vertically aligned
-- Asymmetric layout where one side is completely empty (>40% horizontal space unused on one side)
-
-**Do NOT report**:
-- Minor alignment differences (<50 pixels)
-- Intentional asymmetric designs (e.g., single element with surrounding text)
-
-### RULE 4: Parent-Child Containment
-Report if child elements clearly exceed parent boundaries:
-- Text labels extending beyond boxes/circles containing them
-- Chart elements (bars, slices) extending beyond chart area
-
-**Measurement**: Child element center must be inside parent, with >80% of child visible within parent
-
-### RULE 5: Connection Defects
-Report if connecting elements are clearly misaligned:
-- Arrows not touching their target (gap >30 pixels)
-- Lines connecting wrong components
-- Arrows pointing wrong direction relative to described relationship
-
-**Do NOT report**:
-- Lines passing near but not through components (may be intentional routing)
-- Animation-in-progress connections (if elements show motion blur)
-
-## Frame-Specific Logic
-
-### If Intermediate Frame:
-- **IGNORE**: Incomplete compositions, isolated elements, elements only partially visible
-- **CHECK ONLY**: Edge clipping + Component overlap
-- **Assume**: Elements may still be animating into position
-
-### If Final Frame:
-- **CHECK ALL**: Rules 1-5
-- **Assume**: All animations complete, this is the intended final state
-
-## Output Format
-
-Describe issues using this structure:
-```
-Component: [Specific element name, e.g., "Blue circle labeled 'A'"]
-Issue: [Objective description, e.g., "Right edge clipped - 20% of circle not visible"]
-Location: [Position, e.g., "Top-right corner of screen"]
-```
-
-**Wrap all issues in** `<result>issue list</result>`
-**If no defects found**, return `<result></result>`
-
-## Critical Reminders
-- Focus on OBVIOUS defects (not subtle imperfections)
-- Describe WHAT is wrong, not WHY or HOW to fix
-- Ignore animation motion artifacts (blur, partial opacity during transitions)
-- When uncertain, DO NOT report - false negatives are better than false positives in this workflow
-
-Begin inspection:
+一个例子：
+<description>
+在本图片中，有四个方形组件，第一个组件距离左侧约... 
+</description>
+<result>
+右侧组件被挤压到边缘，左侧的四个组件占了太大位置，修复建议：左侧所有组件宽度缩小，右侧组件...
+</result>
+开始：
 """
 
         test_images = RenderManim._extract_preview_frames_static(final_file_path, i, work_dir, cur_check_round)
@@ -443,6 +396,15 @@ Begin inspection:
                 issues = f'Current is the {frame_name}, problem checked by a MLLM: {issues}'
             all_issues.append(issues)
 
+            pattern = r'<description>(.*?)</description>'
+            desc = []
+            for _desc in re.findall(pattern, response_text, re.DOTALL):
+                desc.append(_desc)
+            desc = '\n'.join(desc).strip()
+            if issues:
+                issues = f'Current is the {frame_name}, problem checked by a MLLM: {issues}, frame description: {desc}'
+            all_issues.append(issues)
+
         all_issues =  '\n'.join(all_issues).strip()
         return all_issues
 
@@ -488,13 +450,73 @@ Begin inspection:
 **Original code task**: Create manim animation
 - Class name: {class_name}
 - Content: {content}
-- Extra requirement: {manim_requirement}
 - Duration: {audio_duration} seconds
 - Code language: **Python**
 
+Manim instructions:
+
+*Spatial Constraints (CRITICAL)**:
+• Canvas size: (1400, 700) (width x height) which is the top 3/4 of screen, bottom is left for subtitles
+• Safe area: x∈(-6.5, 6.5), y∈(-3.3, 3.3) (0.5 units from edge)
+• Element spacing: Use buff=0.3 or larger (avoid overlap)
+• Relative positioning: Prioritize next_to(), align_to(), shift()
+• Avoid multiple elements using the same reference point
+• [CRITICAL]Absolutely prevent **element spatial overlap** or **elements going out of bounds** or **elements not aligned**.
+• [CRITICAL]Connection lines between boxes/text are of proper length, with **both endpoints attached to the objects**.
+
+**Box/Rectangle Size Standards**:
+• For diagram boxes: Use consistent dimensions, e.g., Rectangle(width=2.5, height=1.5)
+• For labels/text boxes: width=1.5~3.0, height=0.8~1.2
+• For emphasis boxes: width=3.0~4.0, height=1.5~2.0
+• Always specify both width AND height explicitly: Rectangle(width=2.5, height=1.5)
+• Avoid using default sizes - always set explicit dimensions
+• Maintain consistent box sizes within the same diagram level/category
+• All boxes must have thick strokes for clear visibility
+• Ensure proper font size control in Manim animations to prevent text from going beyond the frame or boundaries, Latin script font sizes should be slightly smaller than Chinese fonts, as Latin text tends to be longer.
+• Ensure that the center points of different pieces in the generated pie chart are at the same coordinates. The pie chart has been drawn incorrectly multiple times.
+
+**Visual Quality Enhancement**:
+• Use thick, clear strokes for all shapes
+    - 4~6 strokes is recommended
+• Make arrows bold and prominent
+• Add rounded corners for modern aesthetics: RoundedRectangle(corner_radius=0.15)
+• Use subtle fill colors with transparency when appropriate: fill_opacity=0.1
+• Ensure high contrast between elements for clarity
+• Apply consistent spacing and alignment throughout
+• Use less stick man unless the user wants to, to prevent the animation from being too naive, try to make your effects more dazzling/gorgeous/spectacular/blingbling
+
+**Layout Suggestions**:
+• Content clearly layered
+• Key information highlighted
+• Reasonable use of space
+• Maintain visual balance
+• Use more horizontal layouts to leverage the wider space and minimize positional conflicts between animation components.
+
+**Animation Requirements**:
+• Concise and smooth animation effects
+• Progressive display, avoid information overload
+• Appropriate pauses and rhythm
+• Professional visual presentation with thick, clear lines
+• Use GrowArrow for arrows instead of Create for better effect
+• Consider using Circumscribe or Indicate to highlight important elements
+
+**Code Style**:
+• Implement directly in Scene class
+• Use VGroup appropriately to organize related elements
+• Clear comments and explanations
+• Avoid overly complex structures
+
+**Color Suggestions**:
+• You need to explicitly specify element colors and make these colors coordinated and elegant in style.
+• Consider the advices from the storyboard designer.
+• Don't use light yellow, light blue, etc., as this will make the animation look superficial.
+• Consider more colors like white, black, dark blue, dark purple, dark orange, etc. DO NOT use grey color, it's not easy to read
+
 - Please focus on solving the detected issues
 - If you find other issues, fix them too
+- Check any element does not match the instructions above
 - Keep the good parts, do minimum changes, only fix problematic areas
+- Ensure that the components do not overlap or get cut off by the edges
 - Ensure no new layout issues are introduced
 - If some issues are difficult to solve, prioritize the most impactful ones
 - There may be some beginner's error because the code was generated by an AI model

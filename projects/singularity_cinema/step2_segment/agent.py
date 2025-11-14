@@ -32,7 +32,8 @@ class Segment(LLMAgent):
     * You can estimate the reading duration of this storyboard panel to estimate the duration of the manim animation. The actual duration will be completely determined in the next step of voice generation
     * The video resolution is around 1920*1080(bottom 1920*300 for subtitles only), manim can use top 1920*700. Lines that are too thin are easily difficult to see clearly. You need to explicitly specify the line thickness of the manim animation, emphasis elements should use thicker lines
     * Ensure proper font size control in Manim animations to prevent text from going beyond the frame or boundaries
-    * Use more horizontal layouts to leverage the wider space and minimize positional conflicts between animation components.
+    * Don't design overly complex animations which contain many elements in a single scene all at once, as this will lead to complexity in adjusting the animation layout. You can break it down into simple animations across multiple scenes, and design reasonable layouts within each individual animation.
+    * Arrange the layout properly. If your elements are arranged vertically, the summary box can be placed at the bottom. You need to carefully calculate and plan the pixel values to prevent issues with element overlap or overflow when creating the animation.
     * Consider the synchronization between animations and content. When read at a normal speaking pace, the content should align with the animation's progression.
     * Specify the language of the manim texts, it should be the same with the script and the storyboard content(Chinese/English for example)
     * Use less stick man unless the user wants to, to prevent the animation from being too naive, try to make your effects more dazzling/gorgeous/spectacular/blingbling
