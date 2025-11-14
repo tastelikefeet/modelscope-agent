@@ -277,7 +277,7 @@ Begin:
         test_images = RenderManim._extract_preview_frames_static(final_file_path, i, work_dir)
         llm = LLM.from_config(_mm_config)
 
-        frame_names = ['中间帧', '最后一帧']
+        frame_names = ['the middle frame of the animation', 'the last frame of the animation']
 
         all_issues = []
         for idx, (image_path, frame_name) in enumerate(zip(test_images, frame_names)):
@@ -288,7 +288,7 @@ Begin:
             content = [
                 {
                     "type": "text",
-                    "text": f"当前分析的是{frame_name}，请仔细检查该帧中的动画布局问题。"
+                    "text": f"The current frame is: {frame_name}, you must carefully check the animation layout issues."
                 },
                 {
                     "type": "image_url",
