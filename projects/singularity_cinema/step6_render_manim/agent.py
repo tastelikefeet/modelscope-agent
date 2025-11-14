@@ -27,22 +27,22 @@ class RenderManim(CodeAgent):
     * 短视频大小为1920*1080，但可用渲染范围为1500*750，其余部分留作它用
 
 你需要关注的不足之处：
-1. 是否有组件重叠
+1. 是否有组件重叠或截断
+    * 组件、文字重叠导致
+    * 组件文字在图片边缘被截断
 2. 是否有组件位置不合理，例如：
     * 同一功能的两个组件上下不对齐，左右不等高
     * 子母组件不协调，例如子组件或文字没有完整位于内部，而是和外部母组件重叠或超出边框
-    * 线图、饼图等渲染位置错误，导致圆心不在一个坐标
+    * 饼图圆心不一致导致没有展示为一个完整的圆，或直方图、折线图等位置错误
     * 组件不对称，位于屏幕右侧或左侧，另一侧完全空白，或组件太小太大，不协调
-3. 组件布局的其他导致严重观感障碍的不合理问题
+    * 连接组件的线起点终点错误，或箭头方向错误，以及线和组件重叠等问题
 
-你需要详细描述哪个组件有什么样的问题，例如：
-
-- 位于左侧的xx组件，文字为xx，该组件和另一个组件xx在xx位置上重叠，建议xx组件向x方向挪动xx像素
-- xx组件文字为：xxx，该文字字体过大超出边界，建议挪动位置到xx，字号缩小到xx
+你需要详细描述哪个组件有什么样的问题，你不需要给出修复意见，但你需要尽可能真实描述问题现象和位置。
 
 针对问题的严重程度，分级如下：
 1. 组件被截断、组件重叠、不对齐、位置不合理问题，此类问题必须反馈
 2. 不美观等问题不要反馈，防止动画代码生成的死锁问题
+3. 如果是中间帧，这张图片极大可能没有展现完整，因此你**不需要关注不完整**问题，仅需要关注重叠问题，忽略孤立或未完成的组件；如果是最后一帧，你需要关注上面提到的所有问题
 
 你反馈的问题必须要包装在<result>问题列表</result>中，如果没有发现明显问题，应当返回<result></result>，即内部为空内容。
 下面开始：
@@ -129,7 +129,9 @@ class RenderManim(CodeAgent):
             return output_path
         logger.info(f'Rendering scene {actual_scene_name}')
         fix_history = ''
-        for retry_idx in range(5):
+        mllm_max_check_round = 2
+        cur_check_round = 0
+        for retry_idx in range(10):
             with open(code_file, 'w') as f:
                 f.write(code)
 
@@ -233,13 +235,17 @@ class RenderManim(CodeAgent):
                     llm, output_text, fix_history, code, manim_requirement,
                     class_name, content, audio_duration)
             else:
+                if cur_check_round >= mllm_max_check_round:
+                    break
                 output_text = RenderManim.check_manim_quality(final_file_path, work_dir, i, config)
+                cur_check_round += 1
                 if output_text:
                     try:
                         os.remove(final_file_path)
+                        final_file_path = None
                     except OSError:
                         pass
-                    logger.info(f'Trying to fix manim code, because model checking not passed: \n{output_text}')
+                    logger.info(f'Trying to fix manim code of segment {i+1}, because model checking not passed: \n{output_text}')
                     code, fix_history = RenderManim._fix_manim_code_impl(
                         llm, output_text, fix_history, code, manim_requirement,
                         class_name, content, audio_duration)
@@ -270,7 +276,6 @@ class RenderManim(CodeAgent):
         test_images = RenderManim._extract_preview_frames_static(final_file_path, i, work_dir)
         llm = LLM.from_config(_mm_config)
 
-        all_issues = []
         frame_names = ['中间帧', '最后一帧']
 
         all_issues = []
@@ -312,8 +317,9 @@ class RenderManim(CodeAgent):
         all_issues = '\n'.join(all_issues).strip()
         if all_issues:
             all_issues = ('The middle and last frame of the rendered animation was sent to a multi-modal LLM to check '
-                          f'the layout problems, and here are the results:\n{all_issues}, '
-                          f'fix them according to the issues found and the original code:')
+                          f'the layout problems, and here are the possible issues:\n{all_issues}, '
+                          f'Some of the MLLM\'s feedback is incorrect. You need to carefully analyze the existing '
+                          f'code to determine which issues actually need to be fixed.')
         return all_issues
 
     @staticmethod
@@ -327,7 +333,7 @@ class RenderManim(CodeAgent):
 
         timestamps = {
             1: duration / 2,
-            2: max(0, duration - 1)
+            2: max(0, duration - 0.2)
         }
 
         preview_paths = []

@@ -97,7 +97,7 @@ class GenerateManimCode(CodeAgent):
 • Avoid using default sizes - always set explicit dimensions
 • Maintain consistent box sizes within the same diagram level/category
 • All boxes must have thick strokes for clear visibility
-• Ensure proper font size control in Manim animations to prevent text from going beyond the frame or boundaries
+• Ensure proper font size control in Manim animations to prevent text from going beyond the frame or boundaries, Latin script font sizes should be slightly smaller than Chinese fonts, as Latin text tends to be longer.
 
 **Visual Quality Enhancement**:
 • Use thick, clear strokes for all shapes
