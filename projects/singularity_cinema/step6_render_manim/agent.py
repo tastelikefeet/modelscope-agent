@@ -19,36 +19,6 @@ logger = get_logger()
 
 class RenderManim(CodeAgent):
 
-    test_system = """You are an expert in checking animation layout issues. You will be provided with an image, which may be an intermediate frame or the final frame of a complete manim animation. You need to identify all unreasonable layout issues in the animation depicted in the image.
-
-You are part of a short video production workflow, which roughly consists of:
-1. LLM generates text scripts and storyboard scripts, where the storyboard contains approximately 5-10 seconds of narration and animation requirements.
-2. LLM generates manim code based on the animation requirements and renders it into a mov file. The image you receive is one frame from that mov file.
-    * Short video size is 1920×1080, but the usable rendering area is 1500×750, with the remaining space reserved for other purposes.
-
-[CRITICAL] Issues you need to focus on:
-1. Whether there are overlapping or truncated components. [IMPORTANT] You need to pay special attention to the image edges.
-    * [Severe!] Overlapping components or text
-    * [Severe!] Components or text cut off by image edges, displaying incompletely (even if only slightly incomplete!)
-2. Whether component positions are unreasonable, such as:
-    * Two components with the same function not vertically aligned or horizontally at equal heights
-    * [Severe!] Parent-child component inconsistency, such as child components or text not fully contained inside but instead overlapping with or exceeding the parent component's boundaries
-    * [Severe!] Pie chart centers misaligned causing failure to display as a complete circle, or incorrect positions of histograms, line charts, etc.
-    * [Severe!] Asymmetric components positioned on the right or left side of the screen with the other side completely blank, or components too small or too large, causing disharmony
-    * Incorrect start/end points of lines connecting components, incorrect arrow directions, and issues like lines overlapping with components
-
-You need to follow instructions:
-- Describe in detail which component has what kind of problem. 
-- No need to provide fix suggestions, but you need to describe the problem phenomena and locations as accurately as possible.
-- Component truncation, component overlap, misalignment, and unreasonable position issues - these problems must be reported
-- Tiny aesthetic issues should not be reported
-- Some component positions look unreasonable because they are in motion. Ignore any issues you think meet this condition.
-- If it's an intermediate frame, the image very likely does not show the complete picture, so you **do not need to focus on incompleteness** issues, only need to focus on overlap issues, and ignore isolated or incomplete components; if it's the final frame, you need to focus on all the issues mentioned above
-
-The issues you report must be wrapped in <result>issue list</result>. If no obvious issues are found, you should return <result></result>, meaning empty content inside.
-Begin:
-"""
-
     window_size = (1800, 900)
 
     def __init__(self,
@@ -238,8 +208,8 @@ Begin:
             else:
                 if cur_check_round >= mllm_max_check_round:
                     break
-                output_text = RenderManim.check_manim_quality(final_file_path, work_dir, i, config)
-                output_text = RenderManim.generate_fix_prompts(llm, output_text, code, segment)
+                output_text = RenderManim.check_manim_quality(final_file_path, work_dir, i, config, segment)
+                # output_text = RenderManim.generate_fix_prompts(llm, output_text, code, segment)
                 cur_check_round += 1
                 if output_text:
                     try:
@@ -328,7 +298,7 @@ Now generate your fix prompts:
         return '\n'.join(issues).strip()
 
     @staticmethod
-    def check_manim_quality(final_file_path, work_dir, i, config):
+    def check_manim_quality(final_file_path, work_dir, i, config, segment):
         _mm_config = DictConfig({
             'llm': {
                 'service': 'openai',
@@ -340,10 +310,42 @@ Now generate your fix prompts:
                 'temperature': 0.3
             }
         })
+        test_system = """You are an expert in checking animation layout issues. You will be provided with an image, which may be an intermediate frame or the final frame of a complete manim animation. You need to identify all unreasonable layout issues in the animation depicted in the image.
+
+You are part of a short video production workflow, which roughly consists of:
+1. LLM generates text scripts and storyboard scripts, where the storyboard contains approximately 5-10 seconds of narration and animation requirements.
+2. LLM generates manim code based on the animation requirements and renders it into a mov file. The image you receive is one frame from that mov file.
+    * Short video size is 1920×1080, but the usable rendering area is 1500×750, with the remaining space reserved for other purposes.
+
+[CRITICAL] Issues you need to focus on:
+1. Whether there are overlapping or truncated components. [IMPORTANT] You need to pay special attention to the image edges.
+    * [Severe!] Overlapping components or text
+    * [Severe!] Components or text cut off by image edges, displaying incompletely (even if only slightly incomplete!)
+2. Whether component positions are unreasonable, such as:
+    * Two components with the same function not vertically aligned or horizontally at equal heights
+    * [Severe!] Parent-child component inconsistency, such as child components or text not fully contained inside but instead overlapping with or exceeding the parent component's boundaries
+    * [Severe!] Pie chart centers misaligned causing failure to display as a complete circle, or incorrect positions of histograms, line charts, etc.
+    * [Severe!] Asymmetric components positioned on the right or left side of the screen with the other side completely blank, or components too small or too large, causing disharmony
+    * Incorrect start/end points of lines connecting components, incorrect arrow directions, and issues like lines overlapping with components
+
+You need to follow instructions:
+- Describe in detail which component has what kind of problem. 
+- No need to provide fix suggestions, but you need to describe the problem phenomena and locations as accurately as possible.
+- Component truncation, component overlap, misalignment, and unreasonable position issues - these problems must be reported
+- Aesthetic issues should not be reported to prevent deadlock problems in animation code generation
+- Some component positions look unreasonable because they are in motion. Ignore any issues you think meet this condition.
+- If it's an intermediate frame, the image very likely does not show the complete picture, so you **do not need to focus on incompleteness** issues, only need to focus on overlap issues, and ignore isolated or incomplete components; if it's the final frame, you need to focus on all the issues mentioned above
+
+The issues you report must be wrapped in <result>issue list</result>. If no obvious issues are found, you should return <result></result>, meaning empty content inside.
+Begin:
+"""
+
         test_images = RenderManim._extract_preview_frames_static(final_file_path, i, work_dir)
         llm = LLM.from_config(_mm_config)
 
         frame_names = ['the middle frame of the animation', 'the last frame of the animation']
+        content = segment['content']
+        manim_requirement = segment['manim']
 
         all_issues = []
         for idx, (image_path, frame_name) in enumerate(zip(test_images, frame_names)):
@@ -351,10 +353,12 @@ Now generate your fix prompts:
                 image_data = image_file.read()
                 base64_image = base64.b64encode(image_data).decode('utf-8')
 
-            content = [
+            _content = [
                 {
                     "type": "text",
-                    "text": f"The current frame is: {frame_name}, you must carefully check the animation layout issues."
+                    "text": (f"The current frame is: {frame_name}, the content of this animation: {content}, "
+                            f"the manim animation requirement: {manim_requirement}, ",
+                            f"you must carefully check the animation layout issues.")
                 },
                 {
                     "type": "image_url",
@@ -366,8 +370,8 @@ Now generate your fix prompts:
             ]
 
             messages = [
-                Message(role='system', content=RenderManim.test_system),
-                Message(role='user', content=content),
+                Message(role='system', content=test_system),
+                Message(role='user', content=_content),
             ]
             response = llm.generate(messages)
             response_text = response.content
@@ -381,7 +385,8 @@ Now generate your fix prompts:
                 issues = f'Current is the {frame_name}, problem checked by a MLLM: {issues}'
             all_issues.append(issues)
 
-        return '\n'.join(all_issues).strip()
+        all_issues =  '\n'.join(all_issues).strip()
+        return all_issues
 
     @staticmethod
     def _extract_preview_frames_static(video_path, segment_id, work_dir):
