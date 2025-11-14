@@ -100,9 +100,9 @@ class RenderManim(CodeAgent):
             return output_path
         logger.info(f'Rendering scene {actual_scene_name}')
         fix_history = ''
-        mllm_max_check_round = 3
+        mllm_max_check_round = 15
         cur_check_round = 0
-        for retry_idx in range(10):
+        for retry_idx in range(50):
             with open(code_file, 'w') as f:
                 f.write(code)
 
@@ -208,7 +208,7 @@ class RenderManim(CodeAgent):
             else:
                 if cur_check_round >= mllm_max_check_round:
                     break
-                output_text = RenderManim.check_manim_quality(final_file_path, work_dir, i, config, segment)
+                output_text = RenderManim.check_manim_quality(final_file_path, work_dir, i, config, segment, cur_check_round)
                 # output_text = RenderManim.generate_fix_prompts(llm, output_text, code, segment)
                 cur_check_round += 1
                 if output_text:
@@ -225,11 +225,11 @@ class RenderManim(CodeAgent):
                 else:
                     break
         if final_file_path:
-            RenderManim._extract_preview_frames_static(final_file_path, i, work_dir)
-            manim_code_dir = os.path.join(work_dir, 'manim_code')
-            manim_file = os.path.join(manim_code_dir, f'segment_{i + 1}.py')
-            with open(manim_file, 'w') as f:
-                f.write(code)
+            RenderManim._extract_preview_frames_static(final_file_path, i, work_dir, 'final')
+            # manim_code_dir = os.path.join(work_dir, 'manim_code')
+            # manim_file = os.path.join(manim_code_dir, f'segment_{i + 1}.py')
+            # with open(manim_file, 'w') as f:
+            #     f.write(code)
         else:
             raise FileNotFoundError(final_file_path)
 
@@ -298,7 +298,7 @@ Now generate your fix prompts:
         return '\n'.join(issues).strip()
 
     @staticmethod
-    def check_manim_quality(final_file_path, work_dir, i, config, segment):
+    def check_manim_quality(final_file_path, work_dir, i, config, segment, cur_check_round):
         _mm_config = DictConfig({
             'llm': {
                 'service': 'openai',
@@ -398,7 +398,7 @@ Location: [Position, e.g., "Top-right corner of screen"]
 Begin inspection:
 """
 
-        test_images = RenderManim._extract_preview_frames_static(final_file_path, i, work_dir)
+        test_images = RenderManim._extract_preview_frames_static(final_file_path, i, work_dir, cur_check_round)
         llm = LLM.from_config(_mm_config)
 
         frame_names = ['the middle frame of the animation', 'the last frame of the animation']
@@ -447,7 +447,7 @@ Begin inspection:
         return all_issues
 
     @staticmethod
-    def _extract_preview_frames_static(video_path, segment_id, work_dir):
+    def _extract_preview_frames_static(video_path, segment_id, work_dir, cur_check_round):
         from moviepy import VideoFileClip
         
         test_dir = os.path.join(work_dir, 'manim_test')
@@ -464,7 +464,7 @@ Begin inspection:
         for frame_idx, timestamp in timestamps.items():
             output_path = os.path.join(
                 test_dir,
-                f'segment_{segment_id + 1}_{frame_idx}.png'
+                f'segment_{segment_id + 1}_round{cur_check_round}_{frame_idx}.png'
             )
             video.save_frame(output_path, t=timestamp)
             preview_paths.append(output_path)
