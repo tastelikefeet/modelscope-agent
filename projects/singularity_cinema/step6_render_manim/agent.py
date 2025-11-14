@@ -26,15 +26,15 @@ class RenderManim(CodeAgent):
 2. LLM根据动画要求生成manim代码，并渲染成为mov文件，给你的图片就是该mov文件中的一帧。
     * 短视频大小为1920*1080，但可用渲染范围为1500*750，其余部分留作它用
 
-你需要关注的不足之处：
-1. 是否有组件重叠或截断
-    * 组件、文字重叠导致
-    * 组件文字在图片边缘被截断
+[CRITICAL]你需要关注的不足之处：
+1. 是否有组件重叠或截断，【重要】你需要特别关注图像边缘
+    * [严重！]组件、文字重叠
+    * [严重！]组件、文字被图片边缘切断，展示不完整（即使是轻微显示不完整！）
 2. 是否有组件位置不合理，例如：
     * 同一功能的两个组件上下不对齐，左右不等高
-    * 子母组件不协调，例如子组件或文字没有完整位于内部，而是和外部母组件重叠或超出边框
-    * 饼图圆心不一致导致没有展示为一个完整的圆，或直方图、折线图等位置错误
-    * 组件不对称，位于屏幕右侧或左侧，另一侧完全空白，或组件太小太大，不协调
+    * [严重！]子母组件不协调，例如子组件或文字没有完整位于内部，而是和外部母组件重叠或超出边框
+    * [严重！]饼图圆心不一致导致没有展示为一个完整的圆，或直方图、折线图等位置错误
+    * [严重！]组件不对称，位于屏幕右侧或左侧，另一侧完全空白，或组件太小太大，不协调
     * 连接组件的线起点终点错误，或箭头方向错误，以及线和组件重叠等问题
 
 你需要详细描述哪个组件有什么样的问题，你不需要给出修复意见，但你需要尽可能真实描述问题现象和位置。
@@ -129,7 +129,7 @@ class RenderManim(CodeAgent):
             return output_path
         logger.info(f'Rendering scene {actual_scene_name}')
         fix_history = ''
-        mllm_max_check_round = 2
+        mllm_max_check_round = 3
         cur_check_round = 0
         for retry_idx in range(10):
             with open(code_file, 'w') as f:
@@ -319,8 +319,8 @@ class RenderManim(CodeAgent):
         if all_issues:
             all_issues = ('The middle and last frame of the rendered animation was sent to a multi-modal LLM to check '
                           f'the layout problems, and here are the possible issues:\n{all_issues}, '
-                          f'Some of the MLLM\'s feedback is incorrect. You need to carefully analyze the existing '
-                          f'code to determine which issues actually need to be fixed.')
+                          f'Some of the MLLM\'s feedback is incorrect. But if `cutt off` or `overlap` issues are mentioned, you need to carefully check your code '
+                          f'about it, then determine which issues actually need to be fixed.')
         return all_issues
 
     @staticmethod

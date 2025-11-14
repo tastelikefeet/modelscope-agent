@@ -81,8 +81,8 @@ class GenerateManimCode(CodeAgent):
 - Code language: **Python**
 
 **Spatial Constraints (CRITICAL)**:
-• Canvas size: (1280, 700) (width x height) which is the top 3/4 of screen, bottom is left for subtitles
-• Safe area: x∈(-6.5, 6.5), y∈(-3.5, 3.5) (0.5 units from edge)
+• Canvas size: (1400, 700) (width x height) which is the top 3/4 of screen, bottom is left for subtitles
+• Safe area: x∈(-6.5, 6.5), y∈(-3.3, 3.3) (0.5 units from edge)
 • Element spacing: Use buff=0.3 or larger (avoid overlap)
 • Relative positioning: Prioritize next_to(), align_to(), shift()
 • Avoid multiple elements using the same reference point
@@ -98,6 +98,7 @@ class GenerateManimCode(CodeAgent):
 • Maintain consistent box sizes within the same diagram level/category
 • All boxes must have thick strokes for clear visibility
 • Ensure proper font size control in Manim animations to prevent text from going beyond the frame or boundaries, Latin script font sizes should be slightly smaller than Chinese fonts, as Latin text tends to be longer.
+• Ensure that the center points of different pieces in the generated pie chart are at the same coordinates. The pie chart has been drawn incorrectly multiple times.
 
 **Visual Quality Enhancement**:
 • Use thick, clear strokes for all shapes
