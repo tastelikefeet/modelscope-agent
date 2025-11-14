@@ -21,14 +21,14 @@ class ComposeVideo(CodeAgent):
                  **kwargs):
         super().__init__(config, tag, trust_remote_code, **kwargs)
         self.work_dir = getattr(self.config, 'output_dir', 'output')
-        self.transition = getattr(self.config, 't2i_transition', None)
+        self.transition = getattr(self.config.text2image, 't2i_transition', None)
         self.bg_path = os.path.join(self.work_dir, 'background.jpg')
         self.render_dir = os.path.join(self.work_dir, 'manim_render')
         self.tts_dir = os.path.join(self.work_dir, 'audio')
         self.images_dir = os.path.join(self.work_dir, 'images')
         self.subtitle_dir = os.path.join(self.work_dir, 'subtitles')
         self.bitrate = getattr(self.config.video, 'bitrate', '5000k')
-        self.preset = getattr(self.config.video, 'preset', 'faster')
+        self.preset = getattr(self.config.video, 'preset', 'ultrafast')
         self.fps = getattr(self.config.video, 'fps', 24)
 
     def compose_final_video(self, background_path, foreground_paths,

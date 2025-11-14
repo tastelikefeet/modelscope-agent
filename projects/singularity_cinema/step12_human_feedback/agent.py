@@ -80,8 +80,8 @@ Requirements for you:
     * [Very Important] After reading segments.txt, you need to read the corresponding files based on the approximate steps where the issue occurred, such as manim code (manim_code/segment_N.py), image prompts, etc., to ensure you have a 100% understanding of the user's feedback. You don't need to fix the code yourself. When providing feedback to previous steps, you should be as specific as possible to prevent ineffective fixes from occurring.
 3. If there's a Manim animation issue, you can construct code_fix/code_fix_N.txt, where N starts from 1
 4. After determining the segment numbers and steps, you should **delete the corresponding local files for those segment numbers, as well as all memory files** for the corresponding step and subsequent steps**
-    * If bugs are severe and Manim animation needs to be regenerated, you need to delete the corresponding segments in the manim_code folder and delete step 4's memory
-    * If animation errors can be fixed based on existing code, don't delete the manim_code folder, start re-execution from step 5, and delete the corresponding segment subfolders in the manim_render folder
+    * If bugs are severe and Manim animation needs to be regenerated, you need to delete the corresponding segments in the `manim_code` folder and delete step 4's memory
+    * If animation errors can be fixed based on existing code, **don't delete the manim_code folder files**, start re-execution from step 5, and delete the corresponding segment subfolders in the manim_render folder
 5. The workflow will automatically re-execute to generate missing files
 6. If you find the reported problem stems from segment design issues, such as difficult-to-fix Manim animation bugs, or consider deleting code files for regeneration (rather than fixing):
     * You need to consider fixing the problem with minimal changes to prevent major perceptual changes to the video

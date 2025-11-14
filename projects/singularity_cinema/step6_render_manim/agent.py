@@ -132,7 +132,7 @@ Begin:
             return output_path
         logger.info(f'Rendering scene {actual_scene_name}')
         fix_history = ''
-        mllm_max_check_round = 3
+        mllm_max_check_round = 2
         cur_check_round = 0
         for retry_idx in range(10):
             with open(code_file, 'w') as f:
@@ -241,6 +241,7 @@ Begin:
                 if cur_check_round >= mllm_max_check_round:
                     break
                 output_text = RenderManim.check_manim_quality(final_file_path, work_dir, i, config)
+                output_text = RenderManim.generate_fix_prompts(llm, output_text, code, segment)
                 cur_check_round += 1
                 if output_text:
                     try:
@@ -263,6 +264,60 @@ Begin:
                 f.write(code)
         else:
             raise FileNotFoundError(final_file_path)
+
+    @staticmethod
+    def generate_fix_prompts(llm, output_text, code, segment):
+        system = """You are an assistant responsible for helping resolve multi-modal LLM feedback issues in short video generation. Your role is to identify whether these issues exist and generate the correct code fix prompts.
+
+You are an assistant responsible for helping resolve human feedback issues in short video generation. Your role is to identify which workflow step the reported problem occurs in based on human feedback, and appropriately delete configuration files of prerequisite tasks to trigger task re-execution.
+
+Workflow Overview:
+First, there is a root directory folder for storing all files. All files described below and all your tool commands are based on this root directory. You don't need to worry about the root directory location; just focus on relative directories.
+
+Steps related to you:
+
+- Generate basic script based on user requirements
+
+Output: script file script.txt, original requirements file topic.txt, video title file title.txt
+
+- Segment design based on script
+
+Output: segments.txt, describing a list of shots including narration, background image generation requirements, and foreground Manim animation requirements
+
+- Generate audio narration for segments
+
+- Generate Manim animation code based on audio duration
+
+Output: list of Manim code files manim_code/segment_N.py, where N is the segment number starting from 1
+
+- Render Manim code
+
+Output: list of manim_render/scene_N folders. If segments.txt contains Manim requirements for a certain step, the corresponding folder will have a manim.mov file
+
+- Generate text-to-image prompts, images, and other materials
+
+- Compose final video
+
+Your work is in step 5. An MLLM is used to analyze the layout problems, but some of the results are not accurate. You need to carefully check the issues and code files and give your fix prompts as accurately as possible.
+
+Now begin:"""
+
+        content = segment['content']
+        manim_requirement = segment['manim']
+        query = f"""Manim origin requirements:
+- Content: {content}
+- Requirement from the storyboard designer: {manim_requirement}
+- Code language: **Python**
+
+Feedbacks from the MLLM: {output_text}
+
+Current Code: {code}
+
+Now generate your fix prompts(DO NOT return other words like `Let me generate ...` or `I know the root cause ...`):
+"""
+        inputs = [Message(role='system', content=system), Message(role='user', content=query)]
+        response = llm.generate(inputs)
+        return response.content
 
     @staticmethod
     def check_manim_quality(final_file_path, work_dir, i, config):
