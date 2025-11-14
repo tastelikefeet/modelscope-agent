@@ -357,7 +357,7 @@ Begin:
                 {
                     "type": "text",
                     "text": (f"The current frame is: {frame_name}, the content of this animation: {content}, "
-                            f"the manim animation requirement: {manim_requirement}, ",
+                            f"the manim animation requirement: {manim_requirement}, "
                             f"you must carefully check the animation layout issues.")
                 },
                 {
