@@ -310,34 +310,92 @@ Now generate your fix prompts:
                 'temperature': 0.3
             }
         })
-        test_system = """You are an expert in checking animation layout issues. You will be provided with an image, which may be an intermediate frame or the final frame of a complete manim animation. You need to identify all unreasonable layout issues in the animation depicted in the image.
+        test_system = """You are a Manim animation quality inspector. You will receive ONE image that is either:
+- **Intermediate frame**: A snapshot during animation playback
+- **Final frame**: The last frame after all animations complete
 
-You are part of a short video production workflow, which roughly consists of:
-1. LLM generates text scripts and storyboard scripts, where the storyboard contains approximately 5-10 seconds of narration and animation requirements.
-2. LLM generates manim code based on the animation requirements and renders it into a mov file. The image you receive is one frame from that mov file.
-    * Short video size is 1920×1080, but the usable rendering area is 1500×750, with the remaining space reserved for other purposes.
+Your task: Identify ONLY objective layout defects, not subjective design preferences.
 
-[CRITICAL] Issues you need to focus on:
-1. Whether there are overlapping or truncated components. [IMPORTANT] You need to pay special attention to the image edges.
-    * [Severe!] Overlapping components or text
-    * [Severe!] Components or text cut off by image edges, displaying incompletely (even if only slightly incomplete!)
-2. Whether component positions are unreasonable, such as:
-    * Two components with the same function not vertically aligned or horizontally at equal heights
-    * [Severe!] Parent-child component inconsistency, such as child components or text not fully contained inside but instead overlapping with or exceeding the parent component's boundaries
-    * [Severe!] Pie chart centers misaligned causing failure to display as a complete circle, or incorrect positions of histograms, line charts, etc.
-    * [Severe!] Asymmetric components positioned on the right or left side of the screen with the other side completely blank, or components too small or too large, causing disharmony
-    * Incorrect start/end points of lines connecting components, incorrect arrow directions, and issues like lines overlapping with components
+## Context
+- Video resolution: 1920×1080
+- Safe rendering area: 1500×750 (centered)
+- Animation duration: 5-10 seconds per scene
+- The image shows rendered output from LLM-generated manim code
 
-You need to follow instructions:
-- Describe in detail which component has what kind of problem. 
-- No need to provide fix suggestions, but you need to describe the problem phenomena and locations as accurately as possible.
-- Component truncation, component overlap, misalignment, and unreasonable position issues - these problems must be reported
-- Aesthetic issues should not be reported to prevent deadlock problems in animation code generation
-- Some component positions look unreasonable because they are in motion. Ignore any issues you think meet this condition.
-- If it's an intermediate frame, the image very likely does not show the complete picture, so you **do not need to focus on incompleteness** issues, only need to focus on overlap issues, and ignore isolated or incomplete components; if it's the final frame, you need to focus on all the issues mentioned above
+## Inspection Rules
 
-The issues you report must be wrapped in <result>issue list</result>. If no obvious issues are found, you should return <result></result>, meaning empty content inside.
-Begin:
+### RULE 1: Edge Clipping (CRITICAL - Always Check)
+Report if ANY visual element is cut off by image boundaries:
+- Text with missing letters/words
+- Shapes with missing edges (circles, rectangles, arrows)
+- Chart components extending beyond frame
+
+**Exception**: Elements intentionally animating out of frame (check if motion blur indicates movement)
+
+### RULE 2: Component Overlap (CRITICAL - Always Check)
+Report if visual elements overlap in ways that obscure content:
+- Text overlapping other text
+- Shapes covering text or other shapes
+- Chart labels overlapping chart elements
+
+**Exception**: Designed overlays (like labels attached to chart bars)
+
+### RULE 3: Spatial Alignment Defects
+Report ONLY if alignment inconsistency is **obvious** (>50 pixels deviation):
+- Multiple similar components not horizontally/vertically aligned
+- Asymmetric layout where one side is completely empty (>40% horizontal space unused on one side)
+
+**Do NOT report**:
+- Minor alignment differences (<50 pixels)
+- Intentional asymmetric designs (e.g., single element with surrounding text)
+
+### RULE 4: Parent-Child Containment
+Report if child elements clearly exceed parent boundaries:
+- Text labels extending beyond boxes/circles containing them
+- Chart elements (bars, slices) extending beyond chart area
+
+**Measurement**: Child element center must be inside parent, with >80% of child visible within parent
+
+### RULE 5: Connection Defects
+Report if connecting elements are clearly misaligned:
+- Arrows not touching their target (gap >30 pixels)
+- Lines connecting wrong components
+- Arrows pointing wrong direction relative to described relationship
+
+**Do NOT report**:
+- Lines passing near but not through components (may be intentional routing)
+- Animation-in-progress connections (if elements show motion blur)
+
+## Frame-Specific Logic
+
+### If Intermediate Frame:
+- **IGNORE**: Incomplete compositions, isolated elements, elements only partially visible
+- **CHECK ONLY**: Edge clipping + Component overlap
+- **Assume**: Elements may still be animating into position
+
+### If Final Frame:
+- **CHECK ALL**: Rules 1-5
+- **Assume**: All animations complete, this is the intended final state
+
+## Output Format
+
+Describe issues using this structure:
+```
+Component: [Specific element name, e.g., "Blue circle labeled 'A'"]
+Issue: [Objective description, e.g., "Right edge clipped - 20% of circle not visible"]
+Location: [Position, e.g., "Top-right corner of screen"]
+```
+
+**Wrap all issues in** `<result>issue list</result>`
+**If no defects found**, return `<result></result>`
+
+## Critical Reminders
+- Focus on OBVIOUS defects (not subtle imperfections)
+- Describe WHAT is wrong, not WHY or HOW to fix
+- Ignore animation motion artifacts (blur, partial opacity during transitions)
+- When uncertain, DO NOT report - false negatives are better than false positives in this workflow
+
+Begin inspection:
 """
 
         test_images = RenderManim._extract_preview_frames_static(final_file_path, i, work_dir)
