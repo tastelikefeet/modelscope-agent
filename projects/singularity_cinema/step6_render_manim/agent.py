@@ -238,8 +238,8 @@ Begin:
             else:
                 if cur_check_round >= mllm_max_check_round:
                     break
-                mllm_output_text = RenderManim.check_manim_quality(final_file_path, work_dir, i, config)
-                output_text = RenderManim.generate_fix_prompts(llm, mllm_output_text, code, segment)
+                output_text = RenderManim.check_manim_quality(final_file_path, work_dir, i, config)
+                output_text = RenderManim.generate_fix_prompts(llm, output_text, code, segment)
                 cur_check_round += 1
                 if output_text:
                     try:
@@ -296,9 +296,11 @@ Output: list of manim_render/scene_N folders. If segments.txt contains Manim req
 
 - Compose final video
 
-- Your work is in step 5. An MLLM is used to analyze the layout problems, but some of the results are not accurate. You need to carefully check the issues and code files and give your fix prompts as accurately as possible.
+- Your work is in step 5. An MLLM is used to analyze the layout problems, but they are not accurate. You need to check the issues and code files and give your fix prompts as accurately as possible.
 
 - The MLLM model may not understand that certain components in the screenshot are in the process of running, and therefore may be in an unreasonable position and report an issue. You need to check the code and ignore problems that meet this condition.
+
+- You need to trust your code if you believe the issue is a false positive
 
 Now begin:"""
 
@@ -313,11 +315,17 @@ Feedbacks from the MLLM: {output_text}
 
 Current Code: {code}
 
-Now generate your fix prompts(DO NOT return other words like `Let me generate ...` or `I know the root cause ...`):
+Wrap your fix prompts with <result>...</result>, if no need to fix, leave an empty content <result></result>.
+
+Now generate your fix prompts:
 """
         inputs = [Message(role='system', content=system), Message(role='user', content=query)]
         response = llm.generate(inputs)
-        return response.content
+        pattern = r'<result>(.*?)</result>'
+        issues = []
+        for issue in re.findall(pattern, response.content, re.DOTALL):
+            issues.append(issue)
+        return '\n'.join(issues).strip()
 
     @staticmethod
     def check_manim_quality(final_file_path, work_dir, i, config):
@@ -373,14 +381,7 @@ Now generate your fix prompts(DO NOT return other words like `Let me generate ..
                 issues = f'Current is the {frame_name}, problem checked by a MLLM: {issues}'
             all_issues.append(issues)
 
-        all_issues = '\n'.join(all_issues).strip()
-        if all_issues:
-            all_issues = ('The middle and last frame of the rendered animation was sent to a multi-modal LLM to check '
-                          f'the layout problems, and here are the possible issues:\n{all_issues}, '
-                          f'follow the issue guidelines to reconfirm whether the problem exists, '
-                          f'check all similar components for similar issues, '
-                          f'especially the problems marked with `cut off` or `overlap`.')
-        return all_issues
+        return '\n'.join(all_issues).strip()
 
     @staticmethod
     def _extract_preview_frames_static(video_path, segment_id, work_dir):
