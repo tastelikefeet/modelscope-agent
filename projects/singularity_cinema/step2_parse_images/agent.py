@@ -57,7 +57,7 @@ class ParseImages(CodeAgent):
         def process_image(image_file):
             size = self.get_image_size(image_file)
             description = self.get_image_description(image_file)
-            return os.path.relpath(image_file, self.work_dir), size, description
+            return image_file, size, description
 
         with ThreadPoolExecutor(max_workers=4) as executor:
             output = list(executor.map(process_image, image_files))
