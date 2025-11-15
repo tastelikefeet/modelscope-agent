@@ -304,7 +304,7 @@ There are four square components in the image. The first component is approximat
 The right component is squeezed to the edge. Fix suggestion: Reduce the width of the four left components, move the right component further right...
 </result>
 ```
-"""
+"""# noqa
 
         test_images = RenderManim._extract_preview_frames_static(
             final_file_path, i, work_dir, cur_check_round)

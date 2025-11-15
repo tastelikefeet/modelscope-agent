@@ -128,7 +128,6 @@ class ComposeVideo(CodeAgent):
                     zoom_start = 1.0  # Initial scale
                     zoom_end = 1.15  # Final scale (15% zoom)
 
-                    effect_process = {'eased_progress': 0.0}
                     # Capture variables in closure to prevent external modification
                     kb_base_w = bg_new_w
                     kb_base_h = bg_new_h
@@ -138,14 +137,12 @@ class ComposeVideo(CodeAgent):
                         """Create smooth zoom-in effect with easing"""
                         # Smooth easing function (ease-in-out)
                         progress = t / kb_duration if kb_duration > 0 else 0
+                        progress = min(1.0, progress)
                         # Cubic easing for smooth acceleration/deceleration
                         eased_progress = progress * progress * (
                             3.0 - 2.0 * progress)
-                        if eased_progress < effect_process['eased_progress']:
-                            eased_progress = effect_process['eased_progress']
                         if eased_progress > 1.0:
                             eased_progress = 1.0
-                        effect_process['eased_progress'] = eased_progress
                         # Calculate current zoom level
                         current_zoom = zoom_start + (
                             zoom_end - zoom_start) * eased_progress
