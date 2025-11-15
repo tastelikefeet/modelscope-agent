@@ -262,7 +262,7 @@ You are a Manim animation layout inspection expert, responsible for checking lay
 
 **Background Information**
 - The images you receive are video frames rendered by Manim (intermediate frames or final frames)
-- Video dimensions: 1920×1080, available rendering area: 1400×700
+- Video dimensions: 1920×1080, available rendering area: 1500×700
 
 **Inspection Focus**
 
@@ -413,8 +413,8 @@ The right component is squeezed to the edge. Fix suggestion: Reduce the width of
 Manim instructions:
 
 **Spatial Constraints (CRITICAL)**:
-• Canvas size: (1400, 700) (width x height) which is the top 3/4 of screen, bottom is left for subtitles
-• Safe area: x∈(-6.5, 6.5), y∈(-3.3, 3.3) (0.5 units from edge)
+• Canvas size: (1500, 700) (width x height) which is the top 3/4 of screen, bottom is left for subtitles
+• Safe area: x∈(-6.5, 6.5), y∈(-3.2, 3.2) (0.5 units from edge)
 • Element spacing: Use buff=0.3 or larger (avoid overlap)
 • Relative positioning: Prioritize next_to(), align_to(), shift()
 • Avoid multiple elements using the same reference point

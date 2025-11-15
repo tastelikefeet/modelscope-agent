@@ -82,8 +82,8 @@ class GenerateManimCode(CodeAgent):
 - Code language: **Python**
 
 **Spatial Constraints (CRITICAL)**:
-• Canvas size: (1400, 700) (width x height) which is the top 3/4 of screen, bottom is left for subtitles
-• Safe area: x∈(-6.5, 6.5), y∈(-3.3, 3.3) (0.5 units from edge)
+• Canvas size: (1500, 700) (width x height) which is the top 3/4 of screen, bottom is left for subtitles
+• Safe area: x∈(-6.5, 6.5), y∈(-3.2, 3.2) (0.5 units from edge)
 • Element spacing: Use buff=0.3 or larger (avoid overlap)
 • Relative positioning: Prioritize next_to(), align_to(), shift()
 • Avoid multiple elements using the same reference point
