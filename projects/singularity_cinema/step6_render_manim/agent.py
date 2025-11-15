@@ -19,7 +19,7 @@ logger = get_logger()
 
 class RenderManim(CodeAgent):
 
-    window_size = (1800, 900)
+    window_size = (1500, 700)
 
     def __init__(self,
                  config: DictConfig,
@@ -460,7 +460,7 @@ Manim instructions:
 
 Fixing detected issues, plus any other problems you find. Verify:
 • All elements follow instructions
-• No overlapping or edge cutoff
+• No overlapping or edge cutoff, **ensure all manim elements after rendering are within x∈(-6.5, 6.5), y∈(-3.3, 3.3)**
 • No new layout issues introduced
 • Prioritize high-impact fixes if needed
 • Watch for AI-generated code errors
