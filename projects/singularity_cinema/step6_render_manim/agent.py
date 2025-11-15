@@ -34,6 +34,8 @@ class RenderManim(CodeAgent):
         self.render_dir = os.path.join(self.work_dir, 'manim_render')
         self.code_fix_round = getattr(self.config, 'code_fix_round', 5)
         self.mllm_check_round = getattr(self.config, 'mllm_fix_round', 1)
+        if not self.config.manim_auto_test.manim_test_api_key:
+            self.mllm_check_round = 0
         os.makedirs(self.render_dir, exist_ok=True)
 
     async def execute_code(self, messages: Union[str, List[Message]],
