@@ -141,3 +141,4 @@ Some important parameters are listed below:
 - subtitle_lang: Multilingual subtitle language, if not set, no translation is performed
 - slogan: Displayed on the right side of the screen, generally shows producer name and short video collection
 - fonts: The recommended fonts list
+- manim_auto_test: Use an MLLM to check the layout problems，you can set model-id、api_key and base_url
