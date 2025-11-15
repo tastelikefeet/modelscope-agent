@@ -1,22 +1,20 @@
 # Copyright (c) Alibaba, Inc. and its affiliates.
-import asyncio
+import base64
+import hashlib
+import json
 import os
 import re
-import uuid
 from concurrent.futures import ThreadPoolExecutor
 from copy import deepcopy
-from dataclasses import dataclass, field
-from typing import List
 from urllib.request import urlretrieve
 
-import edge_tts
-import json
-from moviepy import AudioClip, AudioFileClip
+from PIL import Image
+from omegaconf import DictConfig
+
 from ms_agent.agent import CodeAgent
-from ms_agent.llm import LLM
+from ms_agent.llm import LLM, Message
 from ms_agent.llm.openai_llm import OpenAI
 from ms_agent.utils import get_logger
-from omegaconf import DictConfig
 
 logger = get_logger(__name__)
 
@@ -55,7 +53,7 @@ class ParseImages(CodeAgent):
         def process_image(image_file):
             size = self.get_image_size(image_file)
             description = self.get_image_description(image_file)
-            return size, description
+            return image_file, size, description
 
         with ThreadPoolExecutor(max_workers=4) as executor:
             output = list(executor.map(process_image, image_files))
@@ -64,10 +62,11 @@ class ParseImages(CodeAgent):
         with open(filename, 'w') as f:
             for img_tuple in output:
                 image_json = {
-                    'size': img_tuple[0],
-                    'description': img_tuple[1],
+                    'filename': img_tuple[0],
+                    'size': img_tuple[1],
+                    'description': img_tuple[2],
                 }
-                f.write(json.dumps(image_json) + '\n')
+                f.write(json.dumps(image_json, ensure_ascii=False) + '\n')
         return messages
 
     def parse_images(self, filename):
@@ -77,23 +76,53 @@ class ParseImages(CodeAgent):
         image_pattern = r'!\[.*?\]\((.*?)\)'
         urls = re.findall(image_pattern, content)
         
-        image_dir = os.path.join(self.work_dir, 'foreground_images')
-        os.makedirs(image_dir, exist_ok=True)
+        image_exts = {'.jpg', '.jpeg', '.png', '.gif', '.bmp', '.webp', '.svg'}
         
         local_paths = []
         for url in urls:
+            ext = os.path.splitext(url.split('?')[0])[1].lower()
+            if ext not in image_exts:
+                continue
+                
             if url.startswith(('http://', 'https://')):
-                ext = os.path.splitext(url)[1] or '.png'
-                local_file = os.path.join(image_dir, f"{uuid.uuid4().hex[:8]}{ext}")
-                urlretrieve(url, local_file)
+                url_hash = hashlib.md5(url.encode()).hexdigest()[:8]
+                local_file = os.path.join(self.image_dir, f"{url_hash}{ext}")
+                if not os.path.exists(local_file):
+                    urlretrieve(url, local_file)
                 local_paths.append(local_file)
-            else:
+            elif os.path.isfile(url):
                 local_paths.append(url)
         
         return local_paths
 
-    def get_image_size(self, filename):
-        # TODO
+    @staticmethod
+    def get_image_size(filename):
+        with Image.open(filename) as img:
+            return f"{img.width}x{img.height}"
 
     def get_image_description(self, filename):
-        # TODO
+        with open(filename, 'rb') as image_file:
+            image_data = image_file.read()
+            base64_image = base64.b64encode(image_data).decode('utf-8')
+
+        _content = [{
+            'type':
+                'text',
+            'text':
+                ('Describe this image in under 50 words. Be objective and accurate. For charts/graphs, '
+                 'analyze axis labels and data to explain what the chart shows and its purpose, '
+                 'not just the chart type. Provide enough detail to distinguish it from other images.'
+                 'Return only the requested image description. Do not add any other content.')
+        }, {
+            'type': 'image_url',
+            'image_url': {
+                'url': f'data:image/png;base64,{base64_image}',
+                'detail': 'high'
+            }
+        }]
+
+        messages = [
+            Message(role='user', content=_content),
+        ]
+        response = self.mllm.generate(messages)
+        return response.content

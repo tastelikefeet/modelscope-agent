@@ -5,6 +5,7 @@ from typing import List, Union
 
 import json
 from ms_agent.agent import CodeAgent
+from PIL import Image
 from ms_agent.llm import LLM, Message
 from ms_agent.utils import get_logger
 from omegaconf import DictConfig
@@ -22,6 +23,7 @@ class GenerateManimCode(CodeAgent):
         super().__init__(config, tag, trust_remote_code, **kwargs)
         self.work_dir = getattr(self.config, 'output_dir', 'output')
         self.num_parallel = getattr(self.config, 'llm_num_parallel', 10)
+        self.images_dir = os.path.join(self.work_dir, 'images')
         self.manim_code_dir = os.path.join(self.work_dir, 'manim_code')
         os.makedirs(self.manim_code_dir, exist_ok=True)
 
@@ -34,6 +36,8 @@ class GenerateManimCode(CodeAgent):
         logger.info('Generating manim code.')
 
         tasks = []
+        images_info = self.get_all_images_info(segments)
+        images_info = json.dumps(images_info, indent=4, ensure_ascii=False)
         for i, (segment, audio_info) in enumerate(zip(segments, audio_infos)):
             manim_requirement = segment.get('manim')
             if manim_requirement is not None:
@@ -44,7 +48,7 @@ class GenerateManimCode(CodeAgent):
         with ThreadPoolExecutor(max_workers=self.num_parallel) as executor:
             futures = {
                 executor.submit(self._generate_manim_code_static, seg, dur,
-                                idx, self.config): idx
+                                idx, self.config, images_info): idx
                 for seg, dur, idx in tasks
             }
             for future in as_completed(futures):
@@ -59,14 +63,41 @@ class GenerateManimCode(CodeAgent):
         return messages
 
     @staticmethod
-    def _generate_manim_code_static(segment, audio_duration, i, config):
+    def _generate_manim_code_static(segment, audio_duration, i, config, images_info):
         """Static method for multiprocessing"""
         llm = LLM.from_config(config)
         return GenerateManimCode._generate_manim_impl(llm, segment,
-                                                      audio_duration, i)
+                                                      audio_duration, i, images_info)
 
     @staticmethod
-    def _generate_manim_impl(llm, segment, audio_duration, i):
+    def get_image_size(filename):
+        with Image.open(filename) as img:
+            return f"{img.width}x{img.height}"
+
+    def get_all_images_info(self, segments):
+        all_images_info = []
+        for i, segment in enumerate(segments):
+            foreground = segment.get('foreground')
+            for idx, _req in enumerate(foreground):
+                foreground_image = os.path.join(self.images_dir, f'illustration_{i + 1}_foreground_{idx + 1}.png')
+                size = self.get_image_size(foreground_image)
+                image_info = {
+                    'filename': foreground_image,
+                    'size': size,
+                    'description': _req,
+                }
+                all_images_info.append(image_info)
+        image_info_file = os.path.join(self.work_dir, 'image_info.txt')
+        if os.path.exists(image_info_file):
+            with open(image_info_file, 'r') as f:
+                for line in f.readlines():
+                    if not line.strip():
+                        continue
+                    all_images_info.append(json.loads(line))
+        return all_images_info
+
+    @staticmethod
+    def _generate_manim_impl(llm, segment, audio_duration, i, images_info):
         class_name = f'Scene{i + 1}'
         content = segment['content']
         manim_requirement = segment['manim']
@@ -80,6 +111,16 @@ class GenerateManimCode(CodeAgent):
     * If the storyboard designer's layout is poor, create a better custom layout
 - Duration: {audio_duration} seconds
 - Code language: **Python**
+
+**Image usage**
+Manim requests may include image usage. which will be described in the manim request
+- You'll receive an actual image list with three fields per image: filename, size, and description
+- Match the image descriptions from the Manim request with the image list descriptions, then use the corresponding filename in your Manim code
+- Pay attention to the size field, write Manim code that respects the image's aspect ratio
+- If the Manim request doesn't require images, ignore the provided image list
+- Here is the image files list:
+
+{images_info}
 
 **Spatial Constraints (CRITICAL)**:
 • Canvas size: (1500, 700) (width x height) which is the top 3/4 of screen, bottom is left for subtitles

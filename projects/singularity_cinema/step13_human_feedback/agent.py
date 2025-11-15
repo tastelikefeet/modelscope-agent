@@ -14,58 +14,63 @@ class HumanFeedback(LLMAgent):
 Workflow Overview:
 First, there is a root directory folder for storing all files. All files described below and all your tool commands are based on this root directory. You don't need to worry about the root directory location, just focus on relative directories.
 
-1. Generate basic script based on user requirements
+1. Generate basic script based on user requirements, parse all images from files
     * memory: memory/generate_script.json memory/generate_script.yaml
     * Input: user requirements, may read user-specified files
-    * Output: script file script.txt, original requirements file topic.txt, video title file title.txt
+    * Output: script file script.txt, original requirements file topic.txt, video title file title.txt, user doc list file docs.txt
 
-2. Segment design based on script
+2. Parse and download all images from docs.txt
+    * memory: memory/parse_images.json memory/parse_images.yaml
+    * Input: docs.txt
+    * Output: image_info.txt, contains images in user docs filenames, descriptions, sizes
+    
+3. Segment design based on script
     * memory: memory/segment.json memory/segment.yaml
     * Input: topic.txt, script.txt
     * Output: segments.txt, describing a list of shots including narration, background image generation requirements, and foreground Manim animation requirements
 
-3. Generate audio narration for segments
+4. Generate audio narration for segments
     * memory: memory/generate_audio.json memory/generate_audio.yaml
     * Input: segments.txt
     * Output: list of audio/audio_N.mp3 files, where N is the segment number starting from 1, and audio_info.txt in root directory containing audio duration
 
-4. Generate Manim animation code based on audio duration
-    * memory: memory/generate_manim_code.json memory/generate_manim_code.yaml
-    * Input: segments.txt, audio_info.txt
-    * Output: list of Manim code files manim_code/segment_N.py, where N is the segment number starting from 1
+5. Generate text-to-image prompts
+    * memory: memory/generate_illustration_prompts.json memory/generate_illustration_prompts.yaml
+    * Input: segments.txt
+    * Output: illustration_prompts/segment_N.txt for background images, where N is segment number starting from 1, illustration_prompts/segment_N_foreground_M.txt for forground images, M for foreground image indexes, starting from 1
 
-5. Fix Manim code
+6. Text-to-image generation
+    * memory: memory/generate_images.json memory/generate_images.yaml
+    * Input: list of illustration_prompts/segment_N.txt, list of illustration_prompts/segment_N_foreground_M.txt
+    * Output: list of images/illustration_N.png, where N is segment number starting from 1, illustration_N_foreground_M.png, same M with above
+
+7. Generate Manim animation code based on audio duration
+    * memory: memory/generate_manim_code.json memory/generate_manim_code.yaml
+    * Input: segments.txt, audio_info.txt, image_info.txt
+    * Output: list of Manim code files manim_code/segment_N.py, where N starts from 1
+    
+8. Fix Manim code
     * memory: memory/fix_manim_code.json memory/fix_manim_code.yaml
     * Input: manim_code/segment_N.py where N is segment number starting from 1, code_fix/code_fix_N.txt error description files
     * Output: updated manim_code/segment_N.py files
     * Note: If Manim animation has issues, you should create code_fix/code_fix_N.txt and pass it to this step for re-execution
 
-6. Render Manim code
+9. Render Manim code
     * memory: memory/render_manim.json memory/render_manim.yaml
     * Input: manim_code/segment_N.py
     * Output: list of manim_render/scene_N folders. If segments.txt contains Manim requirements for a certain step, the corresponding folder will have a manim.mov file
 
-7. Generate text-to-image prompts
-    * memory: memory/generate_illustration_prompts.json memory/generate_illustration_prompts.yaml
-    * Input: segments.txt
-    * Output: illustration_prompts/segment_N.txt, where N is segment number starting from 1
-
-8. Text-to-image generation
-    * memory: memory/generate_images.json memory/generate_images.yaml
-    * Input: list of illustration_prompts/segment_N.txt
-    * Output: list of images/illustration_N.png, where N is segment number starting from 1
-
-9. Generate subtitles
+10. Generate subtitles
     * memory: memory/generate_subtitle.json memory/generate_subtitle.yaml
     * Input: segments.txt
     * Output: list of subtitles/bilingual_subtitle_N.png, where N is segment number starting from 1
 
-10. Create background, a solid color image with video title and slogans
+11. Create background, a solid color image with video title and slogans
     * memory: memory/create_background.json memory/create_background.yaml
     * Input: title.txt
     * Output: background.jpg
 
-11. Compose final video
+12. Compose final video
     * memory: memory/compose_video.json memory/compose_video.yaml
     * Input: all file information from previous steps
     * Output: final_video.mp4
