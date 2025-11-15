@@ -330,9 +330,10 @@ The right component is squeezed to the edge. Fix suggestion: Reduce the width of
                 'type':
                 'text',
                 'text':
-                (f'The current frame is: {frame_name}, the content of this animation: {content}, '
-                 f'the manim animation requirement: {manim_requirement}, '
-                 f'you must carefully check the animation layout issues.')
+                (f'The checked frame is: {frame_name} of this animation\n'
+                 f'The content of this animation: {content}\n'
+                 f'The manim animation requirement: {manim_requirement}\n'
+                 f'You must carefully check the animation layout issues.')
             }, {
                 'type': 'image_url',
                 'image_url': {
@@ -354,19 +355,20 @@ The right component is squeezed to the edge. Fix suggestion: Reduce the width of
                 issues.append(issue)
             issues = '\n'.join(issues).strip()
             if issues:
-                issues = f'Current is the {frame_name}, problem checked by a MLLM: {issues}'
-            all_issues.append(issues)
+                issues = (f'The checked frame is: {frame_name}\n'
+                          f'Problems found: {issues}\n')
 
             pattern = r'<description>(.*?)</description>'
             desc = []
             for _desc in re.findall(pattern, response_text, re.DOTALL):
                 desc.append(_desc)
             desc = '\n'.join(desc).strip()
-            if issues:
-                issues = f'Current is the {frame_name}, problem checked by a MLLM: {issues}, frame description: {desc}'
+            if issues and desc:
+                issues = (f'{issues}'
+                          f'The detail description of this frame: {desc}\n')
             all_issues.append(issues)
 
-        all_issues = '\n'.join(all_issues).strip()
+        all_issues = '\n\n'.join(all_issues).strip()
         return all_issues
 
     @staticmethod
