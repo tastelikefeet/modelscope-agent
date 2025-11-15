@@ -101,7 +101,10 @@ class GenerateManimCode(CodeAgent):
         content = segment['content']
         manim_requirement = segment['manim']
         images_info = GenerateManimCode.get_all_images_info(segment, i, image_dir)
-        images_info = json.dumps(images_info, indent=4, ensure_ascii=False)
+        if images_info:
+            images_info = json.dumps(images_info, indent=4, ensure_ascii=False)
+        else:
+            images_info = 'No images offered.'
 
         prompt = f"""You are a professional Manim animation expert, creating clear and beautiful educational animations.
 
@@ -118,7 +121,7 @@ Manim requests may include image usage. which will be described in the manim req
 - You'll receive an actual image list with three fields per image: filename, size, and description
 - Match the image descriptions from the Manim request with the image list descriptions, then use the corresponding filename in your Manim code
 - Pay attention to the size field, write Manim code that respects the image's aspect ratio, size it if it's too big
-- If images files is not empty, use them as the manim requirement ordered. Here is the image files list:
+- If images files is not empty, **you must use them all at the appropriate time and position in your animation**. Here is the image files list:
 
 {images_info}
 

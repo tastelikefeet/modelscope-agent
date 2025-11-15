@@ -28,7 +28,8 @@ class Segment(LLMAgent):
 
 - User-provided images may be insufficient. Trust text-to-image models to generate additional images for more visually compelling videos
     * Output image generation requirements and the generated filenames(with .png format) in `foreground` and `foreground_image` fields, this make them have the same length
-    * Reference these file names in manim requirements, for both user offered images and generated images
+    * **Explictly reference image file names in manim requirements**, for both user offered images and generated images
+        > for example: in `manim` field: Use `illustration_image.png` to ...
     * Consider the size, the ratio of image size will affect your layout. Sizes of images in user docs will be given to you. All generated images are square
 
 - Each of your storyboard panels should take about 5 seconds to 10 seconds to read at normal speaking speed. Avoid the feeling of frequent switching and static
