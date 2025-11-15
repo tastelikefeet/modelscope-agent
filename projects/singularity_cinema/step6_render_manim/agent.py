@@ -310,45 +310,53 @@ Now generate your fix prompts:
                 'temperature': 0.3
             }
         })
-        test_system = """你是一个检查动画布局问题的专家。你将收到一张图片，这张图片可能是完整manim动画的中间帧或最终帧。你需要识别图片所展示的动画中所有不合理的布局问题。
+        test_system = """
+**角色定位**
+你是Manim动画布局检查专家，负责检查动画帧中的布局问题。
 
-你是短视频制作工作流的一部分，工作流大致包括：
-1. LLM生成文本脚本和分镜脚本，其中分镜包含大约5-10秒的旁白和动画需求。
-2. LLM根据动画需求生成manim代码并将其渲染成mov文件。你收到的图片就是该mov文件中的一帧。
-    * 短视频尺寸为1920×1080，但可用的渲染区域为1500×750，其余空间保留作其他用途。
+**背景信息**
+- 你收到的图片是Manim渲染的视频帧（中间帧或最终帧）
+- 视频尺寸：1920×1080，可用渲染区域：1400×700
 
-你需要关注的问题：
-1. 是否存在重叠或截断的组件。【重要】你需要特别注意图片边缘。
-    * 【严重！】组件或文本重叠
-    * 【严重！】组件或文本被图片边缘切断，显示不完整（即使只是轻微不完整！）
-2. 组件位置是否不合理，例如：
-    * 两个功能相同的组件未垂直对齐或水平等高
-    * 【严重！】父子组件不一致，例如子组件或文本未完全包含在内部，而是与父组件边界重叠或超出
-    * 【严重！】饼图中心未对齐导致无法显示为完整圆形，或柱状图、折线图等位置不正确
-    * 连接组件的线条起点/终点不正确，箭头方向错误，以及线条与组件重叠等问题
+**检查重点**
 
-你需要遵循的指示：
-- 详细描述哪个组件存在什么样的问题。
-- 给出对这张图片组件的详细描述，包括所有组件的位置，以及他们和边缘、其他组件的距离
-- 组件截断、组件重叠、未对齐和位置不合理问题 - 这些问题必须报告
-- 美学问题不应报告，以防止动画代码生成中的死锁问题
-- 某些组件位置看起来不合理是因为它们处于运动中。忽略任何你认为符合这种情况的问题。
-- 如果是中间帧，图片很可能没有显示完整画面，所以你**不需要关注不完整性**问题，只需要关注重叠问题，并忽略孤立或不完整的组件；如果是最终帧，你需要关注上述提到的所有问题
+**必须报告的严重问题：**
+1. 组件或文本重叠
+2. 组件或文本被边缘裁切（哪怕轻微裁切）
+3. 父子组件不一致（子元素超出父容器边界）
+4. 图表元素错位（饼图中心偏移、柱状图/折线图位置错误）
 
-你的回复：
-首先你需要描述这张图片，你对这张图片的详细描述放入<description></description>中
-其次，你报告的问题必须包裹在<result>问题列表</result>中。如果没有发现明显问题，你应该返回<result></result>，即内部为空内容。
-你的报告内容需要包括对修复的建议，例如挪动单个组件的位置，或整体布局有问题，其他组件需要进行的处理
+**需要报告的次要问题：**
+1. 功能相同的组件未对齐
+2. 连接线起点/终点错误、箭头方向错误、线条与组件重叠
 
+**检查规则**
+- 中间帧：只关注重叠问题，忽略不完整组件
+- 最终帧：检查所有上述问题
+- 忽略：美学问题、因动画过程导致的临时不合理位置
 
-一个例子：
+**输出格式**
+
+```
 <description>
-在本图片中，有四个方形组件，第一个组件距离左侧约... 
+详细描述图片内容，包括所有组件的位置及其与边缘、其他组件的距离
 </description>
+
 <result>
-右侧组件被挤压到边缘，左侧的四个组件占了太大位置，修复建议：左侧所有组件宽度缩小，右侧组件...
+列出发现的问题及修复建议。如无问题则留空。
 </result>
-开始：
+```
+
+**示例：**
+```
+<description>
+图中有四个方形组件，第一个组件距离左侧约...
+</description>
+
+<result>
+右侧组件被挤压到边缘。修复建议：缩小左侧四个组件宽度，右移右侧组件...
+</result>
+```
 """
 
         test_images = RenderManim._extract_preview_frames_static(final_file_path, i, work_dir, cur_check_round)
@@ -455,7 +463,7 @@ Now generate your fix prompts:
 
 Manim instructions:
 
-*Spatial Constraints (CRITICAL)**:
+**Spatial Constraints (CRITICAL)**:
 • Canvas size: (1400, 700) (width x height) which is the top 3/4 of screen, bottom is left for subtitles
 • Safe area: x∈(-6.5, 6.5), y∈(-3.3, 3.3) (0.5 units from edge)
 • Element spacing: Use buff=0.3 or larger (avoid overlap)
@@ -472,8 +480,8 @@ Manim instructions:
 • Avoid using default sizes - always set explicit dimensions
 • Maintain consistent box sizes within the same diagram level/category
 • All boxes must have thick strokes for clear visibility
-• Ensure proper font size control in Manim animations to prevent text from going beyond the frame or boundaries, Latin script font sizes should be slightly smaller than Chinese fonts, as Latin text tends to be longer.
-• Ensure that the center points of different pieces in the generated pie chart are at the same coordinates. The pie chart has been drawn incorrectly multiple times.
+• Keep text within frame by controlling font sizes. Use smaller fonts for Latin script than Chinese due to longer length.
+• Ensure all pie chart pieces share the same center coordinates. Previous pie charts were drawn incorrectly.
 
 **Visual Quality Enhancement**:
 • Use thick, clear strokes for all shapes
@@ -490,7 +498,10 @@ Manim instructions:
 • Key information highlighted
 • Reasonable use of space
 • Maintain visual balance
-• Use more horizontal layouts to leverage the wider space and minimize positional conflicts between animation components.
+• LLMs excel at animation complexity, not layout complexity. 
+    - Use multiple storyboard scenes rather than adding more elements to one animation to avoid layout problems
+    - For animations with many elements, consider layout carefully. For instance, arrange elements horizontally given the canvas's wider width
+    - With four or more horizontal elements, put summary text or similar content at the canvas bottom, this will effectively reduce the cutting off and overlap problems
 
 **Animation Requirements**:
 • Concise and smooth animation effects
@@ -501,8 +512,6 @@ Manim instructions:
 • Consider using Circumscribe or Indicate to highlight important elements
 
 **Code Style**:
-• Implement directly in Scene class
-• Use VGroup appropriately to organize related elements
 • Clear comments and explanations
 • Avoid overly complex structures
 

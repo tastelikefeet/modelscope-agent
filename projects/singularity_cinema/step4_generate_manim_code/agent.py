@@ -77,6 +77,7 @@ class GenerateManimCode(CodeAgent):
 - Class name: {class_name}
 - Content: {content}
 - Requirement from the storyboard designer: {manim_requirement}
+    * If the storyboard designer's layout is poor, create a better custom layout
 - Duration: {audio_duration} seconds
 - Code language: **Python**
 
@@ -97,8 +98,8 @@ class GenerateManimCode(CodeAgent):
 • Avoid using default sizes - always set explicit dimensions
 • Maintain consistent box sizes within the same diagram level/category
 • All boxes must have thick strokes for clear visibility
-• Ensure proper font size control in Manim animations to prevent text from going beyond the frame or boundaries, Latin script font sizes should be slightly smaller than Chinese fonts, as Latin text tends to be longer.
-• Ensure that the center points of different pieces in the generated pie chart are at the same coordinates. The pie chart has been drawn incorrectly multiple times.
+• Keep text within frame by controlling font sizes. Use smaller fonts for Latin script than Chinese due to longer length.
+• Ensure all pie chart pieces share the same center coordinates. Previous pie charts were drawn incorrectly.
 
 **Visual Quality Enhancement**:
 • Use thick, clear strokes for all shapes
@@ -115,7 +116,10 @@ class GenerateManimCode(CodeAgent):
 • Key information highlighted
 • Reasonable use of space
 • Maintain visual balance
-• Use more horizontal layouts to leverage the wider space and minimize positional conflicts between animation components.
+• LLMs excel at animation complexity, not layout complexity. 
+    - Use multiple storyboard scenes rather than adding more elements to one animation to avoid layout problems
+    - For animations with many elements, consider layout carefully. For instance, arrange elements horizontally given the canvas's wider width
+    - With four or more horizontal elements, put summary text or similar content at the canvas bottom, this will effectively reduce the cutting off and overlap problems
 
 **Animation Requirements**:
 • Concise and smooth animation effects
@@ -126,8 +130,6 @@ class GenerateManimCode(CodeAgent):
 • Consider using Circumscribe or Indicate to highlight important elements
 
 **Code Style**:
-• Implement directly in Scene class
-• Use VGroup appropriately to organize related elements
 • Clear comments and explanations
 • Avoid overly complex structures
 

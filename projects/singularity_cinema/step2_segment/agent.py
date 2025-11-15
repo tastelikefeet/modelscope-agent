@@ -16,29 +16,30 @@ class Segment(LLMAgent):
 
 1. Each storyboard panel will carry a piece of narration, (at most) one manim technical animation, one generated image background, and one subtitle
     * You can freely decide whether the manim animation exists. If the manim animation is not needed, the manim key can be omitted from the return value
-    * For tech-related short videos, they should have a technical and professional feel. For product-related short videos, they should be gentle and authentic, avoiding exaggerated expressions such as "shocking", "solved by xxx", etc.
-    * Don't excessively praise or hype up what's described in the video. Instead, describe things objectively and accurately. Avoid using descriptions like 'game-changing,' 'rule-breaking,' or 'truly achieved xx'.
-    * Consider the color style across all storyboards comprehensively. Don't use too many different chaotic colors in different storyboards, and ensure consistency in the overall style.
-2. Each of your storyboard panels should take about 5 seconds to 15 seconds(at most) to read at normal speaking speed. Too short will cause a sense of frequent switching, and too long will appear too static
-    * If a storyboard panel has no manim animation, it should not exceed 5s to 10s at most
+    * For tech-related short videos, they should have a technical and professional feel. For product-related short videos, they should be gentle and authentic, avoiding exaggerated expressions such as "shocking", "solved by xxx", "game-changing," "rule-breaking," or "truly achieved xx", etc. Describe things objectively and accurately.
+    * Consider the color style across all storyboards comprehensively, for example, all purple style, all deep blue style, etc.
+        - Consider more colors like white, black, dark blue, dark purple, dark orange, etc, which will make your design elegant, avoid using light yellow/blue, which will make your animation look superficial, DO NOT use grey color, it's not easy to read
+    * Use less stick man unless the user wants to, to prevent the animation from being too naive, try to make your effects more dazzling/gorgeous/spectacular/blingbling
+2. Each of your storyboard panels should take about 5 seconds to 10 seconds to read at normal speaking speed. Avoid the feeling of frequent switching and static
+    * If a storyboard panel has no manim animation, it should not exceed 5s
     * Pay attention to the coordination between the background image and the manim animation.
         - If a manim animation exists, the background image should not be too flashy. Else the background image will become the main focus, and the image details should be richer
         - The foreground and the background should not have the same objects. For example, draw birds at the foreground, sky and clouds at the background, other examples like charts and scientist, cloth and girls
     * If a storyboard panel has manim animation, the image should be more concise, with a stronger supporting role
-3. You need to write specific narration for each storyboard panel, technical animation requirements, and **detailed** background image requirements
-    * You need to specify your expected manim animation content, presentation details, position and size, etc., and remind the large model generating manim of technical requirements, and **absolutely prevent size overflow and animation position overlap**
-    * You must specify the color scheme for the manim animation, and this color scheme must be coordinated with the background color scheme. For example, if the background color scheme is light-colored, then the text, boxes, arrows, etc. in the manim animation should generally use dark colors. If the background is dark-colored, then the elements of the manim animation should use light colors.
-        - Consider more colors like white, black, dark blue, dark purple, dark orange, etc, which will make your design elegant, avoid using light yellow/blue, which will make your animation look superficial, DO NOT use grey color, it's not easy to read
-    * You can estimate the reading duration of this storyboard panel to estimate the duration of the manim animation. The actual duration will be completely determined in the next step of voice generation
-    * The video resolution is around 1920*1080(bottom 1920*300 for subtitles only), manim can use top 1920*700. Lines that are too thin are easily difficult to see clearly. You need to explicitly specify the line thickness of the manim animation, emphasis elements should use thicker lines
-    * Ensure proper font size control in Manim animations to prevent text from going beyond the frame or boundaries
-    * Don't design overly complex animations which contain many elements in a single scene all at once, as this will lead to complexity in adjusting the animation layout. You can break it down into simple animations across multiple scenes, and design reasonable layouts within each individual animation.
-    * Arrange the layout properly. If your elements are arranged vertically, the summary box can be placed at the bottom. You need to carefully calculate and plan the pixel values to prevent issues with element overlap or overflow when creating the animation.
+3. Write specific narration for each storyboard panel, technical animation requirements, and **detailed** background image requirements
+    * Specify your expected manim animation content, presentation details, position and size, etc., and remind the large model generating manim of technical requirements, and **absolutely prevent size overflow and animation position overlap**
+    * Estimate the reading duration of this storyboard panel to estimate the duration of the manim animation. The actual duration will be completely determined in the next step of voice generation
+    * The video resolution is around 1920*1080, 200-pixel margin on all four sides for title and subtitle, so manim can use center (1400, 700). 
+    * Use thicker lines to emphasis elements
+    * Use smaller font size in Manim animations to prevent text from going beyond the canvas 
+    * LLMs excel at animation complexity, not layout complexity. 
+        - Use multiple storyboard scenes rather than adding more elements to one animation to avoid layout problems
+        - For animations with many elements, consider layout carefully. For instance, arrange elements horizontally given the canvas's wider width
+        - With four or more horizontal elements, put summary text or similar content at the canvas bottom, this will effectively reduce the cutting off and overlap problems
     * Consider the synchronization between animations and content. When read at a normal speaking pace, the content should align with the animation's progression.
     * Specify the language of the manim texts, it should be the same with the script and the storyboard content(Chinese/English for example)
-    * Use less stick man unless the user wants to, to prevent the animation from being too naive, try to make your effects more dazzling/gorgeous/spectacular/blingbling
 4. You will be given a script. Your storyboard design needs to be based on the script. You can also add some additional information you think is useful
-5. You will be provided with the original requirements, which may contain one or more user-specified documents with content to be explained. Read through them, integrate with the script, and refine the short video's screenplay and animations. When documents are available, you can design animations based on their formulas, charts, and other visual elements.
+5. Review the requirements and any provided documents. Integrate their content, formulas, charts, and visuals into the script to refine the video's screenplay and animations.
     [CRITICAL]: The manim and image generation steps will not receive the original requirements and files. Supply very detail information for them, especially any data/points/formulas to prevent any mismatch with the original query and/or documentation
 6. Your return format is JSON format, no need to save file, later the json will be parsed out of the response body
 7. You need to pay attention not to use Chinese quotation marks. Use [] to replace them, for example [attention]
