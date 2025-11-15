@@ -116,7 +116,7 @@ class GenerateManimCode(CodeAgent):
 • Key information highlighted
 • Reasonable use of space
 • Maintain visual balance
-• LLMs excel at animation complexity, not layout complexity. 
+• LLMs excel at animation complexity, not layout complexity.
     - Use multiple storyboard scenes rather than adding more elements to one animation to avoid layout problems
     - For animations with many elements, consider layout carefully. For instance, arrange elements horizontally given the canvas's wider width
     - With four or more horizontal elements, put summary text or similar content at the canvas bottom, this will effectively reduce the cutting off and overlap problems

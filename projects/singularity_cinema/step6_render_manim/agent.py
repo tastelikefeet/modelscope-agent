@@ -62,7 +62,8 @@ class RenderManim(CodeAgent):
                 executor.submit(self._render_manim_scene_static, i, segment,
                                 code, duration, self.config, self.work_dir,
                                 self.render_dir, self.window_size,
-                                self.manim_render_timeout, self.code_fix_round, self.mllm_check_round): i
+                                self.manim_render_timeout, self.code_fix_round,
+                                self.mllm_check_round): i
                 for i, segment, code, duration in tasks
             }
             for future in as_completed(futures):
@@ -73,17 +74,20 @@ class RenderManim(CodeAgent):
     @staticmethod
     def _render_manim_scene_static(i, segment, code, audio_duration, config,
                                    work_dir, render_dir, window_size,
-                                   manim_render_timeout, code_fix_round, mllm_check_round):
+                                   manim_render_timeout, code_fix_round,
+                                   mllm_check_round):
         """Static method for multiprocessing"""
         llm = LLM.from_config(config)
         return RenderManim._render_manim_impl(llm, i, segment, code,
                                               audio_duration, work_dir,
                                               render_dir, window_size,
-                                              manim_render_timeout, config, code_fix_round, mllm_check_round)
+                                              manim_render_timeout, config,
+                                              code_fix_round, mllm_check_round)
 
     @staticmethod
     def _render_manim_impl(llm, i, segment, code, audio_duration, work_dir,
-                           render_dir, window_size, manim_render_timeout, config, code_fix_round, mllm_check_round):
+                           render_dir, window_size, manim_render_timeout,
+                           config, code_fix_round, mllm_check_round):
         scene_name = f'Scene{i+1}'  # sometimes actual_scene_name cannot find matched class, so do not change this name
         logger.info(f'Rendering manim code for: scene_{i + 1}')
         output_dir = os.path.join(render_dir, f'scene_{i + 1}')
@@ -210,7 +214,9 @@ class RenderManim(CodeAgent):
             else:
                 if cur_check_round >= mllm_max_check_round:
                     break
-                output_text = RenderManim.check_manim_quality(final_file_path, work_dir, i, config, segment, cur_check_round)
+                output_text = RenderManim.check_manim_quality(
+                    final_file_path, work_dir, i, config, segment,
+                    cur_check_round)
                 cur_check_round += 1
                 if output_text:
                     try:
@@ -218,7 +224,9 @@ class RenderManim(CodeAgent):
                         final_file_path = None
                     except OSError:
                         pass
-                    logger.info(f'Trying to fix manim code of segment {i+1}, because model checking not passed: \n{output_text}')
+                    logger.info(
+                        f'Trying to fix manim code of segment {i+1}, because model checking not passed: \n{output_text}'
+                    )
                     code, fix_history = RenderManim._fix_manim_code_impl(
                         llm, output_text, fix_history, code, manim_requirement,
                         class_name, content, audio_duration)
@@ -226,7 +234,8 @@ class RenderManim(CodeAgent):
                 else:
                     break
         if final_file_path:
-            RenderManim._extract_preview_frames_static(final_file_path, i, work_dir, 'final')
+            RenderManim._extract_preview_frames_static(final_file_path, i,
+                                                       work_dir, 'final')
             manim_code_dir = os.path.join(work_dir, 'manim_code')
             manim_file = os.path.join(manim_code_dir, f'segment_{i + 1}.py')
             with open(manim_file, 'w') as f:
@@ -235,7 +244,8 @@ class RenderManim(CodeAgent):
             raise FileNotFoundError(final_file_path)
 
     @staticmethod
-    def check_manim_quality(final_file_path, work_dir, i, config, segment, cur_check_round):
+    def check_manim_quality(final_file_path, work_dir, i, config, segment,
+                            cur_check_round):
         _mm_config = DictConfig({
             'llm': {
                 'service': 'openai',
@@ -296,34 +306,38 @@ The right component is squeezed to the edge. Fix suggestion: Reduce the width of
 ```
 """
 
-        test_images = RenderManim._extract_preview_frames_static(final_file_path, i, work_dir, cur_check_round)
+        test_images = RenderManim._extract_preview_frames_static(
+            final_file_path, i, work_dir, cur_check_round)
         llm = LLM.from_config(_mm_config)
 
-        frame_names = ['the middle frame of the animation', 'the last frame of the animation']
+        frame_names = [
+            'the middle frame of the animation',
+            'the last frame of the animation'
+        ]
         content = segment['content']
         manim_requirement = segment['manim']
 
         all_issues = []
-        for idx, (image_path, frame_name) in enumerate(zip(test_images, frame_names)):
+        for idx, (image_path,
+                  frame_name) in enumerate(zip(test_images, frame_names)):
             with open(image_path, 'rb') as image_file:
                 image_data = image_file.read()
                 base64_image = base64.b64encode(image_data).decode('utf-8')
 
-            _content = [
-                {
-                    "type": "text",
-                    "text": (f"The current frame is: {frame_name}, the content of this animation: {content}, "
-                            f"the manim animation requirement: {manim_requirement}, "
-                            f"you must carefully check the animation layout issues.")
-                },
-                {
-                    "type": "image_url",
-                    "image_url": {
-                        "url": f"data:image/png;base64,{base64_image}",
-                        "detail": "high"
-                    }
+            _content = [{
+                'type':
+                'text',
+                'text':
+                (f'The current frame is: {frame_name}, the content of this animation: {content}, '
+                 f'the manim animation requirement: {manim_requirement}, '
+                 f'you must carefully check the animation layout issues.')
+            }, {
+                'type': 'image_url',
+                'image_url': {
+                    'url': f'data:image/png;base64,{base64_image}',
+                    'detail': 'high'
                 }
-            ]
+            }]
 
             messages = [
                 Message(role='system', content=test_system),
@@ -350,22 +364,20 @@ The right component is squeezed to the edge. Fix suggestion: Reduce the width of
                 issues = f'Current is the {frame_name}, problem checked by a MLLM: {issues}, frame description: {desc}'
             all_issues.append(issues)
 
-        all_issues =  '\n'.join(all_issues).strip()
+        all_issues = '\n'.join(all_issues).strip()
         return all_issues
 
     @staticmethod
-    def _extract_preview_frames_static(video_path, segment_id, work_dir, cur_check_round):
+    def _extract_preview_frames_static(video_path, segment_id, work_dir,
+                                       cur_check_round):
         from moviepy import VideoFileClip
-        
+
         test_dir = os.path.join(work_dir, 'manim_test')
         os.makedirs(test_dir, exist_ok=True)
         video = VideoFileClip(video_path)
         duration = video.duration
 
-        timestamps = {
-            1: duration / 2,
-            2: max(0, duration - 0.5)
-        }
+        timestamps = {1: duration / 2, 2: max(0, duration - 0.5)}
 
         preview_paths = []
         for frame_idx, timestamp in timestamps.items():
@@ -435,7 +447,7 @@ Manim instructions:
 • Key information highlighted
 • Reasonable use of space
 • Maintain visual balance
-• LLMs excel at animation complexity, not layout complexity. 
+• LLMs excel at animation complexity, not layout complexity.
     - Use multiple storyboard scenes rather than adding more elements to one animation to avoid layout problems
     - For animations with many elements, consider layout carefully. For instance, arrange elements horizontally given the canvas's wider width
     - With four or more horizontal elements, put summary text or similar content at the canvas bottom, this will effectively reduce the cutting off and overlap problems

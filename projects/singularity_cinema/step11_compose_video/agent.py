@@ -21,7 +21,8 @@ class ComposeVideo(CodeAgent):
                  **kwargs):
         super().__init__(config, tag, trust_remote_code, **kwargs)
         self.work_dir = getattr(self.config, 'output_dir', 'output')
-        self.transition = getattr(self.config.text2image, 't2i_transition', None)
+        self.transition = getattr(self.config.text2image, 't2i_transition',
+                                  None)
         self.bg_path = os.path.join(self.work_dir, 'background.jpg')
         self.render_dir = os.path.join(self.work_dir, 'manim_render')
         self.tts_dir = os.path.join(self.work_dir, 'audio')
@@ -109,13 +110,15 @@ class ComposeVideo(CodeAgent):
                     bg_new_w += 1
                 if bg_new_h % 2 != 0:
                     bg_new_h += 1
-                    
+
                 # Ensure dimensions are positive
                 if bg_new_w <= 0 or bg_new_h <= 0:
-                    logger.error(f'Invalid scaled dimensions: {bg_new_w}x{bg_new_h}')
+                    logger.error(
+                        f'Invalid scaled dimensions: {bg_new_w}x{bg_new_h}')
                     continue
 
-                illustration_clip = illustration_clip.resized((bg_new_w, bg_new_h))
+                illustration_clip = illustration_clip.resized(
+                    (bg_new_w, bg_new_h))
 
                 exit_duration = 1.0
                 start_animation_time = max(duration - exit_duration, 0)
