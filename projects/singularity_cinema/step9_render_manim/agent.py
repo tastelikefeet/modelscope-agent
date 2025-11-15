@@ -5,6 +5,7 @@ import re
 import shutil
 import subprocess
 from concurrent.futures import ThreadPoolExecutor, as_completed
+from copy import deepcopy
 from typing import List, Union
 
 import json
@@ -248,17 +249,8 @@ class RenderManim(CodeAgent):
     @staticmethod
     def check_manim_quality(final_file_path, work_dir, i, config, segment,
                             cur_check_round):
-        _mm_config = DictConfig({
-            'llm': {
-                'service': 'openai',
-                'model': config.manim_auto_test.manim_test_model,
-                'openai_api_key': config.manim_auto_test.manim_test_api_key,
-                'openai_base_url': config.manim_auto_test.manim_test_base_url,
-            },
-            'generation_config': {
-                'temperature': 0.3
-            }
-        })
+        _mm_config = deepcopy(config)
+        _mm_config.llm = _mm_config.mllm
         test_system = """**Role Definition**
 You are a Manim animation layout inspection expert, responsible for checking layout issues in animation frames.
 
