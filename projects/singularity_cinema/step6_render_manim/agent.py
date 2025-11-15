@@ -32,6 +32,8 @@ class RenderManim(CodeAgent):
         self.manim_render_timeout = getattr(self.config,
                                             'manim_render_timeout', 300)
         self.render_dir = os.path.join(self.work_dir, 'manim_render')
+        self.code_fix_round = getattr(self.config, 'code_fix_round', 5)
+        self.mllm_check_round = getattr(self.config, 'mllm_fix_round', 1)
         os.makedirs(self.render_dir, exist_ok=True)
 
     async def execute_code(self, messages: Union[str, List[Message]],
@@ -60,7 +62,7 @@ class RenderManim(CodeAgent):
                 executor.submit(self._render_manim_scene_static, i, segment,
                                 code, duration, self.config, self.work_dir,
                                 self.render_dir, self.window_size,
-                                self.manim_render_timeout): i
+                                self.manim_render_timeout, self.code_fix_round, self.mllm_check_round): i
                 for i, segment, code, duration in tasks
             }
             for future in as_completed(futures):
@@ -71,17 +73,17 @@ class RenderManim(CodeAgent):
     @staticmethod
     def _render_manim_scene_static(i, segment, code, audio_duration, config,
                                    work_dir, render_dir, window_size,
-                                   manim_render_timeout):
+                                   manim_render_timeout, code_fix_round, mllm_check_round):
         """Static method for multiprocessing"""
         llm = LLM.from_config(config)
         return RenderManim._render_manim_impl(llm, i, segment, code,
                                               audio_duration, work_dir,
                                               render_dir, window_size,
-                                              manim_render_timeout, config)
+                                              manim_render_timeout, config, code_fix_round, mllm_check_round)
 
     @staticmethod
     def _render_manim_impl(llm, i, segment, code, audio_duration, work_dir,
-                           render_dir, window_size, manim_render_timeout, config):
+                           render_dir, window_size, manim_render_timeout, config, code_fix_round, mllm_check_round):
         scene_name = f'Scene{i+1}'  # sometimes actual_scene_name cannot find matched class, so do not change this name
         logger.info(f'Rendering manim code for: scene_{i + 1}')
         output_dir = os.path.join(render_dir, f'scene_{i + 1}')
@@ -100,9 +102,9 @@ class RenderManim(CodeAgent):
             return output_path
         logger.info(f'Rendering scene {actual_scene_name}')
         fix_history = ''
-        mllm_max_check_round = 3
+        mllm_max_check_round = mllm_check_round
         cur_check_round = 0
-        for retry_idx in range(10):
+        for retry_idx in range(code_fix_round):
             with open(code_file, 'w') as f:
                 f.write(code)
 
@@ -209,7 +211,6 @@ class RenderManim(CodeAgent):
                 if cur_check_round >= mllm_max_check_round:
                     break
                 output_text = RenderManim.check_manim_quality(final_file_path, work_dir, i, config, segment, cur_check_round)
-                # output_text = RenderManim.generate_fix_prompts(llm, output_text, code, segment)
                 cur_check_round += 1
                 if output_text:
                     try:
@@ -226,76 +227,12 @@ class RenderManim(CodeAgent):
                     break
         if final_file_path:
             RenderManim._extract_preview_frames_static(final_file_path, i, work_dir, 'final')
-            # manim_code_dir = os.path.join(work_dir, 'manim_code')
-            # manim_file = os.path.join(manim_code_dir, f'segment_{i + 1}.py')
-            # with open(manim_file, 'w') as f:
-            #     f.write(code)
+            manim_code_dir = os.path.join(work_dir, 'manim_code')
+            manim_file = os.path.join(manim_code_dir, f'segment_{i + 1}.py')
+            with open(manim_file, 'w') as f:
+                f.write(code)
         else:
             raise FileNotFoundError(final_file_path)
-
-    @staticmethod
-    def generate_fix_prompts(llm, output_text, code, segment):
-        system = """You are an assistant responsible for helping resolve multi-modal LLM feedback issues in short video generation. Your role is to identify whether these issues exist and generate the correct code fix prompts.
-
-You are an assistant responsible for helping resolve human feedback issues in short video generation. Your role is to identify which workflow step the reported problem occurs in based on human feedback, and appropriately delete configuration files of prerequisite tasks to trigger task re-execution.
-
-Workflow Overview:
-First, there is a root directory folder for storing all files. All files described below and all your tool commands are based on this root directory. You don't need to worry about the root directory location; just focus on relative directories.
-
-Steps related to you:
-
-- Generate basic script based on user requirements
-
-Output: script file script.txt, original requirements file topic.txt, video title file title.txt
-
-- Segment design based on script
-
-Output: segments.txt, describing a list of shots including narration, background image generation requirements, and foreground Manim animation requirements
-
-- Generate audio narration for segments
-
-- Generate Manim animation code based on audio duration
-
-Output: list of Manim code files manim_code/segment_N.py, where N is the segment number starting from 1
-
-- Render Manim code
-
-Output: list of manim_render/scene_N folders. If segments.txt contains Manim requirements for a certain step, the corresponding folder will have a manim.mov file
-
-- Generate text-to-image prompts, images, and other materials
-
-- Compose final video
-
-- Your work is in step 5. An MLLM is used to analyze the layout problems, but they are not accurate. You need to check the issues and code files and give your fix prompts as accurately as possible.
-
-- The MLLM model may give incorrect feedbacks, you need to check the code and ignore problems that meet this condition, stand with your code if you insist you are right!
-
-- You need to trust your code if you believe the issue is a false positive
-
-Now begin:"""
-
-        content = segment['content']
-        manim_requirement = segment['manim']
-        query = f"""Manim origin requirements:
-- Content: {content}
-- Requirement from the storyboard designer: {manim_requirement}
-- Code language: **Python**
-
-Feedbacks from the MLLM: {output_text}
-
-Current Code: {code}
-
-Wrap your fix prompts with <result>...</result>, if no need to fix, leave an empty content <result></result>.
-
-Now generate your fix prompts:
-"""
-        inputs = [Message(role='system', content=system), Message(role='user', content=query)]
-        response = llm.generate(inputs)
-        pattern = r'<result>(.*?)</result>'
-        issues = []
-        for issue in re.findall(pattern, response.content, re.DOTALL):
-            issues.append(issue)
-        return '\n'.join(issues).strip()
 
     @staticmethod
     def check_manim_quality(final_file_path, work_dir, i, config, segment, cur_check_round):
@@ -310,51 +247,51 @@ Now generate your fix prompts:
                 'temperature': 0.3
             }
         })
-        test_system = """
-**角色定位**
-你是Manim动画布局检查专家，负责检查动画帧中的布局问题。
+        test_system = """**Role Definition**
+You are a Manim animation layout inspection expert, responsible for checking layout issues in animation frames.
 
-**背景信息**
-- 你收到的图片是Manim渲染的视频帧（中间帧或最终帧）
-- 视频尺寸：1920×1080，可用渲染区域：1400×700
+**Background Information**
+- The images you receive are video frames rendered by Manim (intermediate frames or final frames)
+- Video dimensions: 1920×1080, available rendering area: 1400×700
 
-**检查重点**
+**Inspection Focus**
 
-**必须报告的严重问题：**
-1. 组件或文本重叠
-2. 组件或文本被边缘裁切（哪怕轻微裁切）
-3. 父子组件不一致（子元素超出父容器边界）
-4. 图表元素错位（饼图中心偏移、柱状图/折线图位置错误）
+**Critical issues that must be reported:**
+1. Component or text overlap
+2. Components or text being cropped by edges (even slight cropping)
+3. Pay extra attention to components at canvas edges, especially whether title components are being cut off
+4. Parent-child component inconsistency (child elements exceeding parent container boundaries)
+5. Chart element misalignment (pie chart center offset, incorrect bar chart/line chart positioning)
 
-**需要报告的次要问题：**
-1. 功能相同的组件未对齐
-2. 连接线起点/终点错误、箭头方向错误、线条与组件重叠
+**Secondary issues that should be reported:**
+1. Components with the same function not aligned
+2. Connection line start/end point errors, incorrect arrow direction, lines overlapping with components
 
-**检查规则**
-- 中间帧：只关注重叠问题，忽略不完整组件
-- 最终帧：检查所有上述问题
-- 忽略：美学问题、因动画过程导致的临时不合理位置
+**Inspection Rules**
+- Intermediate frames: Focus only on overlap and edge cropping issues, ignore incomplete components
+- Final frames: Check all the above issues
+- Ignore: Aesthetic issues, temporary unreasonable positions caused by animation processes
 
-**输出格式**
+**Output Format**
 
 ```
 <description>
-详细描述图片内容，包括所有组件的位置及其与边缘、其他组件的距离
+Detailed description of the image content, including the positions of all components and their distances from edges and other components
 </description>
 
 <result>
-列出发现的问题及修复建议。如无问题则留空。
+List discovered issues and fix suggestions. Leave empty if no issues found.
 </result>
 ```
 
-**示例：**
+**Example:**
 ```
 <description>
-图中有四个方形组件，第一个组件距离左侧约...
+There are four square components in the image. The first component is approximately... from the left edge...
 </description>
 
 <result>
-右侧组件被挤压到边缘。修复建议：缩小左侧四个组件宽度，右移右侧组件...
+The right component is squeezed to the edge. Fix suggestion: Reduce the width of the four left components, move the right component further right...
 </result>
 ```
 """
@@ -521,14 +458,13 @@ Manim instructions:
 • Don't use light yellow, light blue, etc., as this will make the animation look superficial.
 • Consider more colors like white, black, dark blue, dark purple, dark orange, etc. DO NOT use grey color, it's not easy to read
 
-- Please focus on solving the detected issues
-- If you find other issues, fix them too
-- Check any element does not match the instructions above
-- Keep the good parts, do minimum changes, only fix problematic areas
-- Ensure that the components do not overlap or get cut off by the edges
-- Ensure no new layout issues are introduced
-- If some issues are difficult to solve, prioritize the most impactful ones
-- There may be some beginner's error because the code was generated by an AI model
+Fixing detected issues, plus any other problems you find. Verify:
+• All elements follow instructions
+• No overlapping or edge cutoff
+• No new layout issues introduced
+• Prioritize high-impact fixes if needed
+• Watch for AI-generated code errors
+• If the problem is hard to solve, rewrite the code
 
 Please precisely fix the detected issues while maintaining the richness and creativity of the animation.
 """ # noqa
