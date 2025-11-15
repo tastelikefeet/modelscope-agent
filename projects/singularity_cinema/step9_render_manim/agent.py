@@ -6,6 +6,7 @@ import shutil
 import subprocess
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from copy import deepcopy
+from os import getcwd
 from typing import List, Union
 
 import json
@@ -123,13 +124,14 @@ class RenderManim(CodeAgent):
             cmd = [
                 'manim', 'render', '-ql', '--transparent', '--format=mov',
                 f'--resolution={window_size_str}', '--disable_caching',
-                os.path.basename(code_file), actual_scene_name
+                f'--media_dir={os.path.dirname(code_file)}',
+                code_file, actual_scene_name
             ]
 
             try:
                 process = subprocess.Popen(
                     cmd,
-                    cwd=output_dir,
+                    cwd=getcwd(),
                     stdout=subprocess.PIPE,
                     stderr=subprocess.PIPE,
                     text=True,
