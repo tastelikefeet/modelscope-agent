@@ -116,7 +116,7 @@ class GenerateManimCode(CodeAgent):
 Manim requests may include image usage. which will be described in the manim request
 - You'll receive an actual image list with three fields per image: filename, size, and description
 - Match the image descriptions from the Manim request with the image list descriptions, then use the corresponding filename in your Manim code
-- Pay attention to the size field, write Manim code that respects the image's aspect ratio
+- Pay attention to the size field, write Manim code that respects the image's aspect ratio, size it if it's too big
 - If the Manim request doesn't require images, ignore the provided image list
 - Here is the image files list:
 

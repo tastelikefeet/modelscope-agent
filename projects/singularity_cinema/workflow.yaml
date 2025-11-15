@@ -60,7 +60,7 @@ render_manim:
     kwargs:
       code_file: step9_render_manim/agent.py
   next:
-    - generate_illustration_prompts
+    - generate_subtitle
 
 generate_subtitle:
   agent:

@@ -116,7 +116,7 @@ class GenerateImages(CodeAgent):
         work_dir = getattr(config, 'output_dir', 'output')
         illustration_prompts_dir = os.path.join(work_dir,
                                                 'illustration_prompts')
-        for idx in enumerate(foreground):
+        for idx, _req in enumerate(foreground):
             foreground_image = os.path.join(images_dir, f'illustration_{i + 1}_foreground_{idx + 1}.png')
             if os.path.exists(foreground_image):
                 continue

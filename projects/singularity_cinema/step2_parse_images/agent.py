@@ -29,9 +29,13 @@ class ParseImages(CodeAgent):
         super().__init__(config, tag, trust_remote_code, **kwargs)
         self.work_dir = getattr(self.config, 'output_dir', 'output')
         _config = deepcopy(config)
-        _config.llm = _config.mllm
+        delattr(_config, 'llm')
+        _config.llm = DictConfig({})
+        for key, value in _config.mllm.items():
+            key = key[len('mllm_'):]
+            setattr(_config.llm, key, value)
         self.mllm: OpenAI = LLM.from_config(_config)
-        self.image_dir = os.path.join(self.work_dir, 'foreground_images')
+        self.image_dir = os.path.join(self.work_dir, 'images')
         os.makedirs(self.image_dir, exist_ok=True)
 
     async def execute_code(self, messages, **kwargs):

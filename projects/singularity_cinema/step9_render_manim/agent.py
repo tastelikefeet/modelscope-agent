@@ -35,8 +35,6 @@ class RenderManim(CodeAgent):
         self.render_dir = os.path.join(self.work_dir, 'manim_render')
         self.code_fix_round = getattr(self.config, 'code_fix_round', 5)
         self.mllm_check_round = getattr(self.config, 'mllm_fix_round', 1)
-        if not self.config.manim_auto_test.manim_test_api_key:
-            self.mllm_check_round = 0
         os.makedirs(self.render_dir, exist_ok=True)
 
     async def execute_code(self, messages: Union[str, List[Message]],
@@ -250,7 +248,13 @@ class RenderManim(CodeAgent):
     def check_manim_quality(final_file_path, work_dir, i, config, segment,
                             cur_check_round):
         _mm_config = deepcopy(config)
-        _mm_config.llm = _mm_config.mllm
+        _mm_config = deepcopy(config)
+        delattr(_mm_config, 'llm')
+        _mm_config.llm = DictConfig({})
+        for key, value in _mm_config.mllm.items():
+            key = key[len('mllm_'):]
+            setattr(_mm_config.llm, key, value)
+
         test_system = """**Role Definition**
 You are a Manim animation layout inspection expert, responsible for checking layout issues in animation frames.
 
