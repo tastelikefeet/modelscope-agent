@@ -82,7 +82,7 @@ class GenerateManimCode(CodeAgent):
                 foreground_image = os.path.join(self.images_dir, f'illustration_{i + 1}_foreground_{idx + 1}.png')
                 size = self.get_image_size(foreground_image)
                 image_info = {
-                    'filename': foreground_image,
+                    'filename': os.path.relpath(foreground_image, self.work_dir),
                     'size': size,
                     'description': _req,
                 }
