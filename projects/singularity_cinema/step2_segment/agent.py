@@ -31,7 +31,7 @@ class Segment(LLMAgent):
     * Estimate the reading duration of this storyboard panel to estimate the duration of the manim animation. The actual duration will be completely determined in the next step of voice generation
     * The video resolution is around 1920*1080, 200-pixel margin on all four sides for title and subtitle, so manim can use center (1400, 700). 
     * Use thicker lines to emphasis elements
-    * Use smaller font size in Manim animations to prevent text from going beyond the canvas 
+    * Use smaller font size and smaller elements in Manim animations to prevent from going beyond the canvas 
     * LLMs excel at animation complexity, not layout complexity. 
         - Use multiple storyboard scenes rather than adding more elements to one animation to avoid layout problems
         - For animations with many elements, consider layout carefully. For instance, arrange elements horizontally given the canvas's wider width

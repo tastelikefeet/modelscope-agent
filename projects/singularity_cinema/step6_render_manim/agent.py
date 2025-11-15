@@ -427,7 +427,7 @@ Now generate your fix prompts:
 
         timestamps = {
             1: duration / 2,
-            2: max(0, duration - 0.2)
+            2: max(0, duration - 0.5)
         }
 
         preview_paths = []
