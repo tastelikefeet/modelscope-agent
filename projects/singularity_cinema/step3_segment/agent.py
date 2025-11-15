@@ -163,7 +163,11 @@ Now begin:""" # noqa
             manim_req = segment.get('manim')
             foreground = segment.get('foreground', [])
             foreground_name = segment.get('foreground_name', [])
-            assert len(foreground) == len(foreground_name)
+            if len(foreground) < len(foreground_name):
+                foreground_name = foreground_name[:len(foreground)]
+            if len(foreground) > len(foreground_name):
+                foreground_name.extend(['placeholder.png'] * (len(foreground) - len(foreground_name)))
+
             new_foreground_name = []
             for idx, image_name in enumerate(foreground_name):
                 actual_name = os.path.join(self.images_dir, f'illustration_{i + 1}_foreground_{idx + 1}.png')
