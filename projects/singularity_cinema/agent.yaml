@@ -80,7 +80,7 @@ video:
   fps: 24
 
 manim_auto_test:
-  manim_test_model: qwen3-vl-plus
+  manim_test_model: gemini-2.5-flash-thinking
   manim_test_api_key:
   manim_test_base_url: https://dashscope.aliyuncs.com/compatible-mode/v1
 
