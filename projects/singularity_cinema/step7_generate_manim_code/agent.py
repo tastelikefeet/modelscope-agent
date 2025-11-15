@@ -36,8 +36,6 @@ class GenerateManimCode(CodeAgent):
         logger.info('Generating manim code.')
 
         tasks = []
-        images_info = self.get_all_images_info(segments)
-        images_info = json.dumps(images_info, indent=4, ensure_ascii=False)
         for i, (segment, audio_info) in enumerate(zip(segments, audio_infos)):
             manim_requirement = segment.get('manim')
             if manim_requirement is not None:
@@ -48,7 +46,7 @@ class GenerateManimCode(CodeAgent):
         with ThreadPoolExecutor(max_workers=self.num_parallel) as executor:
             futures = {
                 executor.submit(self._generate_manim_code_static, seg, dur,
-                                idx, self.config, images_info): idx
+                                idx, self.config, self.images_dir): idx
                 for seg, dur, idx in tasks
             }
             for future in as_completed(futures):
@@ -63,31 +61,32 @@ class GenerateManimCode(CodeAgent):
         return messages
 
     @staticmethod
-    def _generate_manim_code_static(segment, audio_duration, i, config, images_info):
+    def _generate_manim_code_static(segment, audio_duration, i, config, image_dir):
         """Static method for multiprocessing"""
         llm = LLM.from_config(config)
         return GenerateManimCode._generate_manim_impl(llm, segment,
-                                                      audio_duration, i, images_info)
+                                                      audio_duration, i, image_dir)
 
     @staticmethod
     def get_image_size(filename):
         with Image.open(filename) as img:
             return f"{img.width}x{img.height}"
 
-    def get_all_images_info(self, segments):
+    @staticmethod
+    def get_all_images_info(segment, i, image_dir):
         all_images_info = []
-        for i, segment in enumerate(segments):
-            foreground = segment.get('foreground')
-            for idx, _req in enumerate(foreground):
-                foreground_image = os.path.join(self.images_dir, f'illustration_{i + 1}_foreground_{idx + 1}.png')
-                size = self.get_image_size(foreground_image)
-                image_info = {
-                    'filename': foreground_image,
-                    'size': size,
-                    'description': _req,
-                }
-                all_images_info.append(image_info)
-        image_info_file = os.path.join(self.work_dir, 'image_info.txt')
+        foreground = segment.get('foreground')
+        for idx, _req in enumerate(foreground):
+            foreground_image = os.path.join(image_dir, f'illustration_{i + 1}_foreground_{idx + 1}.png')
+            size = GenerateManimCode.get_image_size(foreground_image)
+            image_info = {
+                'filename': foreground_image,
+                'size': size,
+                'description': _req,
+            }
+            all_images_info.append(image_info)
+
+        image_info_file = os.path.join(os.path.dirname(image_dir), 'image_info.txt')
         if os.path.exists(image_info_file):
             with open(image_info_file, 'r') as f:
                 for line in f.readlines():
@@ -97,10 +96,12 @@ class GenerateManimCode(CodeAgent):
         return all_images_info
 
     @staticmethod
-    def _generate_manim_impl(llm, segment, audio_duration, i, images_info):
+    def _generate_manim_impl(llm, segment, audio_duration, i, image_dir):
         class_name = f'Scene{i + 1}'
         content = segment['content']
         manim_requirement = segment['manim']
+        images_info = GenerateManimCode.get_all_images_info(segment, i, image_dir)
+        images_info = json.dumps(images_info, indent=4, ensure_ascii=False)
 
         prompt = f"""You are a professional Manim animation expert, creating clear and beautiful educational animations.
 
@@ -117,8 +118,7 @@ Manim requests may include image usage. which will be described in the manim req
 - You'll receive an actual image list with three fields per image: filename, size, and description
 - Match the image descriptions from the Manim request with the image list descriptions, then use the corresponding filename in your Manim code
 - Pay attention to the size field, write Manim code that respects the image's aspect ratio, size it if it's too big
-- If the Manim request doesn't require images, ignore the provided image list
-- Here is the image files list:
+- If images files is not empty, use them as the manim requirement ordered. Here is the image files list:
 
 {images_info}
 

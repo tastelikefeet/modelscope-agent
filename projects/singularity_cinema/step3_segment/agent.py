@@ -23,13 +23,13 @@ class Segment(LLMAgent):
     * Manim animation may contain one or more images, these images come from user's documentation, or a powerful text-to-image model (same way with the generated background images)
 
 - If the user's documentation contains any images, the information will be given to you:
-    * The image information will include content description, size(width*height)
-    * Select useful images and reference them in manim requirements, and specify their usage in manim
+    * The image information will include content description, size(width*height) and filename
+    * Select useful images and reference the filename in the `user_image` field, and also specify the filename in manim requirements
 
 - User-provided images may be insufficient. Trust text-to-image models to generate additional images for more visually compelling videos
-    * Output image generation requirements, reference them in manim requirements, and specify their usage in manim
-    * Reference both user-provided and generated images identically in manim. Just describe which image to use where. File paths, sizes, and full descriptions will be separately provided to the model generating manim animation
-    * Consider the size, the ratio of image size will affect your layout. Sizes of images in user docs will be given to you. Besides, all generated images are square
+    * Output image generation requirements and the generated filenames(with .png format) in `foreground` and `foreground_image` fields, this make them have the same length
+    * Reference these file names in manim requirements, for both user offered images and generated images
+    * Consider the size, the ratio of image size will affect your layout. Sizes of images in user docs will be given to you. All generated images are square
 
 - Each of your storyboard panels should take about 5 seconds to 10 seconds to read at normal speaking speed. Avoid the feeling of frequent switching and static
     * If a storyboard panel has no manim animation, it should not exceed 5s
@@ -67,9 +67,17 @@ An example:
         "index": 1, # index of the segment, start from 1
         "content": "Now let's explain...",
         "background": "An image describe... color ... (your detailed requirements here)",
-        "manim": "The animation should ..., use an image describe... to, use an image describe... to...",
+        "manim": "The animation should ..., use user_image_1.png to, use generated-image-name-1.png to..., generate components to ...",
+        "user_image": [
+            "user_image1.jpg",
+            "user_image2.jpg"
+        ]
         "foreground": [
             "An image describe... color ... (your detailed requirements here)",
+            ...
+        ],
+        "foreground_name": [
+            "generated-image-name-1.png",
             ...
         ],
     },
@@ -89,8 +97,6 @@ An example of image structures given to the manim LLM:
 ]
 ```
 
-This is the way of mapping your design and the manim LLM.
-
 Now begin:""" # noqa
 
     def __init__(self,
@@ -107,6 +113,7 @@ Now begin:""" # noqa
         })
         super().__init__(config, tag, trust_remote_code, **kwargs)
         self.work_dir = getattr(self.config, 'output_dir', 'output')
+        self.images_dir = os.path.join(self.work_dir, 'images')
 
     async def create_messages(self, messages):
         assert isinstance(messages, str)
@@ -122,8 +129,27 @@ Now begin:""" # noqa
             script = f.read()
         with open(os.path.join(self.work_dir, 'topic.txt'), 'r') as f:
             topic = f.read()
+
+        new_image_info = 'No images offered.'
+        name_mapping = {}
+        if os.path.exists(os.path.join(self.work_dir, 'image_info.txt')):
+            with open(os.path.join(self.work_dir, 'image_info.txt'), 'r') as f:
+                image_info = f.readlines()
+
+            image_info = [image.strip() for image in image_info if image.strip()]
+            for i, info in enumerate(image_info):
+                info = json.loads(info)
+                filename = info['filename']
+                new_filename = f'user_image_{i}.png'
+                name_mapping[new_filename] = filename
+                info['filename'] = new_filename
+
+            new_image_info = json.dumps(image_info, ensure_ascii=False)
+
         query = (
-            f'Original topic: \n\n{topic}\n\n，original script：\n\n{script}\n\n'
+            f'Original topic: \n\n{topic}\n\n'
+            f'Original script：\n\n{script}\n\n'
+            f'User offered images: \n\n{new_image_info}\n\n'
             f'Please finish your animation storyboard design:\n')
         messages = await super().run(query, **kwargs)
         response = messages[-1].content
@@ -132,6 +158,23 @@ Now begin:""" # noqa
         elif '```' in response:
             response = response.split('```')[1].split('```')[0]
         segments = json.loads(response)
+        for i, segment in enumerate(segments):
+            manim_req = segment.get('manim')
+            foreground = segment.get('foreground', [])
+            foreground_name = segment.get('foreground_name', [])
+            assert len(foreground) == len(foreground_name)
+            new_foreground_name = []
+            for idx, image_name in enumerate(foreground_name):
+                actual_name = os.path.join(self.images_dir, f'illustration_{i + 1}_foreground_{idx + 1}.png')
+                name_mapping[image_name] = actual_name
+                new_foreground_name.append(actual_name)
+            if new_foreground_name:
+                segment['foreground_name'] = new_foreground_name
+            for fake_name, actual_name in name_mapping.items():
+                manim_req = manim_req.replace(fake_name, actual_name)
+            if manim_req:
+                segment['manim'] = manim_req
+
         for i, segment in enumerate(segments):
             assert 'content' in segment
             assert 'background' in segment
