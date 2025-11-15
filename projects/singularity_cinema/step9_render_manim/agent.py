@@ -248,9 +248,9 @@ class RenderManim(CodeAgent):
     def check_manim_quality(final_file_path, work_dir, i, config, segment,
                             cur_check_round):
         _mm_config = deepcopy(config)
-        _mm_config = deepcopy(config)
         delattr(_mm_config, 'llm')
         _mm_config.llm = DictConfig({})
+        _mm_config.generation_config = DictConfig({'temperature': 0.3})
         for key, value in _mm_config.mllm.items():
             key = key[len('mllm_'):]
             setattr(_mm_config.llm, key, value)
