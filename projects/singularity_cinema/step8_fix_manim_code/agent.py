@@ -116,7 +116,7 @@ class FixManimCode(CodeAgent):
 - The code may contain images & image effects, such as glowing or frames - **don't remove them when making modifications**
 
 Please precisely fix the detected issues while maintaining the richness and creativity of the animation.
-"""
+""" # noqa
         inputs = [Message(role='user', content=fix_request)]
         _response_message = llm.generate(inputs)
         response = _response_message.content

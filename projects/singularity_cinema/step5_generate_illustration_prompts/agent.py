@@ -110,16 +110,19 @@ Only return the prompt itself, do not add any other explainations or marks."""  
         _response_message = llm.generate(inputs)
         response = _response_message.content
         prompt = response.strip()
-        with open(os.path.join(illustration_prompts_dir, f'segment_{i + 1}.txt'), 'w') as f:
+        with open(
+                os.path.join(illustration_prompts_dir, f'segment_{i + 1}.txt'),
+                'w') as f:
             f.write(prompt)
 
     @staticmethod
     def _generate_foreground_impl(llm, i, segment, system,
-                                    illustration_prompts_dir):
+                                  illustration_prompts_dir):
         foreground = segment['foreground']
         for idx, _req in enumerate(foreground):
             if os.path.exists(
-                    os.path.join(illustration_prompts_dir, f'segment_{i+1}_foreground_{idx+1}.txt')):
+                    os.path.join(illustration_prompts_dir,
+                                 f'segment_{i+1}_foreground_{idx+1}.txt')):
                 return
             manim_query = ''
             if segment.get('manim'):
@@ -130,7 +133,8 @@ Only return the prompt itself, do not add any other explainations or marks."""  
                      f'{manim_query}, '
                      f'Requirements from the storyboard designer: {_req}')
             logger.info(
-                f'Generating foreground_{idx} illustration prompt for : {segment["content"]}.')
+                f'Generating foreground_{idx} illustration prompt for : {segment["content"]}.'
+            )
             inputs = [
                 Message(role='system', content=system),
                 Message(role='user', content=query),
@@ -138,5 +142,8 @@ Only return the prompt itself, do not add any other explainations or marks."""  
             _response_message = llm.generate(inputs)
             response = _response_message.content
             prompt = response.strip()
-            with open(os.path.join(illustration_prompts_dir, f'segment_{i+1}_foreground_{idx+1}.txt'), 'w') as f:
+            with open(
+                    os.path.join(illustration_prompts_dir,
+                                 f'segment_{i+1}_foreground_{idx+1}.txt'),
+                    'w') as f:
                 f.write(prompt)

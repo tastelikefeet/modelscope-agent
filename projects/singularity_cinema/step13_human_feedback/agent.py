@@ -1,6 +1,5 @@
 # Copyright (c) Alibaba, Inc. and its affiliates.
 import json
-
 from ms_agent.agent import LLMAgent
 from ms_agent.llm import Message
 from ms_agent.tools import SplitTask
@@ -72,7 +71,7 @@ First, there is a root directory folder for storing all files. All files describ
     * memory: memory/compose_video.json memory/compose_video.yaml
     * Input: all file information from previous steps
     * Output: final_video.mp4
-"""
+""" # noqa
 
 
 class HumanFeedback(LLMAgent):
@@ -100,16 +99,11 @@ Requirements for you:
     * You need to consider fixing the problem with minimal changes to prevent major perceptual changes to the video
     * Try not to update segments (segments.txt), otherwise the entire video will be completely redone""" # noqa
 
-    spliter_system = f"""You are an assistant responsible for helping resolve human feedback issues in short video generation, 
+    spliter_system = f"""You are an assistant responsible for helping resolve human feedback issues in short video generation, your responsibility is to distinguish which storyboard segment these issues originate from, and return to me the list of problems and detailed descriptions that need to be addressed for the corresponding segment.
 
-Your responsibility is to distinguish which storyboard segment these issues originate from, 
-and return to me the list of problems and detailed descriptions that need to be addressed for the corresponding segment.
-    
 {workflow}
 
-Instructions:
-
-1. Read segments.txt and topic.txt and the files user ask you to read, no need to read other files, for example code files, later worker threads will read the code
+* Read segments.txt and topic.txt and the any file user ask you to read, no need to read other files.
 
 return format:
 
@@ -122,9 +116,7 @@ return format:
     ...
 ]
 ```
-
-
-"""
+""" # noqa
 
     def __init__(self,
                  config: DictConfig,
@@ -187,10 +179,13 @@ return format:
                 inputs = []
                 for segment in segments:
                     inputs.append({
-                        'system': self.system,
-                        'query': f'All issues happens in segment {segment["id"]}: {segment["issue"]}\n'
+                        'system':
+                        self.system,
+                        'query':
+                        f'All issues happens in segment {segment["id"]}: {segment["issue"]}\n'
                     })
-                await self.split_task.call_tool('', tool_name='', tool_args={'tasks': inputs})
+                await self.split_task.call_tool(
+                    '', tool_name='', tool_args={'tasks': inputs})
                 return messages
 
     def next_flow(self, idx: int) -> int:

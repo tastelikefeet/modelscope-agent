@@ -5,10 +5,10 @@ from typing import List, Union
 
 import json
 from ms_agent.agent import CodeAgent
-from PIL import Image
 from ms_agent.llm import LLM, Message
 from ms_agent.utils import get_logger
 from omegaconf import DictConfig
+from PIL import Image
 
 logger = get_logger()
 
@@ -61,23 +61,26 @@ class GenerateManimCode(CodeAgent):
         return messages
 
     @staticmethod
-    def _generate_manim_code_static(segment, audio_duration, i, config, image_dir):
+    def _generate_manim_code_static(segment, audio_duration, i, config,
+                                    image_dir):
         """Static method for multiprocessing"""
         llm = LLM.from_config(config)
         return GenerateManimCode._generate_manim_impl(llm, segment,
-                                                      audio_duration, i, image_dir)
+                                                      audio_duration, i,
+                                                      image_dir)
 
     @staticmethod
     def get_image_size(filename):
         with Image.open(filename) as img:
-            return f"{img.width}x{img.height}"
+            return f'{img.width}x{img.height}'
 
     @staticmethod
     def get_all_images_info(segment, i, image_dir):
         all_images_info = []
         foreground = segment.get('foreground', [])
         for idx, _req in enumerate(foreground):
-            foreground_image = os.path.join(image_dir, f'illustration_{i + 1}_foreground_{idx + 1}.png')
+            foreground_image = os.path.join(
+                image_dir, f'illustration_{i + 1}_foreground_{idx + 1}.png')
             size = GenerateManimCode.get_image_size(foreground_image)
             image_info = {
                 'filename': foreground_image,
@@ -86,7 +89,8 @@ class GenerateManimCode(CodeAgent):
             }
             all_images_info.append(image_info)
 
-        image_info_file = os.path.join(os.path.dirname(image_dir), 'image_info.txt')
+        image_info_file = os.path.join(
+            os.path.dirname(image_dir), 'image_info.txt')
         if os.path.exists(image_info_file):
             with open(image_info_file, 'r') as f:
                 for line in f.readlines():
@@ -102,7 +106,8 @@ class GenerateManimCode(CodeAgent):
         class_name = f'Scene{i + 1}'
         content = segment['content']
         manim_requirement = segment['manim']
-        images_info = GenerateManimCode.get_all_images_info(segment, i, image_dir)
+        images_info = GenerateManimCode.get_all_images_info(
+            segment, i, image_dir)
         if images_info:
             images_info = json.dumps(images_info, indent=4, ensure_ascii=False)
         else:

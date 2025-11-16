@@ -7,7 +7,6 @@ import subprocess
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from copy import deepcopy
 from os import getcwd
-from PIL import Image
 from typing import List, Union
 
 import json
@@ -16,6 +15,7 @@ from ms_agent.agent import CodeAgent
 from ms_agent.llm import LLM, Message
 from ms_agent.utils import get_logger
 from omegaconf import DictConfig
+from PIL import Image
 
 logger = get_logger()
 
@@ -125,8 +125,8 @@ class RenderManim(CodeAgent):
             cmd = [
                 'manim', 'render', '-ql', '--transparent', '--format=mov',
                 f'--resolution={window_size_str}', '--disable_caching',
-                f'--media_dir={os.path.dirname(code_file)}',
-                code_file, actual_scene_name
+                f'--media_dir={os.path.dirname(code_file)}', code_file,
+                actual_scene_name
             ]
 
             try:
@@ -188,7 +188,8 @@ class RenderManim(CodeAgent):
                     logger.info('Trying to fix manim code.')
                     code, fix_history = RenderManim._fix_manim_code_impl(
                         llm, output_text, fix_history, code, manim_requirement,
-                        class_name, content, audio_duration, segment, i, work_dir)
+                        class_name, content, audio_duration, segment, i,
+                        work_dir)
                     continue
 
             for root, dirs, files in os.walk(output_dir):
@@ -233,7 +234,8 @@ class RenderManim(CodeAgent):
                     )
                     code, fix_history = RenderManim._fix_manim_code_impl(
                         llm, output_text, fix_history, code, manim_requirement,
-                        class_name, content, audio_duration, segment, i, work_dir)
+                        class_name, content, audio_duration, segment, i,
+                        work_dir)
                     continue
                 else:
                     break
@@ -398,14 +400,15 @@ The right component is squeezed to the edge. Fix suggestion: Reduce the width of
     @staticmethod
     def get_image_size(filename):
         with Image.open(filename) as img:
-            return f"{img.width}x{img.height}"
+            return f'{img.width}x{img.height}'
 
     @staticmethod
     def get_all_images_info(segment, i, image_dir):
         all_images_info = []
         foreground = segment.get('foreground', [])
         for idx, _req in enumerate(foreground):
-            foreground_image = os.path.join(image_dir, f'illustration_{i + 1}_foreground_{idx + 1}.png')
+            foreground_image = os.path.join(
+                image_dir, f'illustration_{i + 1}_foreground_{idx + 1}.png')
             size = RenderManim.get_image_size(foreground_image)
             image_info = {
                 'filename': foreground_image,
@@ -414,7 +417,8 @@ The right component is squeezed to the edge. Fix suggestion: Reduce the width of
             }
             all_images_info.append(image_info)
 
-        image_info_file = os.path.join(os.path.dirname(image_dir), 'image_info.txt')
+        image_info_file = os.path.join(
+            os.path.dirname(image_dir), 'image_info.txt')
         if os.path.exists(image_info_file):
             with open(image_info_file, 'r') as f:
                 for line in f.readlines():
@@ -446,7 +450,7 @@ The right component is squeezed to the edge. Fix suggestion: Reduce the width of
 - Content: {content}
 - Duration: {audio_duration} seconds
 - Code language: **Python**
-- ImageInfo: 
+- ImageInfo:
 
 {images_info}
 
@@ -519,7 +523,7 @@ Fixing detected issues, plus any other problems you find. Verify:
 • Prioritize high-impact fixes if needed
 • Watch for AI-generated code errors
 • If the problem is hard to solve, rewrite the code
-• The code may contain images & image effects, such as glowing or frames 
+• The code may contain images & image effects, such as glowing or frames
     - **don't remove any image or its effects when making modifications**
 
 Please precisely fix the detected issues while maintaining the richness and creativity of the animation.

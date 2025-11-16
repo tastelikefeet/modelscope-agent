@@ -1,20 +1,19 @@
 # Copyright (c) Alibaba, Inc. and its affiliates.
 import base64
 import hashlib
-import json
 import os
 import re
 from concurrent.futures import ThreadPoolExecutor
 from copy import deepcopy
 from urllib.request import urlretrieve
 
-from PIL import Image
-from omegaconf import DictConfig
-
+import json
 from ms_agent.agent import CodeAgent
 from ms_agent.llm import LLM, Message
 from ms_agent.llm.openai_llm import OpenAI
 from ms_agent.utils import get_logger
+from omegaconf import DictConfig
+from PIL import Image
 
 logger = get_logger(__name__)
 
@@ -77,21 +76,21 @@ class ParseImages(CodeAgent):
     def parse_images(self, filename):
         with open(filename, 'r', encoding='utf-8') as f:
             content = f.read()
-        
+
         image_pattern = r'!\[.*?\]\((.*?)\)'
         urls = re.findall(image_pattern, content)
-        
+
         image_exts = {'.jpg', '.jpeg', '.png', '.gif', '.bmp', '.webp', '.svg'}
-        
+
         local_paths = []
         for url in urls:
             ext = os.path.splitext(url.split('?')[0])[1].lower()
             if ext not in image_exts:
                 continue
-                
+
             if url.startswith(('http://', 'https://')):
                 url_hash = hashlib.md5(url.encode()).hexdigest()[:8]
-                local_file = os.path.join(self.image_dir, f"{url_hash}{ext}")
+                local_file = os.path.join(self.image_dir, f'{url_hash}{ext}')
                 if not os.path.exists(local_file):
                     urlretrieve(url, local_file)
                 local_paths.append(local_file)
@@ -103,13 +102,13 @@ class ParseImages(CodeAgent):
                     url = os.path.join(path, url)
                     if os.path.isfile(url):
                         local_paths.append(url)
-        
+
         return local_paths
 
     @staticmethod
     def get_image_size(filename):
         with Image.open(filename) as img:
-            return f"{img.width}x{img.height}"
+            return f'{img.width}x{img.height}'
 
     def get_image_description(self, filename):
         with open(filename, 'rb') as image_file:
@@ -118,12 +117,13 @@ class ParseImages(CodeAgent):
 
         _content = [{
             'type':
-                'text',
+            'text',
             'text':
-                ('Describe this image in under 50 words. Be objective and accurate. For charts/graphs, '
-                 'analyze axis labels and data to explain what the chart shows and its purpose, '
-                 'not just the chart type. Provide enough detail to distinguish it from other images.'
-                 'Return only the requested image description. Do not add any other content.')
+            ('Describe this image in under 50 words. Be objective and accurate. For charts/graphs, '
+             'analyze axis labels and data to explain what the chart shows and its purpose, '
+             'not just the chart type. Provide enough detail to distinguish it from other images.'
+             'Return only the requested image description. Do not add any other content.'
+             )
         }, {
             'type': 'image_url',
             'image_url': {

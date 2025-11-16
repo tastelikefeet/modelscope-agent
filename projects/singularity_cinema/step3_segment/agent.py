@@ -1,9 +1,8 @@
 # Copyright (c) Alibaba, Inc. and its affiliates.
 import os
-
-import json
 from copy import deepcopy
 
+import json
 from ms_agent.agent import LLMAgent
 from ms_agent.llm import Message
 from ms_agent.utils import get_logger
@@ -47,7 +46,7 @@ class Segment(LLMAgent):
 
 - Review the requirements and any provided documents. Integrate their content, formulas, charts, and visuals into the script to refine the video's screenplay and animations.
     [CRITICAL]: The manim and image generation steps will not receive the original requirements and files. Supply very detail information for them, especially any data/points/formulas to prevent any mismatch with the original query and/or documentation
-    
+
 - Your return format is JSON format, no need to save file, later the json will be parsed out of the response body
 
 - You need to pay attention not to use Chinese quotation marks. Use [] to replace them, for example [attention]
@@ -96,10 +95,9 @@ Now begin:""" # noqa
         with open(os.path.join(self.work_dir, 'topic.txt'), 'r') as f:
             topic = f.read()
 
-        query = (
-            f'Original topic: \n\n{topic}\n\n'
-            f'Original script：\n\n{script}\n\n'
-            f'Please finish your animation storyboard design:\n')
+        query = (f'Original topic: \n\n{topic}\n\n'
+                 f'Original script：\n\n{script}\n\n'
+                 f'Please finish your animation storyboard design:\n')
         messages = await super().run(query, **kwargs)
         response = messages[-1].content
         if '```json' in response:
@@ -123,7 +121,7 @@ Now begin:""" # noqa
 
     async def add_images(self, segments, topic, script, **kwargs):
 
-        system = """你是一个动画短视频分镜辅助设计师。你的职责是协助分镜设计师为分镜添加前景图片。你会被一个给与一个分镜设计草案，和一些图片列表，该图片列表来自用户输入，可以自由挑选使用。
+        system = """You are an animated short video storyboard assistant designer. Your responsibility is to assist storyboard designers in adding foreground images to storyboards. You will be given a storyboard design draft and a list of images from user input that you can freely select and use.
 
 1. Manim animation may contain one or more images, these images come from user's documentation, or a powerful text-to-image model
     * If the user's documentation contains any images, the information will be given to you:
@@ -133,7 +131,7 @@ Now begin:""" # noqa
     * User-provided images may be insufficient. Trust text-to-image models to generate additional images for more visually compelling videos
         a. Output image generation requirements and the generated filenames(with .png format) in `foreground` field
         b. The shape of generated images are square
-    
+
 2. Modify the manim field of the corresponding storyboard. This field is used as guidance for subsequent manim animation generation. Modify this field so that the downstream manim generation model clearly understands how to use these images.
 
 3. The number of images used for each storyboard doesn't need to be the same, and images may not be used at all.
@@ -178,14 +176,16 @@ An example of image structures given to the manim LLM:
 ]
 
 Now begin:
-"""
+""" # noqa
         new_image_info = 'No images offered.'
         name_mapping = {}
         if os.path.exists(os.path.join(self.work_dir, 'image_info.txt')):
             with open(os.path.join(self.work_dir, 'image_info.txt'), 'r') as f:
                 image_info = f.readlines()
 
-            image_info = [image.strip() for image in image_info if image.strip()]
+            image_info = [
+                image.strip() for image in image_info if image.strip()
+            ]
             image_list = []
             for i, info in enumerate(image_info):
                 info = json.loads(info)
@@ -228,4 +228,3 @@ Now begin:
             segment.update(_segment)
 
         return segments
-
