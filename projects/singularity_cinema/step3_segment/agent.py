@@ -87,9 +87,11 @@ Now begin:""" # noqa
             Message(role='user', content=messages),
         ]
 
-    async def run(self, *args, **kwargs):
+    async def run(self, messages, **kwargs):
         logger.info('Segmenting script to sentences.')
         script = None
+        if os.path.exists(os.path.join(self.work_dir, 'segments.txt')):
+            return messages
         with open(os.path.join(self.work_dir, 'script.txt'), 'r') as f:
             script = f.read()
         with open(os.path.join(self.work_dir, 'topic.txt'), 'r') as f:
@@ -140,6 +142,7 @@ Manim animation may contain one or more images, these images come from user's do
 5. 仔细分析用户提供的图片信息，尽可能使用它们
 6. 减少注意力分散，你需要仅关心图片信息、manim两个字段，并生成manim、user_image、foreground三个字段
 7. 图片不宜过大，防止占满整个屏幕或大半个屏幕
+8. 重要: 考虑图片的展示尺寸，防止一个动画中出现太多元素无法布局
 
 一个例子：
 ```json
@@ -184,14 +187,16 @@ An example of image structures given to the manim LLM:
                 image_info = f.readlines()
 
             image_info = [image.strip() for image in image_info if image.strip()]
+            image_list = []
             for i, info in enumerate(image_info):
                 info = json.loads(info)
                 filename = info['filename']
                 new_filename = f'user_image_{i}.png'
                 name_mapping[new_filename] = filename
                 info['filename'] = new_filename
+                image_list.append(json.dumps(info, ensure_ascii=False))
 
-            new_image_info = json.dumps(image_info, ensure_ascii=False)
+            new_image_info = json.dumps(image_list, ensure_ascii=False)
 
         query = (
             f'Original topic: \n\n{topic}\n\n'

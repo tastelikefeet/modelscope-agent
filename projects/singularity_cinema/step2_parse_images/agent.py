@@ -34,6 +34,7 @@ class ParseImages(CodeAgent):
         for key, value in _config.mllm.items():
             key = key[len('mllm_'):]
             setattr(_config.llm, key, value)
+        _config.generation_config = DictConfig({'temperature': 0.3})
         self.mllm: OpenAI = LLM.from_config(_config)
         self.image_dir = os.path.join(self.work_dir, 'images')
         os.makedirs(self.image_dir, exist_ok=True)
@@ -51,8 +52,8 @@ class ParseImages(CodeAgent):
 
         docs = [doc.strip() for doc in docs if doc.strip()]
         image_files = []
-        for docs in docs:
-            image_files.extend(self.parse_images(docs))
+        for doc in docs:
+            image_files.extend(self.parse_images(doc))
 
         def process_image(image_file):
             size = self.get_image_size(image_file)
@@ -94,8 +95,14 @@ class ParseImages(CodeAgent):
                 if not os.path.exists(local_file):
                     urlretrieve(url, local_file)
                 local_paths.append(local_file)
-            elif os.path.isfile(url):
-                local_paths.append(url)
+            else:
+                if os.path.isfile(url):
+                    local_paths.append(url)
+                else:
+                    path = os.path.dirname(filename)
+                    url = os.path.join(path, url)
+                    if os.path.isfile(url):
+                        local_paths.append(url)
         
         return local_paths
 

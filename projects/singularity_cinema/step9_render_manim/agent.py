@@ -7,6 +7,7 @@ import subprocess
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from copy import deepcopy
 from os import getcwd
+from PIL import Image
 from typing import List, Union
 
 import json
@@ -164,7 +165,7 @@ class RenderManim(CodeAgent):
                 logger.info('Trying to fix manim code.')
                 code, fix_history = RenderManim._fix_manim_code_impl(
                     llm, output_text, fix_history, code, manim_requirement,
-                    class_name, content, audio_duration)
+                    class_name, content, audio_duration, segment, i, work_dir)
                 continue
 
             if result.returncode != 0:
@@ -187,7 +188,7 @@ class RenderManim(CodeAgent):
                     logger.info('Trying to fix manim code.')
                     code, fix_history = RenderManim._fix_manim_code_impl(
                         llm, output_text, fix_history, code, manim_requirement,
-                        class_name, content, audio_duration)
+                        class_name, content, audio_duration, segment, i, work_dir)
                     continue
 
             for root, dirs, files in os.walk(output_dir):
@@ -213,7 +214,7 @@ class RenderManim(CodeAgent):
                 )
                 code, fix_history = RenderManim._fix_manim_code_impl(
                     llm, output_text, fix_history, code, manim_requirement,
-                    class_name, content, audio_duration)
+                    class_name, content, audio_duration, segment, i, work_dir)
             else:
                 if cur_check_round >= mllm_max_check_round:
                     break
@@ -232,7 +233,7 @@ class RenderManim(CodeAgent):
                     )
                     code, fix_history = RenderManim._fix_manim_code_impl(
                         llm, output_text, fix_history, code, manim_requirement,
-                        class_name, content, audio_duration)
+                        class_name, content, audio_duration, segment, i, work_dir)
                     continue
                 else:
                     break
@@ -395,9 +396,41 @@ The right component is squeezed to the edge. Fix suggestion: Reduce the width of
         return preview_paths
 
     @staticmethod
+    def get_image_size(filename):
+        with Image.open(filename) as img:
+            return f"{img.width}x{img.height}"
+
+    @staticmethod
+    def get_all_images_info(segment, i, image_dir):
+        all_images_info = []
+        foreground = segment.get('foreground', [])
+        for idx, _req in enumerate(foreground):
+            foreground_image = os.path.join(image_dir, f'illustration_{i + 1}_foreground_{idx + 1}.png')
+            size = RenderManim.get_image_size(foreground_image)
+            image_info = {
+                'filename': foreground_image,
+                'size': size,
+                'description': _req,
+            }
+            all_images_info.append(image_info)
+
+        image_info_file = os.path.join(os.path.dirname(image_dir), 'image_info.txt')
+        if os.path.exists(image_info_file):
+            with open(image_info_file, 'r') as f:
+                for line in f.readlines():
+                    if not line.strip():
+                        continue
+                    image_info = json.loads(line)
+                    if image_info['filename'] in segment.get('user_image', []):
+                        all_images_info.append(image_info)
+        return all_images_info
+
+    @staticmethod
     def _fix_manim_code_impl(llm, error_log, fix_history, manim_code,
                              manim_requirement, class_name, content,
-                             audio_duration):
+                             audio_duration, segment, i, work_dir):
+        image_dir = os.path.join(work_dir, 'images')
+        images_info = RenderManim.get_all_images_info(segment, i, image_dir)
         fix_request = f"""You are a professional code debugging specialist. You need to help me fix issues in the code. Error messages will be passed directly to you. You need to carefully examine the problems and provide the correct, complete code.
 {error_log}
 
@@ -413,6 +446,11 @@ The right component is squeezed to the edge. Fix suggestion: Reduce the width of
 - Content: {content}
 - Duration: {audio_duration} seconds
 - Code language: **Python**
+- ImageInfo: 
+
+{images_info}
+
+These images must be used.
 
 Manim instructions:
 
@@ -481,6 +519,8 @@ Fixing detected issues, plus any other problems you find. Verify:
 • Prioritize high-impact fixes if needed
 • Watch for AI-generated code errors
 • If the problem is hard to solve, rewrite the code
+• The code may contain images & image effects, such as glowing or frames 
+    - **don't remove any image or its effects when making modifications**
 
 Please precisely fix the detected issues while maintaining the richness and creativity of the animation.
 """ # noqa
