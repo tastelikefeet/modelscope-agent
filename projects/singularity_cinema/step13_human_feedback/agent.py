@@ -127,6 +127,10 @@ return format:
         config.prompt.system = self.system
         config.tools = DictConfig({'file_system': {
             'mcp': False,
+            'allow_read_all_files': True,
+            'exclude': [
+                'list_files'
+            ]
         }})
         config.memory = ListConfig([])
         super().__init__(config, tag, trust_remote_code, **kwargs)

@@ -265,7 +265,7 @@ You are a Manim animation layout inspection expert, responsible for checking lay
 
 **Background Information**
 - The images you receive are video frames rendered by Manim (intermediate frames or final frames)
-- Video dimensions: 1920×1080, available rendering area: 1500×700
+- Video dimensions: 1500×700
 
 **Inspection Focus**
 
@@ -458,63 +458,22 @@ These images must be used.
 
 Manim instructions:
 
-**Spatial Constraints (CRITICAL)**:
 • Canvas size: (1500, 700) (width x height) which is the top 3/4 of screen, bottom is left for subtitles
-• Safe area: x∈(-6.5, 6.5), y∈(-3.2, 3.2) (0.5 units from edge)
-• Element spacing: Use buff=0.3 or larger (avoid overlap)
-• Relative positioning: Prioritize next_to(), align_to(), shift()
-• Avoid multiple elements using the same reference point
+• Safe area: x∈(-6.5, 6.5), y∈(-3.2, 3.2)
 • [CRITICAL]Absolutely prevent **element spatial overlap** or **elements going out of bounds** or **elements not aligned**.
 • [CRITICAL]Connection lines between boxes/text are of proper length, with **both endpoints attached to the objects**.
-
-**Box/Rectangle Size Standards**:
-• For diagram boxes: Use consistent dimensions, e.g., Rectangle(width=2.5, height=1.5)
-• For labels/text boxes: width=1.5~3.0, height=0.8~1.2
-• For emphasis boxes: width=3.0~4.0, height=1.5~2.0
-• Always specify both width AND height explicitly: Rectangle(width=2.5, height=1.5)
-• Avoid using default sizes - always set explicit dimensions
-• Maintain consistent box sizes within the same diagram level/category
 • All boxes must have thick strokes for clear visibility
 • Keep text within frame by controlling font sizes. Use smaller fonts for Latin script than Chinese due to longer length.
 • Ensure all pie chart pieces share the same center coordinates. Previous pie charts were drawn incorrectly.
-
-**Visual Quality Enhancement**:
-• Use thick, clear strokes for all shapes
-    - 4~6 strokes is recommended
-• Make arrows bold and prominent
-• Add rounded corners for modern aesthetics: RoundedRectangle(corner_radius=0.15)
-• Use subtle fill colors with transparency when appropriate: fill_opacity=0.1
-• Ensure high contrast between elements for clarity
-• Apply consistent spacing and alignment throughout
-• Use less stick man unless the user wants to, to prevent the animation from being too naive, try to make your effects more dazzling/gorgeous/spectacular/blingbling
-
-**Layout Suggestions**:
-• Content clearly layered
-• Key information highlighted
-• Reasonable use of space
-• Maintain visual balance
-• LLMs excel at animation complexity, not layout complexity.
-    - Use multiple storyboard scenes rather than adding more elements to one animation to avoid layout problems
-    - For animations with many elements, consider layout carefully. For instance, arrange elements horizontally given the canvas's wider width
-    - With four or more horizontal elements, put summary text or similar content at the canvas bottom, this will effectively reduce the cutting off and overlap problems
-
-**Animation Requirements**:
+• Use less stick man unless the user wants to, to prevent the animation from being too naive, try to make your effects more gorgeous/spectacular
 • Concise and smooth animation effects
 • Progressive display, avoid information overload
-• Appropriate pauses and rhythm
-• Professional visual presentation with thick, clear lines
-• Use GrowArrow for arrows instead of Create for better effect
-• Consider using Circumscribe or Indicate to highlight important elements
-
-**Code Style**:
-• Clear comments and explanations
-• Avoid overly complex structures
 
 **Color Suggestions**:
 • You need to explicitly specify element colors and make these colors coordinated and elegant in style.
 • Consider the advices from the storyboard designer.
-• Don't use light yellow, light blue, etc., as this will make the animation look superficial.
-• Consider more colors like white, black, dark blue, dark purple, dark orange, etc. DO NOT use grey color, it's not easy to read
+• **Don't use light yellow, light blue, grey**, etc., as this will make the animation look superficial, Consider white, black, dark blue, dark purple.
+
 
 Fixing detected issues, plus any other problems you find. Verify:
 • All elements follow instructions

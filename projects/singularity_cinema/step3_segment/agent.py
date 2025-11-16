@@ -32,7 +32,7 @@ class Segment(LLMAgent):
 - Write specific narration for each storyboard panel, technical animation requirements, and **detailed** background image requirements
     * Specify your expected manim animation content, presentation details, position and size, etc., and remind the large model generating manim of technical requirements, and **absolutely prevent size overflow and animation position overlap**
     * Estimate the reading duration of this storyboard panel to estimate the duration of the manim animation. The actual duration will be completely determined in the next step of voice generation
-    * The video resolution is around 1920*1080, 200-pixel margin on all four sides for title and subtitle, so manim can use center (1500, 700).
+    * The video resolution is around 1920*1080, 200-pixel margin on all four sides for title and subtitle, so **manim can use center (1500, 700)**.
     * Use thicker lines to emphasis elements
     * Use smaller font size and smaller elements in Manim animations to prevent from going beyond the canvas
     * LLMs excel at animation complexity, not layout complexity.

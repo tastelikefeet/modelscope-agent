@@ -135,6 +135,8 @@ tools:
   file_system:
     mcp: false
     allow_read_all_files: true
+    exclude:
+      - list_files
 
 memory:
   - name: diversity
