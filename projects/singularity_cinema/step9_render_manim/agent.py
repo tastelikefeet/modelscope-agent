@@ -240,10 +240,10 @@ class RenderManim(CodeAgent):
         if final_file_path:
             RenderManim._extract_preview_frames_static(final_file_path, i,
                                                        work_dir, 'final')
-            # manim_code_dir = os.path.join(work_dir, 'manim_code')
-            # manim_file = os.path.join(manim_code_dir, f'segment_{i + 1}.py')
-            # with open(manim_file, 'w') as f:
-            #     f.write(code)
+            manim_code_dir = os.path.join(work_dir, 'manim_code')
+            manim_file = os.path.join(manim_code_dir, f'segment_{i + 1}.py')
+            with open(manim_file, 'w') as f:
+                f.write(code)
         else:
             raise FileNotFoundError(final_file_path)
 

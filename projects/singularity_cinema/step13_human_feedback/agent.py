@@ -1,17 +1,15 @@
 # Copyright (c) Alibaba, Inc. and its affiliates.
+import json
+
 from ms_agent.agent import LLMAgent
 from ms_agent.llm import Message
+from ms_agent.tools import SplitTask
 from ms_agent.utils import get_logger
 from omegaconf import DictConfig, ListConfig
 
 logger = get_logger()
 
-
-class HumanFeedback(LLMAgent):
-
-    system = """You are an assistant responsible for helping resolve human feedback issues in short video generation. Your role is to identify which workflow step the reported problem occurs in based on human feedback, and appropriately delete configuration files of prerequisite tasks to trigger task re-execution.
-
-Workflow Overview:
+workflow = """Workflow Overview:
 First, there is a root directory folder for storing all files. All files described below and all your tool commands are based on this root directory. You don't need to worry about the root directory location, just focus on relative directories.
 
 1. Generate basic script based on user requirements, parse all images from files
@@ -23,7 +21,7 @@ First, there is a root directory folder for storing all files. All files describ
     * memory: memory/parse_images.json memory/parse_images.yaml
     * Input: docs.txt
     * Output: image_info.txt, contains images in user docs filenames, descriptions, sizes
-    
+
 3. Segment design based on script
     * memory: memory/segment.json memory/segment.yaml
     * Input: topic.txt, script.txt
@@ -48,7 +46,7 @@ First, there is a root directory folder for storing all files. All files describ
     * memory: memory/generate_manim_code.json memory/generate_manim_code.yaml
     * Input: segments.txt, audio_info.txt, image_info.txt
     * Output: list of Manim code files manim_code/segment_N.py, where N starts from 1
-    
+
 8. Fix Manim code
     * memory: memory/fix_manim_code.json memory/fix_manim_code.yaml
     * Input: manim_code/segment_N.py where N is segment number starting from 1, code_fix/code_fix_N.txt error description files
@@ -74,6 +72,16 @@ First, there is a root directory folder for storing all files. All files describ
     * memory: memory/compose_video.json memory/compose_video.yaml
     * Input: all file information from previous steps
     * Output: final_video.mp4
+"""
+
+
+class HumanFeedback(LLMAgent):
+
+
+
+    system = f"""You are an assistant responsible for helping resolve human feedback issues in short video generation. Your role is to identify which workflow step the reported problem occurs in based on human feedback, and appropriately delete configuration files of prerequisite tasks to trigger task re-execution.
+
+{workflow}
 
 Notes:
 1. Deleting the json and yaml memory files of a certain step will cause that step to re-execute
@@ -92,6 +100,32 @@ Requirements for you:
     * You need to consider fixing the problem with minimal changes to prevent major perceptual changes to the video
     * Try not to update segments (segments.txt), otherwise the entire video will be completely redone""" # noqa
 
+    spliter_system = f"""You are an assistant responsible for helping resolve human feedback issues in short video generation, 
+
+Your responsibility is to distinguish which storyboard segment these issues originate from, 
+and return to me the list of problems and detailed descriptions that need to be addressed for the corresponding segment.
+    
+{workflow}
+
+Instructions:
+
+1. Read segments.txt and topic.txt and the files user ask you to read, no need to read other files, for example code files, later worker threads will read the code
+
+return format:
+
+```json
+[
+    {{
+        "id": 1, # segment id
+        "issue": "The issue you dispatched"
+    }},
+    ...
+]
+```
+
+
+"""
+
     def __init__(self,
                  config: DictConfig,
                  tag: str,
@@ -105,12 +139,13 @@ Requirements for you:
         config.memory = ListConfig([])
         super().__init__(config, tag, trust_remote_code, **kwargs)
         self.work_dir = getattr(self.config, 'output_dir', 'output')
+        self.split_task = SplitTask(config)
         self._query = ''
         self.need_fix = False
 
     async def create_messages(self, messages):
         return [
-            Message(role='system', content=self.system),
+            Message(role='system', content=self.spliter_system),
             Message(role='user', content=self._query),
         ]
 
@@ -142,7 +177,21 @@ Requirements for you:
                 continue
             else:
                 self.need_fix = True
-                return await super().run(self._query, **kwargs)
+                messages = await super().run(self._query, **kwargs)
+                response = messages[-1].content
+                if '```json' in response:
+                    response = response.split('```json')[1].split('```')[0]
+                elif '```' in response:
+                    response = response.split('```')[1].split('```')[0]
+                segments = json.loads(response)
+                inputs = []
+                for segment in segments:
+                    inputs.append({
+                        'system': self.system,
+                        'query': f'All issues happens in segment {segment["id"]}: {segment["issue"]}\n'
+                    })
+                await self.split_task.call_tool('', tool_name='', tool_args={'tasks': inputs})
+                return messages
 
     def next_flow(self, idx: int) -> int:
         if self.need_fix:

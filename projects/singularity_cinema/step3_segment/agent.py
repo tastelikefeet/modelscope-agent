@@ -89,7 +89,6 @@ Now begin:""" # noqa
 
     async def run(self, messages, **kwargs):
         logger.info('Segmenting script to sentences.')
-        script = None
         if os.path.exists(os.path.join(self.work_dir, 'segments.txt')):
             return messages
         with open(os.path.join(self.work_dir, 'script.txt'), 'r') as f:
@@ -125,26 +124,30 @@ Now begin:""" # noqa
     async def add_images(self, segments, topic, script, **kwargs):
 
         system = """你是一个动画短视频分镜辅助设计师。你的职责是协助分镜设计师为分镜添加前景图片。你会被一个给与一个分镜设计草案，和一些图片列表，该图片列表来自用户输入，可以自由挑选使用。
-下面你需要选择两类图片：
 
-Manim animation may contain one or more images, these images come from user's documentation, or a powerful text-to-image model (same way with the generated background images)
-- If the user's documentation contains any images, the information will be given to you:
-    * The image information will include content description, size(width*height) and filename
-    * Select useful images in each segment and reference the filename in the `user_image` field
+1. Manim animation may contain one or more images, these images come from user's documentation, or a powerful text-to-image model
+    * If the user's documentation contains any images, the information will be given to you:
+        a. The image information will include content description, size(width*height) and filename
+        b. Carefully select useful images in each segment as best as you can and reference the filename in the `user_image` field
 
-- User-provided images may be insufficient. Trust text-to-image models to generate additional images for more visually compelling videos
-    * Output image generation requirements and the generated filenames(with .png format) in `foreground` field
+    * User-provided images may be insufficient. Trust text-to-image models to generate additional images for more visually compelling videos
+        a. Output image generation requirements and the generated filenames(with .png format) in `foreground` field
+        b. The shape of generated images are square
     
-1. 来自用户的图片，可以直接使用
-2. 你认为的可以增加短视频效果的图片，你需要给出生成图片的具体要求,一个收信任的文生图模型会帮你生成它，生成的图片均为正方形
-3. 修改对应分镜的manim字段，该字段用于后续的manim动画生成的指导意见，修改该字段使后续manim生成大模型清楚如何使用你的这些图片
-4. 每个分镜使用的图片数量不必相同，也可以不使用图片
-5. 仔细分析用户提供的图片信息，尽可能使用它们
-6. 减少注意力分散，你需要仅关心图片信息、manim两个字段，并生成manim、user_image、foreground三个字段
-7. 图片不宜过大，防止占满整个屏幕或大半个屏幕
-8. 重要: 考虑图片的展示尺寸，防止一个动画中出现太多元素无法布局
+2. Modify the manim field of the corresponding storyboard. This field is used as guidance for subsequent manim animation generation. Modify this field so that the downstream manim generation model clearly understands how to use these images.
 
-一个例子：
+3. The number of images used for each storyboard doesn't need to be the same, and images may not be used at all.
+
+4. To reduce attention dispersion, you only need to focus on the image information and manim fields, and generate three fields: manim, user_image, and foreground. Your return value doesn't need to include content and background.
+
+5. Images should not be too large to prevent them from occupying the entire screen or most of the screen.
+
+6. Consider the display size of images to prevent too many elements in one animation that cannot be properly laid out.
+
+7. Your return length should be the same as the source storyboard length. If images are not needed, return empty user_image and foreground lists.
+
+An example:
+
 ```json
 [
     {
@@ -167,18 +170,14 @@ An example of image structures given to the manim LLM:
 ```json
 [
     {
-        "file_path": "foreground_images/1.jpg",
+        "file_path": "user_image1.jpg",
         "size": "2000*2000",
         "description": "The image contains ..."
     },
     ...
 ]
 
-注意:
-* 你的返回值中不必要包括content和background，这些信息不需要你关心
-* 你的返回长度应当和源分镜长度相同。如果不需要图片则返回空的user_image和foreground列表
-
-现在开始：
+Now begin:
 """
         new_image_info = 'No images offered.'
         name_mapping = {}
