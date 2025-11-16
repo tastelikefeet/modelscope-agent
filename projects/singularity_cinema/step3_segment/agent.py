@@ -170,15 +170,60 @@ Now begin:""" # noqa
             f.write(json.dumps(segments, indent=4, ensure_ascii=False))
         return messages
 
-    async def consider_images(segments, ):
+    async def add_images(self, segments, topic, script, new_image_info, **kwargs):
 
         system = """你是一个动画短视频分镜辅助设计师。你的职责是协助分镜设计师为分镜添加前景图片。你会被一个给与一个分镜设计草案，和一些图片列表，该图片列表来自用户输入，可以自由挑选使用。
 下面你需要选择两类图片：
 
 1. 来自用户的图片，可以直接使用
-2. 你认为的可以增加短视频效果的图片，你需要给出生成图片的具体要求
+2. 你认为的可以增加短视频效果的图片，你需要给出生成图片的具体要求,一个收信任的文生图模型会帮你生成它
 3. 修改对应分镜的manim字段，该字段用于后续的manim动画生成的指导意见，修改该字段使后续manim生成大模型清楚如何使用你的这些图片
+4. 每个分镜使用的图片数量不必相同，也可以不使用图片
+5. 仔细分析用户提供的图片信息，尽可能使用它们
+6. 减少注意力分散，你需要仅关心图片信息、manim两个字段，并生成manim、user_image、foreground三个字段
+7. 图片不宜过大，防止占满整个屏幕或大半个屏幕
 
+一个例子：
+```json
+[
+    {
+        "index": 1, # index of the segment, start from 1
+        "manim": "The animation should ..., use images to... ",
+        "user_image": [
+            "user_image1.jpg",
+            "user_image2.jpg"
+        ]
+        "foreground": [
+            "An image describe... color ... (your detailed requirements here)",
+            ...
+        ],
+    },
+    ...
+]
+```
 
+注意:
+* 你的返回值中不必要包括content和background，这些信息不需要你关心
+* 你的返回长度应当和源分镜长度相同。如果不需要图片则返回空的user_image和foreground列表
+
+现在开始：
 """
+        query = (
+            f'Original topic: \n\n{topic}\n\n'
+            f'Original script：\n\n{script}\n\n'
+            f'User offered images: \n\n{new_image_info}\n\n'
+            f'Please finish your images design:\n')
+        messages = [
+            Message(role='system', content=system),
+            Message(role='user', content=query),
+        ]
+        messages = self.llm.generate(messages)
+        response = messages[-1].content
+        if '```json' in response:
+            response = response.split('```json')[1].split('```')[0]
+        elif '```' in response:
+            response = response.split('```')[1].split('```')[0]
+        _segments = json.loads(response)
+
+        assert len(_segments) == len(segments)
 

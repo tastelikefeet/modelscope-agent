@@ -123,6 +123,7 @@ class GenerateManimCode(CodeAgent):
 - Pay attention to the size field, write Manim code that respects the image's aspect ratio, size it if it's too big
 - Consider the image integration with the background and overall animation. Use blending/glow effects, frames, movements, borders etc. to make it more beautiful and gorgeous.
     * You can more freely consider the integration of images to achieve a better presentation.
+    * Images should not be too large to prevent them from occupying the entire screen or most of the screen
 - [IMPORTANT] If images files is not empty, **you must use them all at the appropriate time and position in your animation**. Here is the image files list:
 
 {images_info}

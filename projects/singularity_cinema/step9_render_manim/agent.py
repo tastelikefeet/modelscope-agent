@@ -282,6 +282,7 @@ You are a Manim animation layout inspection expert, responsible for checking lay
 - Final frames: Check all the above issues
 - Ignore: Aesthetic issues, temporary unreasonable positions caused by animation processes
 - If images exist in the frame but is not mentioned in the manim requirement, this behavior is correct, ignore them
+- Focus only on image position, overlap, and cropping issues, ignoring whether the image content is relevant or correct with the manim requirement
 
 **Output Format**
 
