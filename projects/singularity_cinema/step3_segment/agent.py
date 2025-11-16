@@ -2,6 +2,8 @@
 import os
 
 import json
+from copy import deepcopy
+
 from ms_agent.agent import LLMAgent
 from ms_agent.llm import Message
 from ms_agent.utils import get_logger
@@ -98,14 +100,10 @@ Now begin:""" # noqa
                  tag: str,
                  trust_remote_code: bool = False,
                  **kwargs):
-        config.prompt.system = self.system
-        config.tools = DictConfig({
-            'file_system': {
-                'mcp': False,
-                'exclude': ['create_directory', 'write_file']
-            }
-        })
-        super().__init__(config, tag, trust_remote_code, **kwargs)
+        _config = deepcopy(config)
+        _config.prompt.system = self.system
+        _config.tools = DictConfig({})
+        super().__init__(_config, tag, trust_remote_code, **kwargs)
         self.work_dir = getattr(self.config, 'output_dir', 'output')
         self.images_dir = os.path.join(self.work_dir, 'images')
 
@@ -171,3 +169,16 @@ Now begin:""" # noqa
         with open(os.path.join(self.work_dir, 'segments.txt'), 'w') as f:
             f.write(json.dumps(segments, indent=4, ensure_ascii=False))
         return messages
+
+    async def consider_images(segments, ):
+
+        system = """你是一个动画短视频分镜辅助设计师。你的职责是协助分镜设计师为分镜添加前景图片。你会被一个给与一个分镜设计草案，和一些图片列表，该图片列表来自用户输入，可以自由挑选使用。
+下面你需要选择两类图片：
+
+1. 来自用户的图片，可以直接使用
+2. 你认为的可以增加短视频效果的图片，你需要给出生成图片的具体要求
+3. 修改对应分镜的manim字段，该字段用于后续的manim动画生成的指导意见，修改该字段使后续manim生成大模型清楚如何使用你的这些图片
+
+
+"""
+

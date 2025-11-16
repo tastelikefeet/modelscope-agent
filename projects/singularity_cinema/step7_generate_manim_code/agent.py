@@ -119,7 +119,7 @@ class GenerateManimCode(CodeAgent):
 - Code language: **Python**
 
 **Image usage**
-- You'll receive an actual image list with three fields per image: filename, size, and description
+- You'll receive an actual image list with three fields per image: filename, size, and description，consider deeply how to use them in your animation
 - Pay attention to the size field, write Manim code that respects the image's aspect ratio, size it if it's too big
 - Consider the image integration with the background and overall animation. Use blending/glow effects, frames, movements, borders etc. to make it more beautiful and gorgeous.
     * You can more freely consider the integration of images to achieve a better presentation.
