@@ -22,7 +22,7 @@ logger = get_logger()
 
 class RenderManim(CodeAgent):
 
-    window_size = (1500, 700)
+    window_size = (1250, 700)
 
     def __init__(self,
                  config: DictConfig,
@@ -265,7 +265,7 @@ You are a Manim animation layout inspection expert, responsible for checking lay
 
 **Background Information**
 - The images you receive are video frames rendered by Manim (intermediate frames or final frames)
-- Video dimensions: 1500×700
+- Video dimensions: 1250×700
 
 **Inspection Focus**
 
@@ -458,8 +458,8 @@ These images must be used.
 
 Manim instructions:
 
-• Canvas size: (1500, 700) (width x height) which is the top 3/4 of screen, bottom is left for subtitles
-• Safe area: x∈(-6.5, 6.5), y∈(-3.2, 3.2)
+• Canvas size: (1250, 700) (width x height) which is the top 3/4 of screen, bottom is left for subtitles
+• Ensure all content stays within safe bounds x∈(-6.0, 6.0), y∈(-3.4, 3.4) with minimum buff=0.5 from any edge to prevent cropping.
 • [CRITICAL]Absolutely prevent **element spatial overlap** or **elements going out of bounds** or **elements not aligned**.
 • [CRITICAL]Connection lines between boxes/text are of proper length, with **both endpoints attached to the objects**.
 • All boxes must have thick strokes for clear visibility
@@ -468,6 +468,7 @@ Manim instructions:
 • Use less stick man unless the user wants to, to prevent the animation from being too naive, try to make your effects more gorgeous/spectacular
 • Concise and smooth animation effects
 • Progressive display, avoid information overload
+• Decorate the image with a gorgeous border
 
 **Color Suggestions**:
 • You need to explicitly specify element colors and make these colors coordinated and elegant in style.
@@ -480,6 +481,7 @@ Fixing detected issues, plus any other problems you find. Verify:
 • No overlapping or edge cutoff, **ensure all manim elements after rendering are within x∈(-6.5, 6.5), y∈(-3.3, 3.3)**
 • No new layout issues introduced
 • Prioritize high-impact fixes if needed
+• Make minimal code changes to fix the issue while keeping the correct parts unchanged
 • Watch for AI-generated code errors
 • If the problem is hard to solve, rewrite the code
 • The code may contain images & image effects, such as glowing or frames

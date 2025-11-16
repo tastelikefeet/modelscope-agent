@@ -130,12 +130,13 @@ class GenerateManimCode(CodeAgent):
     * You can more freely consider the integration of images to achieve a better presentation
     * Images size should be medium or small to prevent them from occupying the entire screen or most of the screen, big image is not cool
     * Consider shape matching between images and surrounding components. circular to circular, square to square. Ensure aspect ratios of non-square images remain correct
+    * Decorate the image with a gorgeous border
 - [IMPORTANT] If images files is not empty, **you must use them all at the appropriate time and position in your animation**. Here is the image files list:
 
 {images_info}
 
-• Canvas size: (1500, 700) (width x height) which is the top 3/4 of screen, bottom is left for subtitles
-• Safe area: x∈(-6.5, 6.5), y∈(-3.2, 3.2)
+• Canvas size: (1250, 700) (width x height) which is the top 3/4 of screen, bottom is left for subtitles
+• Ensure all content stays within safe bounds x∈(-6.0, 6.0), y∈(-3.4, 3.4) with minimum buff=0.5 from any edge to prevent cropping.
 • [CRITICAL]Absolutely prevent **element spatial overlap** or **elements going out of bounds** or **elements not aligned**.
 • [CRITICAL]Connection lines between boxes/text are of proper length, with **both endpoints attached to the objects**.
 • All boxes must have thick strokes for clear visibility
