@@ -281,7 +281,7 @@ You are a Manim animation layout inspection expert, responsible for checking lay
 - Intermediate frames: Focus only on overlap and edge cropping issues, ignore incomplete components
 - Final frames: Check all the above issues
 - Ignore: Aesthetic issues, temporary unreasonable positions caused by animation processes
-- If images exist in the frame but is not mentioned clearly in the manim requirement, this behavior is correct
+- If images exist in the frame but is not mentioned in the manim requirement, this behavior is correct, ignore them
 
 **Output Format**
 

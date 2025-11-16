@@ -24,14 +24,10 @@ class Segment(LLMAgent):
 
 - If the user's documentation contains any images, the information will be given to you:
     * The image information will include content description, size(width*height) and filename
-    * Select useful images and reference the filename in the `user_image` field, and also specify the filename in manim requirements
+    * Select useful images in each segment and reference the filename in the `user_image` field
 
 - User-provided images may be insufficient. Trust text-to-image models to generate additional images for more visually compelling videos
-    * Output image generation requirements and the generated filenames(with .png format) in `foreground` and `foreground_image` fields, this make them have the same length
-    * **Explictly reference image file names in manim requirements**, for both user offered images and generated images
-        > for example: in `manim` field: Use `illustration_image.png` to ...
-    * Consider the size, the ratio of image size will affect your layout. Sizes of images in user docs will be given to you. All generated images are square
-    * Tell Manim how to use these images and their purpose. Consider the integration with the background and overall animation. Use blending/glow effects, frames, movements, borders etc. to create harmony.
+    * Output image generation requirements and the generated filenames(with .png format) in `foreground` field
 
 - Each of your storyboard panels should take about 5 seconds to 10 seconds to read at normal speaking speed. Avoid the feeling of frequent switching and static
     * If a storyboard panel has no manim animation, it should not exceed 5s
@@ -69,17 +65,13 @@ An example:
         "index": 1, # index of the segment, start from 1
         "content": "Now let's explain...",
         "background": "An image describe... color ... (your detailed requirements here)",
-        "manim": "The animation should ..., user_image_1.png is an image of... fade in... move to... glow ..., generate components to ...",
+        "manim": "The animation should ..., use images to... ",
         "user_image": [
             "user_image1.jpg",
             "user_image2.jpg"
         ]
         "foreground": [
             "An image describe... color ... (your detailed requirements here)",
-            ...
-        ],
-        "foreground_name": [
-            "generated-image-name-1.png",
             ...
         ],
     },
@@ -161,25 +153,12 @@ Now begin:""" # noqa
             response = response.split('```')[1].split('```')[0]
         segments = json.loads(response)
         for i, segment in enumerate(segments):
-            manim_req = segment.get('manim')
-            foreground = segment.get('foreground', [])
-            foreground_name = segment.get('foreground_name', [])
-            if len(foreground) < len(foreground_name):
-                foreground_name = foreground_name[:len(foreground)]
-            if len(foreground) > len(foreground_name):
-                foreground_name.extend(['placeholder.png'] * (len(foreground) - len(foreground_name)))
-
-            new_foreground_name = []
-            for idx, image_name in enumerate(foreground_name):
-                actual_name = os.path.join(self.images_dir, f'illustration_{i + 1}_foreground_{idx + 1}.png')
-                name_mapping[image_name] = actual_name
-                new_foreground_name.append(actual_name)
-            if new_foreground_name:
-                segment['foreground_name'] = new_foreground_name
-            for fake_name, actual_name in name_mapping.items():
-                manim_req = manim_req.replace(fake_name, actual_name)
-            if manim_req:
-                segment['manim'] = manim_req
+            user_images = segment.get('user_image', [])
+            new_user_images = []
+            for image in user_images:
+                if image in name_mapping:
+                    new_user_images.append(name_mapping[image])
+            segment['user_image'] = new_user_images
 
         for i, segment in enumerate(segments):
             assert 'content' in segment

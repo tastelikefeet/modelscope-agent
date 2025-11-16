@@ -75,7 +75,7 @@ class GenerateManimCode(CodeAgent):
     @staticmethod
     def get_all_images_info(segment, i, image_dir):
         all_images_info = []
-        foreground = segment.get('foreground')
+        foreground = segment.get('foreground', [])
         for idx, _req in enumerate(foreground):
             foreground_image = os.path.join(image_dir, f'illustration_{i + 1}_foreground_{idx + 1}.png')
             size = GenerateManimCode.get_image_size(foreground_image)
@@ -92,7 +92,9 @@ class GenerateManimCode(CodeAgent):
                 for line in f.readlines():
                     if not line.strip():
                         continue
-                    all_images_info.append(json.loads(line))
+                    image_info = json.loads(line)
+                    if image_info['filename'] in segment.get('user_image', []):
+                        all_images_info.append(image_info)
         return all_images_info
 
     @staticmethod
@@ -117,16 +119,13 @@ class GenerateManimCode(CodeAgent):
 - Code language: **Python**
 
 **Image usage**
-Manim requests may include image usage. which will be described in the manim request
 - You'll receive an actual image list with three fields per image: filename, size, and description
-- Match the image descriptions from the Manim request with the image list descriptions, then use the corresponding filename in your Manim code
 - Pay attention to the size field, write Manim code that respects the image's aspect ratio, size it if it's too big
-- If images files is not empty, **you must use them all at the appropriate time and position in your animation**. Here is the image files list:
+- Consider the image integration with the background and overall animation. Use blending/glow effects, frames, movements, borders etc. to make it more beautiful and gorgeous.
+    * You can more freely consider the integration of images to achieve a better presentation.
+- [IMPORTANT] If images files is not empty, **you must use them all at the appropriate time and position in your animation**. Here is the image files list:
 
 {images_info}
-
-- Consider the image integration with the background and overall animation. Use blending/glow effects, frames, movements, borders etc. to create harmony.
-    * You can more freely consider the integration of images to achieve a better presentation.
 
 **Spatial Constraints (CRITICAL)**:
 • Canvas size: (1500, 700) (width x height) which is the top 3/4 of screen, bottom is left for subtitles
