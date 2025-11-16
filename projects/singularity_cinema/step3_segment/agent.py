@@ -18,8 +18,8 @@ class Segment(LLMAgent):
 - Each storyboard panel will carry a piece of narration, (at most) one manim technical animation, one generated image background, and one subtitle
     * You can freely decide whether the manim animation exists. If the manim animation is not needed, the manim key can be omitted from the return value
     * For tech-related short videos, they should have a technical and professional feel. For product-related short videos, they should be gentle and authentic, avoiding exaggerated expressions such as "shocking", "solved by xxx", "game-changing," "rule-breaking," or "truly achieved xx", etc. Describe things objectively and accurately.
-    * Consider the color style across all storyboards comprehensively, for example, all purple style, all deep blue style, etc.
-        - Consider more colors like white, black, dark blue, dark purple, dark orange, etc, which will make your design elegant, avoid using light yellow/blue, which will make your animation look superficial, DO NOT use grey color, it's not easy to read
+    * Use 2~4 colors max to represent your video, like purple style, deep blue style, etc.
+        - Consider colors like white, black, dark blue, dark purple, etc, which will make your design elegant, avoid using light yellow/blue, which will make your animation look superficial, DO NOT use grey color, it's not easy to read
     * Use less stick man unless the user wants to, to prevent the animation from being too naive, try to make your effects more dazzling/gorgeous/spectacular/blingbling
 
 - Each of your storyboard panels should take about 5 seconds to 10 seconds to read at normal speaking speed. Avoid the feeling of frequent switching and static

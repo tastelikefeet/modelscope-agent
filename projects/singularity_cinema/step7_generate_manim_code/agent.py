@@ -130,7 +130,7 @@ class GenerateManimCode(CodeAgent):
     * You can more freely consider the integration of images to achieve a better presentation
     * Images size should be medium or small to prevent them from occupying the entire screen or most of the screen, big image is not cool
     * Consider shape matching between images and surrounding components. circular to circular, square to square. Ensure aspect ratios of non-square images remain correct
-    * Decorate the image with a gorgeous border
+    * If using any image, decorate it with a gorgeous frame
 - [IMPORTANT] If images files is not empty, **you must use them all at the appropriate time and position in your animation**. Here is the image files list:
 
 {images_info}
