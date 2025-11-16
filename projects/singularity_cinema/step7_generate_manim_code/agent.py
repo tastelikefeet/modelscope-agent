@@ -125,6 +125,9 @@ Manim requests may include image usage. which will be described in the manim req
 
 {images_info}
 
+- Consider the image integration with the background and overall animation. Use blending/glow effects, frames, movements, borders etc. to create harmony.
+    * You can more freely consider the integration of images to achieve a better presentation.
+
 **Spatial Constraints (CRITICAL)**:
 • Canvas size: (1500, 700) (width x height) which is the top 3/4 of screen, bottom is left for subtitles
 • Safe area: x∈(-6.5, 6.5), y∈(-3.2, 3.2) (0.5 units from edge)

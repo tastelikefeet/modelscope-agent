@@ -31,6 +31,7 @@ class Segment(LLMAgent):
     * **Explictly reference image file names in manim requirements**, for both user offered images and generated images
         > for example: in `manim` field: Use `illustration_image.png` to ...
     * Consider the size, the ratio of image size will affect your layout. Sizes of images in user docs will be given to you. All generated images are square
+    * Tell Manim how to use these images and their purpose. Consider the integration with the background and overall animation. Use blending/glow effects, frames, movements, borders etc. to create harmony.
 
 - Each of your storyboard panels should take about 5 seconds to 10 seconds to read at normal speaking speed. Avoid the feeling of frequent switching and static
     * If a storyboard panel has no manim animation, it should not exceed 5s
@@ -68,7 +69,7 @@ An example:
         "index": 1, # index of the segment, start from 1
         "content": "Now let's explain...",
         "background": "An image describe... color ... (your detailed requirements here)",
-        "manim": "The animation should ..., use user_image_1.png to, use generated-image-name-1.png to..., generate components to ...",
+        "manim": "The animation should ..., user_image_1.png is an image of... fade in... move to... glow ..., generate components to ...",
         "user_image": [
             "user_image1.jpg",
             "user_image2.jpg"
