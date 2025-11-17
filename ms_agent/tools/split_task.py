@@ -1,6 +1,5 @@
 # Copyright (c) Alibaba, Inc. and its affiliates.
 import asyncio
-from concurrent.futures import ThreadPoolExecutor
 
 from ms_agent.llm.utils import Tool
 from ms_agent.tools.base import ToolBase
@@ -84,13 +83,9 @@ class SplitTask(ToolBase):
                 load_cache=config.load_cache)
             sub_tasks.append(agent.run(query))
 
-        def run_task(task):
-            return asyncio.run(task)
-
         result = []
         if execution_mode == 'parallel':
-            with ThreadPoolExecutor(max_workers=4) as executor:
-                results = list(executor.map(lambda t: run_task(t), sub_tasks))
+            results = await asyncio.gather(*sub_tasks, return_exceptions=True)
             for i, r in enumerate(results):
                 if isinstance(r, Exception):
                     result.append(f'Subtask{i} failed with error: {r}')
