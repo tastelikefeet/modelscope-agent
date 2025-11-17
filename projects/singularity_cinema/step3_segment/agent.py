@@ -15,15 +15,12 @@ class Segment(LLMAgent):
 
     system = """You are an animation storyboard designer. Now there is a short video scene that needs storyboard design. The storyboard needs to meet the following conditions:
 
-- Each storyboard panel will carry a piece of narration, (at most) one manim technical animation, one generated image background, and one subtitle
-    * You can freely decide whether the manim animation exists. If the manim animation is not needed, the manim key can be omitted from the return value
-    * For tech-related short videos, they should have a technical and professional feel. For product-related short videos, they should be gentle and authentic, avoiding exaggerated expressions such as "shocking", "solved by xxx", "game-changing," "rule-breaking," or "truly achieved xx", etc. Describe things objectively and accurately.
-    * Use 2~4 colors max to represent your video, like purple style, deep blue style, etc.
-        - Consider colors like white, black, dark blue, dark purple, etc, which will make your design elegant, avoid using light yellow/blue, which will make your animation look superficial, DO NOT use grey color, it's not easy to read
-    * Use less stick man unless the user wants to, to prevent the animation from being too naive, try to make your effects more dazzling/gorgeous/spectacular/blingbling
+- Each storyboard panel will carry a piece of narration, one manim technical animation, one generated image background, and one subtitle
+    * Use clear, high-contrast font colors to prevent text from blending with the background
+    * Use a cohesive color palette of 2-4 colors for the entire video. Avoid cluttered colors, bright blue, and bright yellow. Prefer deep, dark tones
+    * Low-quality animations such as stick figures are forbidden
 
 - Each of your storyboard panels should take about 5 seconds to 10 seconds to read at normal speaking speed. Avoid the feeling of frequent switching and static
-    * If a storyboard panel has no manim animation, it should not exceed 5s
     * Pay attention to the coordination between the background image and the manim animation.
         - If a manim animation exists, the background image should not be too flashy. Else the background image will become the main focus, and the image details should be richer
         - The foreground and the background should not have the same objects. For example, draw birds at the foreground, sky and clouds at the background, other examples like charts and scientist, cloth and girls
@@ -34,7 +31,7 @@ class Segment(LLMAgent):
     * Estimate the reading duration of this storyboard panel to estimate the duration of the manim animation. The actual duration will be completely determined in the next step of voice generation
     * The video resolution is around 1920*1080, 200-pixel margin on all four sides for title and subtitle, so **manim can use center (1250, 700)**.
     * Use thicker lines to emphasis elements
-    * Use smaller font size and smaller elements in Manim animations to prevent from going beyond the canvas
+    * Use small and medium font/elements in Manim animations to prevent from going beyond the canvas
     * LLMs excel at animation complexity, not layout complexity.
         - Use multiple storyboard scenes rather than adding more elements to one animation to avoid layout problems
         - For animations with many elements, consider layout carefully. For instance, arrange elements horizontally given the canvas's wider width
@@ -132,17 +129,17 @@ Now begin:""" # noqa
         a. Output image generation requirements and the generated filenames(with .png format) in `foreground` field
         b. The shape of generated images are square
 
-2. Modify the manim field of the corresponding storyboard. This field is used as guidance for subsequent manim animation generation. Modify this field so that the downstream manim generation model clearly understands how to use these images.
+2. The manim field is used as guidance for subsequent manim animation generation. Modify this field so that the downstream manim generation model clearly understands how to use these images.
 
 3. The number of images used for each storyboard doesn't need to be the same, and images may not be used at all.
 
 4. To reduce attention dispersion, you only need to focus on the image information and manim fields, and generate three fields: manim, user_image, and foreground. Your return value doesn't need to include content and background.
 
-5. Images should not be too large to prevent them from occupying the entire screen or most of the screen.
+5. Scale the images
+    * The image size on the canvas depend on its importance, important image occupies more spaces
+    * Recommended size is from 1/8 to 1/4 on the canvas. If the image if the one unique element, the size can reach 1/2 or more
 
-6. Consider the display size of images to prevent too many elements in one animation that cannot be properly laid out.
-
-7. Your return length should be the same as the source storyboard length. If images are not needed, return empty user_image and foreground lists.
+6. Your return length should be the same as the source storyboard length. If images are not needed, return empty user_image and foreground lists.
 
 An example:
 

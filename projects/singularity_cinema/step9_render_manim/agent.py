@@ -458,33 +458,33 @@ These images must be used.
 
 Manim instructions:
 
-• Canvas size: (1250, 700) (width x height) which is the top 3/4 of screen, bottom is left for subtitles
-• Ensure all content stays within safe bounds x∈(-6.0, 6.0), y∈(-3.4, 3.4) with minimum buff=0.5 from any edge to prevent cropping.
-• [CRITICAL]Absolutely prevent **element spatial overlap** or **elements going out of bounds** or **elements not aligned**.
-• [CRITICAL]Connection lines between boxes/text are of proper length, with **both endpoints attached to the objects**.
-• All boxes must have thick strokes for clear visibility
-• Keep text within frame by controlling font sizes. Use smaller fonts for Latin script than Chinese due to longer length.
-• Ensure all pie chart pieces share the same center coordinates. Previous pie charts were drawn incorrectly.
-• Use less stick man unless the user wants to, to prevent the animation from being too naive, try to make your effects more gorgeous/spectacular
-• Concise and smooth animation effects
-• Progressive display, avoid information overload
-• Decorate the image with a gorgeous border
+* Canvas size: (1250, 700) (width x height) which is the top 3/4 of screen, bottom is left for subtitles
+* Ensure all content stays within safe bounds x∈(-6.0, 6.0), y∈(-3.4, 3.4) with minimum buff=0.5 from any edge to prevent cropping.
+* [CRITICAL]Absolutely prevent **element spatial overlap** or **elements going out of bounds** or **elements not aligned**.
+* [CRITICAL]Connection lines between boxes/text are of proper length, with **both endpoints attached to the objects**.
+* All boxes must have thick strokes for clear visibility
+* Keep text within frame by controlling font sizes. Use smaller fonts for Latin script than Chinese due to longer length.
+* Ensure all pie chart pieces share the same center coordinates. Previous pie charts were drawn incorrectly.
+* Use clear, high-contrast font colors to prevent text from blending with the background
+* Use a cohesive color palette of 2-4 colors for the entire video. Avoid cluttered colors, bright blue, and bright yellow. Prefer deep, dark tones
+* Low-quality animations such as stick figures are forbidden
+* Scale the images
+    a. The image size on the canvas depend on its importance, important image occupies more spaces
+    b. Recommended size is from 1/8 to 1/4 on the canvas. If the image if the one unique element, the size can reach 1/2 or more
 
 **Color Suggestions**:
-• You need to explicitly specify element colors and make these colors coordinated and elegant in style.
-• Consider the advices from the storyboard designer.
-• **Don't use light yellow, light blue, grey**, etc., as this will make the animation look superficial, Consider white, black, dark blue, dark purple.
-
+* You need to explicitly specify element colors and make these colors coordinated and elegant in style.
+* Consider the advices from the storyboard designer.
 
 Fixing detected issues, plus any other problems you find. Verify:
-• All elements follow instructions
-• No overlapping or edge cutoff, **ensure all manim elements after rendering are within x∈(-6.5, 6.5), y∈(-3.3, 3.3)**
-• No new layout issues introduced
-• Prioritize high-impact fixes if needed
-• Make minimal code changes to fix the issue while keeping the correct parts unchanged
-• Watch for AI-generated code errors
-• If the problem is hard to solve, rewrite the code
-• The code may contain images & image effects, such as glowing or frames
+* All elements follow instructions
+* No overlapping or edge cutoff, **ensure all manim elements after rendering are within x∈(-6.0, 6.0), y∈(-3.4, 3.4)**
+* No new layout issues introduced
+* Prioritize high-impact fixes if needed
+* Make minimal code changes to fix the issue while keeping the correct parts unchanged
+* Watch for AI-generated code errors
+* If the problem is hard to solve, rewrite the code
+* The code may contain images & image effects, such as glowing or frames
     - **don't remove any image or its effects when making modifications**
 
 Please precisely fix the detected issues while maintaining the richness and creativity of the animation.

@@ -189,7 +189,7 @@ return format:
                         f'All issues happens in segment {segment["id"]}: {segment["issue"]}\n'
                     })
                 await self.split_task.call_tool(
-                    '', tool_name='', tool_args={'tasks': inputs})
+                    '', tool_name='', tool_args={'tasks': inputs, 'execution_mode': 'parallel'})
                 return messages
 
     def next_flow(self, idx: int) -> int:

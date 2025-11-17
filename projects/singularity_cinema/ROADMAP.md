@@ -10,16 +10,16 @@
 - [x] 支持读取知识类文件并转为短视频 P0
 - [x] 支持manim动画 P0
 - [x] 支持生图 P0
-- [ ] 支持前景部分可选文生图 P0
-- [ ] 支持输入多模态数据 P0
-    * [ ] 分析多模态数据 P0
-    * [ ] 直接使用多模态数据（图表、图片等） P0
+- [x] 支持前景部分可选文生图 P0
+- [x] 支持输入多模态数据 P0
+    * [x] 分析多模态数据 P0
+    * [x] 直接使用多模态数据（图表、图片等） P0
     * [ ] 支持额外的梗图 P1
 - [ ] 默认支持更多的tts语音 P0
 - [ ] 支持更多LLM模型，例如Qwen系列、DeepSeek系列等 P0
-- [ ] 支持一个segment中多个字幕切换，防止文字超长 P1
+- [ ] 支持一个segment中多个字幕切换，防止文字超长 P0
 - [ ] 支持文生视频 P1
-- [ ] 支持更复杂的前景设计和背景特效 P1
+- [ ] 支持更复杂的前景设计和背景特效 P0
 
 ### 稳定性
 
@@ -47,16 +47,16 @@ This ROADMAP is to be completed by the end of S4 2025, i.e., December 31st.
 - [x] Support read documentation to generate videos P0
 - [x] Support manim animation P0
 - [x] Support image generation for backgrounds P0
-- [ ] Support optional text-to-image generation for foreground elements P0
-- [ ] Support multimodal data input P0
-    * [ ] Analyze multimodal data P0
-    * [ ] Directly use multimodal data (charts, images, etc.) P0
+- [x] Support optional text-to-image generation for foreground elements P0
+- [x] Support multimodal data input P0
+    * [x] Analyze multimodal data P0
+    * [x] Directly use multimodal data (charts, images, etc.) P0
     * [ ] Support for additional memes P1
 - [ ] Support more TTS voices by default P0
 - [ ] Support more LLM models, such as Qwen series, DeepSeek series, etc. P0
-- [ ] Support multiple subtitles in one segment P1
+- [ ] Support multiple subtitles in one segment P0
 - [ ] Support text-to-video generation P1
-- [ ] Support more complex foreground design and background effects P1
+- [ ] Support more complex foreground design and background effects P0
 
 ### Stability
 

@@ -129,27 +129,26 @@ class GenerateManimCode(CodeAgent):
 - Consider the image integration with the background and overall animation. Use blending/glow effects, frames, movements, borders etc. to make it more beautiful and gorgeous
     * You can more freely consider the integration of images to achieve a better presentation
     * Images size should be medium or small to prevent them from occupying the entire screen or most of the screen, big image is not cool
-    * Consider shape matching between images and surrounding components. circular to circular, square to square. Ensure aspect ratios of non-square images remain correct
+    * Ensure aspect ratios of non-square images remain correct
+    * When using circular frames around images in Manim, you MUST crop the image to a circle using PIL before loading it. A square image inside a circular frame looks unprofessional. Create a helper function that uses PIL's ImageDraw to create a circular mask, applies it to the image, saves it temporarily, then loads it with ImageMobject - simply creating a Circle object does NOT crop the image.
     * If using any image, decorate it with a gorgeous frame
 - [IMPORTANT] If images files is not empty, **you must use them all at the appropriate time and position in your animation**. Here is the image files list:
 
 {images_info}
 
-• Canvas size: (1250, 700) (width x height) which is the top 3/4 of screen, bottom is left for subtitles
-• Ensure all content stays within safe bounds x∈(-6.0, 6.0), y∈(-3.4, 3.4) with minimum buff=0.5 from any edge to prevent cropping.
-• [CRITICAL]Absolutely prevent **element spatial overlap** or **elements going out of bounds** or **elements not aligned**.
-• [CRITICAL]Connection lines between boxes/text are of proper length, with **both endpoints attached to the objects**.
-• All boxes must have thick strokes for clear visibility
-• Keep text within frame by controlling font sizes. Use smaller fonts for Latin script than Chinese due to longer length.
-• Ensure all pie chart pieces share the same center coordinates. Previous pie charts were drawn incorrectly.
-• Use less stick man unless the user wants to, to prevent the animation from being too naive, try to make your effects more gorgeous/spectacular
-• Concise and smooth animation effects
-• Progressive display, avoid information overload
-
-**Color Suggestions**:
-• You need to explicitly specify element colors and make these colors coordinated and elegant in style.
-• Consider the advices from the storyboard designer.
-• **Don't use light yellow, light blue, grey**, etc., as this will make the animation look superficial, Consider white, black, dark blue, dark purple.
+* Canvas size: (1250, 700) (width x height) which is the top 3/4 of screen, bottom is left for subtitles
+* Ensure all content stays within safe bounds x∈(-6.0, 6.0), y∈(-3.4, 3.4) with minimum buff=0.5 from any edge to prevent cropping.
+* [CRITICAL]Absolutely prevent **element spatial overlap** or **elements going out of bounds** or **elements not aligned**.
+* [CRITICAL]Connection lines between boxes/text are of proper length, with **both endpoints attached to the objects**.
+* All boxes must have thick strokes for clear visibility
+* Keep text within frame by controlling font sizes. Use smaller fonts for Latin script than Chinese due to longer length.
+* Ensure all pie chart pieces share the same center coordinates. Previous pie charts were drawn incorrectly.
+* Use clear, high-contrast font colors to prevent text from blending with the background
+* Use a cohesive color palette of 2-4 colors for the entire video. Avoid cluttered colors, bright blue, and bright yellow. Prefer deep, dark tones
+* Low-quality animations such as stick figures are forbidden
+* Scale the images
+    a. The image size on the canvas depend on its importance, important image occupies more spaces
+    b. Recommended size is from 1/8 to 1/4 on the canvas. If the image if the one unique element, the size can reach 1/2 or more
 
 Please create Manim animation code that meets the above requirements.""" # noqa
 
