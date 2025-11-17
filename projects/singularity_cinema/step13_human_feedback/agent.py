@@ -125,13 +125,13 @@ return format:
                  **kwargs):
         config.save_history = False
         config.prompt.system = self.system
-        config.tools = DictConfig({'file_system': {
-            'mcp': False,
-            'allow_read_all_files': True,
-            'exclude': [
-                'list_files'
-            ]
-        }})
+        config.tools = DictConfig({
+            'file_system': {
+                'mcp': False,
+                'allow_read_all_files': True,
+                'exclude': ['list_files']
+            }
+        })
         config.memory = ListConfig([])
         super().__init__(config, tag, trust_remote_code, **kwargs)
         self.work_dir = getattr(self.config, 'output_dir', 'output')
@@ -189,7 +189,12 @@ return format:
                         f'All issues happens in segment {segment["id"]}: {segment["issue"]}\n'
                     })
                 await self.split_task.call_tool(
-                    '', tool_name='', tool_args={'tasks': inputs, 'execution_mode': 'parallel'})
+                    '',
+                    tool_name='',
+                    tool_args={
+                        'tasks': inputs,
+                        'execution_mode': 'parallel'
+                    })
                 return messages
 
     def next_flow(self, idx: int) -> int:
