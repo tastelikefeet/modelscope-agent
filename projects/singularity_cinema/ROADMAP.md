@@ -23,7 +23,7 @@
 
 ### 稳定性
 
-- [ ] 增加manim动画的稳定性, 并防止截断 P0
+- [x] 增加manim动画的稳定性, 并防止截断 P0
 - [ ] 提升生成速度，尤其是缩小video生成的大量时间占用 P0
 - [x] 支持利用多模态模型分析视频问题，减少人工反馈成本 P0
 - [ ] 支持代码修复的memory管理 P1
@@ -60,7 +60,7 @@ This ROADMAP is to be completed by the end of S4 2025, i.e., December 31st.
 
 ### Stability
 
-- [ ] Increase stability of Manim animations, and preventing being cutting off P0
+- [x] Increase stability of Manim animations, and preventing being cutting off P0
 - [ ] Improve generation speed, especially for the process of video file generation P0
 - [x] Support using multimodal models to analyze video issues and reduce manual feedback costs P0
 - [ ] Support memory management for code fixes P1
