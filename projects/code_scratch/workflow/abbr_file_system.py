@@ -18,29 +18,6 @@ class AbbrFileSystemTool(FileSystemTool):
                 }
         return tools
 
-    def missing_file(self, missing):
-        with open(os.path.join(self.output_dir, 'file_design.txt'), 'r') as f:
-            file_designs = json.load(f)
-
-        all_files = []
-        for file_design in file_designs:
-            for file in file_design['files']:
-                all_files.append(file['name'])
-
-        if missing not in all_files:
-            return False
-
-        dep_file = os.path.join(self.output_dir, 'file_deps.txt')
-        if os.path.isfile(dep_file):
-            with open(dep_file, 'r') as f:
-                deps = f.readlines()
-
-            for dep in deps:
-                _, file = dep.split(',')
-                if missing == file:
-                    return False
-        return True
-
     async def read_file(self, paths: List[str], abbreviation=0):
         if abbreviation:
             abbr_paths = [os.path.join('abbr', path) for path in paths]
@@ -54,9 +31,6 @@ class AbbrFileSystemTool(FileSystemTool):
                 content = await super().read_file([abbr_path])
             if not content or 'FileNotFound' in content:
                 content = await super().read_file([path])
-            if 'FileNotFound' in content:
-                if self.missing_file(path):
-                    raise FileNotFoundError(path)
             content = json.loads(content)
             file_contents.update(content)
 
