@@ -38,6 +38,7 @@ class Segment(LLMAgent):
         - With four or more horizontal elements, put summary text or similar content at the canvas bottom, this will effectively reduce the cutting off and overlap problems
     * Consider the synchronization between animations and content. When read at a normal speaking pace, the content should align with the animation's progression.
     * Specify the language of the manim texts, it should be the same with the script and the storyboard content(Chinese/English for example)
+    * Do not use any matchstick-style or pixel-style animations. Use dynamic charts, images, and industrial/academic-style animations
 
 - You will be given a script. Your storyboard design needs to be based on the script. You can also add some additional information you think is useful
 

@@ -1,12 +1,27 @@
 import json
 import os
 from copy import deepcopy
+from typing import List
 
+from ms_agent import LLMAgent
 from ms_agent.agent import CodeAgent
+from ms_agent.llm import Message
 from ms_agent.tools import SplitTask
 from ms_agent.utils import get_logger
 
 logger = get_logger()
+
+
+class Programmer(LLMAgent):
+
+    def on_generate_response(self, messages: List[Message]):
+        for message in messages:
+            if message.role == 'assistant' and message.tool_calls:
+                assert len(message.tool_calls) == 1
+                if message.tool_calls[0]['tool_name'] == 'file_system---write_file':
+
+                elif message.tool_calls[0]['tool_name'] == 'file_system---read_file':
+
 
 
 class CodingAgent(CodeAgent):
@@ -22,8 +37,8 @@ class CodingAgent(CodeAgent):
                 file_status[file['name']] = False
 
         _config = deepcopy(self.config)
-        _config.save_history = True
-        _config.load_cache = True
+        _config.save_history = False
+        _config.load_cache = False
         split_task = SplitTask(_config)
 
         for file_design in file_designs:

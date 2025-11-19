@@ -33,7 +33,7 @@ prompt:
           # Imports: 依赖的其他文件
           - 文件列表
           # Class1: 类名
-          - function_name(arg1: type, arg2: type) -> type
+          - function_name(arg1: type, arg2: type) -> type 标注方法名、入参类型、出参类型
           # Class2: 类名
           - ...
         ```

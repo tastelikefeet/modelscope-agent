@@ -468,6 +468,7 @@ Manim instructions:
 * Use clear, high-contrast font colors to prevent text from blending with the background
 * Use a cohesive color palette of 2-4 colors for the entire video. Avoid cluttered colors, bright blue, and bright yellow. Prefer deep, dark tones
 * Low-quality animations such as stick figures are forbidden
+* Do not use any matchstick-style or pixel-style animations. Use dynamic charts, images, and industrial/academic-style animations
 * Scale the images
     a. The image size on the canvas depend on its importance, important image occupies more spaces
     b. Recommended size is from 1/8 to 1/4 on the canvas. If the image if the one unique element, the size can reach 1/2 or more

@@ -119,7 +119,7 @@ max_chat_round: 20
 
 manim_render_timeout: 120
 
-output_dir: output
+output_dir: output_video
 
 slogan: ['History Story', 'Talk Radio']
 
