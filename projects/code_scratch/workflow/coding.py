@@ -16,13 +16,10 @@ class CodingAgent(CodeAgent):
             file_designs = json.load(f)
 
         file_status = {}
-        all_files = []
         for file_design in file_designs:
             files = file_design['files']
             for file in files:
                 file_status[file['name']] = False
-                all_files.append(file['name'])
-        all_files = '\n'.join(all_files)
 
         for file_design in file_designs:
             files = file_design['files']
@@ -49,13 +46,32 @@ class CodingAgent(CodeAgent):
                 args = {
                     'tasks': [{
                         'system': self.config.prompt.system,
-                        'query': f'文件列表:{all_files}, 你需要编写的文件: {name}, 描述: {description}'
+                        'query': f'文件列表:{self.construct_file_information(file_status)}, '
+                                 f'你需要编写的文件: {name}, 描述: {description}'
                     }]
                 }
                 await split_task.call_tool('', tool_name='', tool_args=args)
-                file_status[name] = True
+                file_status = self.refresh_file_status()
 
-    async def refresh_file_status(self):
+    def refresh_file_status(self):
         with open(os.path.join(self.output_dir, 'file_design.txt')) as f:
             file_designs = json.load(f)
+        
+        file_status = {}
+        for file_design in file_designs:
+            files = file_design['files']
+            for file in files:
+                file_name = file['name']
+                file_path = os.path.join(self.output_dir, file_name)
+                file_status[file_name] = os.path.exists(file_path)
+        
+        return file_status
 
+    def construct_file_information(self, file_status):
+        file_info = ''
+        for file, status in file_status.items():
+            if status:
+                file += f'{file}: ✅已构建\n'
+            else:
+                file += f'{file}: ❌未构建\n'
+        return file_info

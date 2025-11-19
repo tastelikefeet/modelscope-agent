@@ -40,6 +40,6 @@ class AbbrFileSystemTool(FileSystemTool):
         if abbreviation:
             path = os.path.join('abbr', path)
 
-        return super().write_file(path, content)
+        return await super().write_file(path, content)
 
 

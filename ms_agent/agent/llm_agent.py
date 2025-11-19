@@ -397,9 +397,12 @@ class LLMAgent(Agent):
         Args:
             content (str): Content to log.
         """
-        for line in content.split('\n'):
-            for _line in line.split('\\n'):
-                logger.info(f'[{self.tag}] {_line}')
+        try:
+            for line in content.split('\n'):
+                for _line in line.split('\\n'):
+                    logger.info(f'[{self.tag}] {_line}')
+        except Exception:
+            print()
 
     def handle_new_response(self, messages: List[Message],
                             response_message: Message):
