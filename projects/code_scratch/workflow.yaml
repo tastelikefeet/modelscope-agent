@@ -27,5 +27,3 @@ coding:
   agent:
     kwargs:
       code_file: workflow/coding.py
-  next:
-    - file_design

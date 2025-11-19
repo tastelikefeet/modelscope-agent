@@ -1,5 +1,6 @@
 import json
 import os
+from copy import deepcopy
 
 from ms_agent.agent import CodeAgent
 from ms_agent.tools import SplitTask
@@ -30,16 +31,21 @@ class CodingAgent(CodeAgent):
                 for file in file_design['files']:
                     if file['name'] == filename:
                         break
+                if file['name'] == filename:
+                    break
 
             logger.info(f'Writing {filename}')
             description = file['description']
-            split_task = SplitTask(self.config)
+            _config = deepcopy(self.config)
+            _config.save_history = False
+            _config.load_cache = False
+            split_task = SplitTask(_config)
 
             args = {
-                'tasks': {
+                'tasks': [{
                     'system': self.config.prompt.system,
                     'query': f'文件列表:{all_files}, 你需要编写的文件: {filename}, 描述: {description}'
-                }
+                }]
             }
             try:
                 await split_task.call_tool('', tool_name='', tool_args=args)
@@ -57,10 +63,10 @@ class CodingAgent(CodeAgent):
                 with open(deps_file) as f:
                     file_deps = f.readlines()
                     file_deps = [dep.strip() for dep in file_deps if dep.strip()]
-            if file_deps:
-                missing, _ = file_deps[-1].split(',')
-                await write_file(missing)
-                continue
+                if file_deps:
+                    missing, _ = file_deps[-1].split(',')
+                    await write_file(missing)
+                    continue
 
             for file_design in file_designs:
                 files = file_design['files']
@@ -69,7 +75,8 @@ class CodingAgent(CodeAgent):
                     if file_status[name]:
                         continue
 
-                    if not await write_file(name):
+                    success = await write_file(name)
+                    if not success:
                         break
 
 

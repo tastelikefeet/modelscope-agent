@@ -20,14 +20,15 @@ prompt:
     
     1. 读取项目文件，并了解上下文知识
       *. 读取topic.txt了解原始需求
-      *. 读取user_story了解用户故事
+      *. 读取user_story.txt了解用户故事
       *. 读取protocol.txt了解通讯协议
       *. 读取framework.txt了解技术选型
     2. 在user字段中会给你文件列表和需要你完成的代码文件，你需要认真查看文件列表，读取你需要依赖的文件
-      * 优先使用read_file(..., abbreviation=True)，读取代码文件的缩略内容
-      * 如果缩略内容输入参数和输出参数为复杂结构，或涉及http或RPC通讯协议细节，再次使用read_file(..., abbreviation=False)读取文件详细内容
-    3. 编写代码，并调用write_file(..., abbreviation=False)存储文件
-    4. 在代码编写完成后，使用write_file(..., abbreviation=True)存储代码文件的缩略文件，缩略文件需要包含内容：
+      * 优先使用read_file(..., abbreviation=1)，读取代码文件的缩略内容
+      * 如果缩略内容输入参数和输出参数为复杂结构，或涉及http或RPC通讯协议细节，再次使用read_file(..., abbreviation=0)读取文件详细内容
+      * 你读取的依赖代码文件可能不存在，你需要创建这个代码文件和对应的缩略文件
+    3. 编写代码，并调用write_file(..., abbreviation=0)存储文件
+    4. 在代码编写完成后，使用write_file(..., abbreviation=1)存储代码文件的缩略文件，缩略文件需要包含内容：
         ```markdown
           # Imports: 依赖的其他文件
           - 文件列表
@@ -37,11 +38,10 @@ prompt:
           - ...
         ```
         * 如果是json文件，列出其key结构
-    
 
 tools:
   plugins:
-    - tools/abbr_file_system
+    - workflow/abbr_file_system
 
 memory:
   - name: mem0

@@ -11,15 +11,15 @@ class AbbrFileSystemTool(FileSystemTool):
         tools = await super()._get_tools_inner()
         tool_list = tools['file_system']
         for tool in tool_list:
-            if tool.tool_name in ('write_file', 'read_file'):
-                tool.parameters['properties']['abbreviation'] = {
-                    'type': 'string',
-                    'description': 'Read the abbreviation content of file'
+            if tool['tool_name'] in ('write_file', 'read_file'):
+                tool['parameters']['properties']['abbreviation'] = {
+                    'type': 'integer',
+                    'description': 'Read the abbreviation content of file, can be 0(default, read the original file) or 1(read the abbreviation)'
                 }
         return tools
 
     def missing_file(self, missing):
-        with open(os.path.join(self.output_dir, 'file_design.txt'), 'w') as f:
+        with open(os.path.join(self.output_dir, 'file_design.txt'), 'r') as f:
             file_designs = json.load(f)
 
         all_files = []
@@ -30,25 +30,29 @@ class AbbrFileSystemTool(FileSystemTool):
         if missing not in all_files:
             return False
 
-        with open(os.path.join(self.output_dir, 'file_deps.txt'), 'r') as f:
-            deps = f.readlines()
+        dep_file = os.path.join(self.output_dir, 'file_deps.txt')
+        if os.path.isfile(dep_file):
+            with open(dep_file, 'r') as f:
+                deps = f.readlines()
 
-        for dep in deps:
-            _, file = dep.split(',')
-            if missing == file:
-                return False
+            for dep in deps:
+                _, file = dep.split(',')
+                if missing == file:
+                    return False
         return True
 
-    async def read_file(self, paths: List[str], abbreviation='0'):
-        if abbreviation == '1':
+    async def read_file(self, paths: List[str], abbreviation=0):
+        if abbreviation:
             abbr_paths = [os.path.join('abbr', path) for path in paths]
         else:
             abbr_paths = [None] * len(paths)
 
         file_contents = {}
         for abbr_path, path in zip(abbr_paths, paths):
-            content = await super().read_file([abbr_path])
-            if 'FileNotFound' in content:
+            content = ''
+            if abbr_path:
+                content = await super().read_file([abbr_path])
+            if not content or 'FileNotFound' in content:
                 content = await super().read_file([path])
             if 'FileNotFound' in content:
                 if self.missing_file(path):
@@ -58,8 +62,8 @@ class AbbrFileSystemTool(FileSystemTool):
 
         return json.dumps(file_contents, indent=2, ensure_ascii=False)
 
-    async def write_file(self, path: str, content: str, abbreviation='0'):
-        if abbreviation == '1':
+    async def write_file(self, path: str, content: str, abbreviation=0):
+        if abbreviation:
             path = os.path.join('abbr', path)
 
         return super().write_file(path, content)

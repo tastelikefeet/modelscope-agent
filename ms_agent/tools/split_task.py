@@ -80,7 +80,7 @@ class SplitTask(ToolBase):
                 config=config,
                 trust_remote_code=trust_remote_code,
                 tag=f'{config.tag}-r{self.round}-{self.tag_prefix}{i}',
-                load_cache=config.load_cache)
+                load_cache=getattr(config, 'load_cache', False))
             sub_tasks.append(agent.run(query))
 
         result = []
