@@ -10,12 +10,14 @@ class AbbrFileSystemTool(FileSystemTool):
     async def _get_tools_inner(self):
         tools = await super()._get_tools_inner()
         tool_list = tools['file_system']
+        tool_list = [tool for tool in tool_list if tool['tool_name'] in ('write_file', 'read_file', 'create_directory')]
         for tool in tool_list:
             if tool['tool_name'] in ('write_file', 'read_file'):
                 tool['parameters']['properties']['abbreviation'] = {
                     'type': 'integer',
                     'description': 'Read the abbreviation content of file, can be 0(default, read the original file) or 1(read the abbreviation)'
                 }
+        tools['file_system'] = tool_list
         return tools
 
     async def read_file(self, paths: List[str], abbreviation=0):
@@ -37,7 +39,7 @@ class AbbrFileSystemTool(FileSystemTool):
         return json.dumps(file_contents, indent=2, ensure_ascii=False)
 
     async def write_file(self, path: str, content: str, abbreviation=0):
-        if abbreviation:
+        if abbreviation and not path.startswith('abbr'):
             path = os.path.join('abbr', path)
 
         return await super().write_file(path, content)

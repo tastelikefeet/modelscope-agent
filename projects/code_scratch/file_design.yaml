@@ -39,7 +39,8 @@ prompt:
         }
       ]
       ```
-  
+    3. 你不需要编写任何其它代码
+    
     Now Begin:
 
 max_chat_round: 10

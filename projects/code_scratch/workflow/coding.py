@@ -21,6 +21,11 @@ class CodingAgent(CodeAgent):
             for file in files:
                 file_status[file['name']] = False
 
+        _config = deepcopy(self.config)
+        _config.save_history = False
+        _config.load_cache = False
+        split_task = SplitTask(_config)
+
         for file_design in file_designs:
             files = file_design['files']
             for file in files:
@@ -38,11 +43,6 @@ class CodingAgent(CodeAgent):
 
                 logger.info(f'Writing {name}')
                 description = file['description']
-                _config = deepcopy(self.config)
-                _config.save_history = False
-                _config.load_cache = False
-                split_task = SplitTask(_config)
-
                 args = {
                     'tasks': [{
                         'system': self.config.prompt.system,
