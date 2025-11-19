@@ -1,6 +1,9 @@
+import dataclasses
 import json
 import os
+from collections import OrderedDict
 from copy import deepcopy
+from typing import List, Set
 
 from ms_agent import LLMAgent
 from ms_agent.agent import CodeAgent
@@ -39,16 +42,57 @@ class Programmer(LLMAgent):
                         'procedural_memory')
 
 
+@dataclasses.dataclass
+class FileRelation:
+
+    name: str
+    description: str
+    done: bool = False
+    deps: Set[str] = dataclasses.field(default_factory=set)
+
+
 class CodingAgent(CodeAgent):
+
+    _fast_fail = """
+6. 如果你发现依赖的任一底层代码文件不存在，你不应当继续编写代码文件，而应当退出当前的代码编写任务，并将你需要的底层文件名称(按行分隔)写入missing.txt中
+    ```missing.txt
+      config.js
+      ...
+    ```
+"""
+    _continue = """
+    6. 如果你发现依赖的任一底层代码文件不存在，你应当创建这个代码文件和对应的缩略文件
+"""
+
+    worker_index = 1
+
+    async def write_code(self, topic, user_story, framework, protocol,
+                         name, description, file_information, fast_fail):
+        logger.info(f'Writing {name}')
+        if fast_fail:
+            system = self.config.prompt.system + self._fast_fail
+        else:
+            system = self.config.prompt.system + self._continue
+        messages = [
+            Message(role='system', content=system),
+            Message(role='user', content=f'原始需求(topic.txt): {topic}\n'
+                                         f'LLM规划的用户故事(user_story.txt): {user_story}\n'
+                                         f'技术栈(framework.txt): {framework}\n'
+                                         f'通讯协议(protocol.txt): {protocol}\n'
+                                         f'文件列表:{file_information}\n'
+                                         f'你需要编写的文件: {name}\n文件描述: {description}\n'),
+        ]
+
+        _config = deepcopy(self.config)
+        _config.save_history = False
+        _config.load_cache = False
+        programmer = Programmer(_config, tag=f'programmer-{self.worker_index}', trust_remote_code=True)
+        await programmer.run(messages)
+        self.worker_index += 1
 
     async def execute_code(self, inputs, **kwargs):
         with open(os.path.join(self.output_dir, 'file_design.txt')) as f:
             file_designs = json.load(f)
-
-        file_status = self.refresh_file_status()
-        _config = deepcopy(self.config)
-        _config.save_history = False
-        _config.load_cache = False
 
         with open(os.path.join(self.output_dir, 'topic.txt')) as f:
             topic = f.read()
@@ -58,55 +102,77 @@ class CodingAgent(CodeAgent):
             framework = f.read()
         with open(os.path.join(self.output_dir, 'protocol.txt')) as f:
             protocol = f.read()
-        index = 0
-        for file_design in file_designs:
-            files = file_design['files']
-            for file in files:
-                name = file['name']
-                if file_status[name]:
+
+        file_relation = OrderedDict()
+        fast_fail = True
+        self.refresh_file_status(file_relation)
+        current = next(iter(file_relation.values())).name
+        while True:
+            file = file_relation[current]
+            if not file.done:
+                name = file.name
+                description = file.description
+                file_information = self.construct_file_information(file_relation)
+                await self.write_code(topic, user_story, framework, protocol, name, description, file_information,
+                                      fast_fail=fast_fail)
+                _missing_files = self.get_missing_files()
+                file.deps.update(_missing_files)
+                self.refresh_file_status(file_relation)
+            current, fast_fail = self.get_next_file(file_relation)
+            if not current:
+                break
+
+    @staticmethod
+    def get_next_file(file_relation):
+
+        def get_parent(parent, loops):
+            for _dep in file_relation[parent].deps:
+                if file_relation[_dep].done:
                     continue
+                if _dep in loops:
+                    return loops[-1], False
+                loops.append(_dep)
+                return get_parent(_dep, loops)
 
-                file = None
-                for file_design in file_designs:
-                    for file in file_design['files']:
-                        if file['name'] == name:
-                            break
-                    if file['name'] == name:
-                        break
+            return parent, True
 
-                logger.info(f'Writing {name}')
-                description = file['description']
-                messages = [
-                    Message(role='system', content=self.config.prompt.system),
-                    Message(role='user', content=f'原始需求(topic.txt): {topic}\n'
-                                                 f'LLM规划的用户故事(user_story.txt): {user_story}\n'
-                                                 f'技术栈(framework.txt): {framework}\n'
-                                                 f'通讯协议(protocol.txt): {protocol}\n'
-                                                 f'文件列表:{self.construct_file_information(file_status)}\n'
-                                                 f'你需要编写的文件: {name}\n文件描述: {description}\n'),
-                ]
-                programmer = Programmer(_config, tag=f'programmer-{index+1}', trust_remote_code=True)
-                await programmer.run(messages)
-                index += 1
-                file_status = self.refresh_file_status()
+        for file in file_relation.values():
+            file: FileRelation
+            if file.done:
+                continue
 
-    def refresh_file_status(self):
+            loops = [file.name]
+            return get_parent(file.name, loops)
+        return None, True
+
+    def get_missing_files(self):
+        if os.path.exists(os.path.join(self.output_dir, 'missing.txt')):
+            with open(os.path.join(self.output_dir, 'missing.txt')) as f:
+                missing_files = f.readlines()
+                missing_files = [file.strip() for file in missing_files if file.strip()]
+            os.remove(os.path.join(self.output_dir, 'missing.txt'))
+            assert not os.path.exists(os.path.join(self.output_dir, 'missing.txt'))
+            return missing_files
+        else:
+            return []
+
+    def refresh_file_status(self, file_relation):
         with open(os.path.join(self.output_dir, 'file_design.txt')) as f:
             file_designs = json.load(f)
-        
-        file_status = {}
+
         for file_design in file_designs:
             files = file_design['files']
             for file in files:
                 file_name = file['name']
+                description = file['description']
                 file_path = os.path.join(self.output_dir, file_name)
-                file_status[file_name] = os.path.exists(file_path)
-        
-        return file_status
+                if file_name not in file_relation:
+                    file_relation[file_name] = FileRelation(name=file_name, description=description)
+                file_relation[file_name].done = os.path.exists(file_path)
 
-    def construct_file_information(self, file_status):
+    def construct_file_information(self, file_relation):
         file_info = ''
-        for file, status in file_status.items():
+        for file, status in file_relation.items():
             if status:
                 file += f'{file}: ✅已构建\n'
             else:
