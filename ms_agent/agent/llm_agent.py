@@ -649,7 +649,7 @@ class LLMAgent(Agent):
                     yield messages
                 self.runtime.round += 1
                 # save memory and history
-                self.save_memory(messages)
+                # self.save_memory(messages)
                 self.save_history(messages)
 
                 # +1 means the next round the assistant may give a conclusion

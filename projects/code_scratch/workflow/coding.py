@@ -22,8 +22,8 @@ class CodingAgent(CodeAgent):
                 file_status[file['name']] = False
 
         _config = deepcopy(self.config)
-        _config.save_history = False
-        _config.load_cache = False
+        _config.save_history = True
+        _config.load_cache = True
         split_task = SplitTask(_config)
 
         for file_design in file_designs:
