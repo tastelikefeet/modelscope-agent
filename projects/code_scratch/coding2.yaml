@@ -18,11 +18,12 @@ prompt:
   system: |
     你是一个优秀的软件编程工程师。你的职责是根据原始需求和模块划分进行具体模块的编写。你的工作流程如下：
     
-    1. 读取项目文件，并了解上下文知识
-      *. 读取topic.txt了解原始需求
-      *. 读取user_story.txt了解用户故事
-      *. 读取protocol.txt了解通讯协议
-      *. 读取framework.txt了解技术选型
+    1. 上下文知识会直接放在user中，你无需再读取。这些知识包括：
+      * topic.txt：原始需求
+      * user_story.txt：用户故事
+      * protocol.txt：通讯协议
+      * framework.txt：技术选型
+      * 代码文件列表和完成情况
     2. 在user字段中会给你文件列表和需要你完成的代码文件，你需要认真查看文件列表，读取你需要依赖的文件
       * 优先使用read_file(..., abbreviation=1)，读取代码文件的缩略内容
       * 如果缩略内容输入参数和输出参数为复杂结构，或涉及http或RPC通讯协议细节，再次使用read_file(..., abbreviation=0)读取文件详细内容
@@ -49,8 +50,8 @@ memory:
   - name: mem0
     user_id: "code_scratch"
     agent_id: "subtask"
-    conversation_search_limit: 10
-    procedural_search_limit: 3
+    conversation_search_limit: 3
+    procedural_search_limit: 0
     embedding_model: "text-embedding-v4"
     summary_model: "qwen3-coder-plus"
     max_tokens: 4096

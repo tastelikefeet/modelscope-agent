@@ -1,12 +1,11 @@
 import json
 import os
 from copy import deepcopy
-from typing import List
 
 from ms_agent import LLMAgent
 from ms_agent.agent import CodeAgent
 from ms_agent.llm import Message
-from ms_agent.tools import SplitTask
+from ms_agent.memory.mem0ai import Mem0Memory
 from ms_agent.utils import get_logger
 
 logger = get_logger()
@@ -14,14 +13,30 @@ logger = get_logger()
 
 class Programmer(LLMAgent):
 
-    def on_generate_response(self, messages: List[Message]):
-        for message in messages:
+    async def condense_memory(self, messages):
+        if not getattr(self, '_memory_fetched', False):
+            for memory_tool in self.memory_tools:
+                messages = await memory_tool.run(messages)
+            self._memory_fetched = True
+        return messages
+
+    def save_memory(self, messages):
+        new_messages = []
+        for idx, message in enumerate(messages):
             if message.role == 'assistant' and message.tool_calls:
-                assert len(message.tool_calls) == 1
                 if message.tool_calls[0]['tool_name'] == 'file_system---write_file':
+                    arguments = message.tool_calls[0]['arguments']
+                    arguments = json.loads(arguments)
+                    if not arguments.get('abbreviation', False) and not arguments['path'].startswith('abbr'):
+                        new_messages.append(message)
+                        new_messages.append(messages[idx+1])
 
-                elif message.tool_calls[0]['tool_name'] == 'file_system---read_file':
-
+        if new_messages:
+            for memory_tool in self.memory_tools:
+                if isinstance(memory_tool, Mem0Memory):
+                    memory_tool.add_memories_from_procedural(
+                        new_messages, self.get_user_id(), self.tag,
+                        'procedural_memory')
 
 
 class CodingAgent(CodeAgent):
@@ -30,17 +45,20 @@ class CodingAgent(CodeAgent):
         with open(os.path.join(self.output_dir, 'file_design.txt')) as f:
             file_designs = json.load(f)
 
-        file_status = {}
-        for file_design in file_designs:
-            files = file_design['files']
-            for file in files:
-                file_status[file['name']] = False
-
+        file_status = self.refresh_file_status()
         _config = deepcopy(self.config)
         _config.save_history = False
         _config.load_cache = False
-        split_task = SplitTask(_config)
 
+        with open(os.path.join(self.output_dir, 'topic.txt')) as f:
+            topic = f.read()
+        with open(os.path.join(self.output_dir, 'user_story.txt')) as f:
+            user_story = f.read()
+        with open(os.path.join(self.output_dir, 'framework.txt')) as f:
+            framework = f.read()
+        with open(os.path.join(self.output_dir, 'protocol.txt')) as f:
+            protocol = f.read()
+        index = 0
         for file_design in file_designs:
             files = file_design['files']
             for file in files:
@@ -58,14 +76,18 @@ class CodingAgent(CodeAgent):
 
                 logger.info(f'Writing {name}')
                 description = file['description']
-                args = {
-                    'tasks': [{
-                        'system': self.config.prompt.system,
-                        'query': f'文件列表:{self.construct_file_information(file_status)}, '
-                                 f'你需要编写的文件: {name}, 描述: {description}'
-                    }]
-                }
-                await split_task.call_tool('', tool_name='', tool_args=args)
+                messages = [
+                    Message(role='system', content=self.config.prompt.system),
+                    Message(role='user', content=f'原始需求(topic.txt): {topic}\n'
+                                                 f'LLM规划的用户故事(user_story.txt): {user_story}\n'
+                                                 f'技术栈(framework.txt): {framework}\n'
+                                                 f'通讯协议(protocol.txt): {protocol}\n'
+                                                 f'文件列表:{self.construct_file_information(file_status)}\n'
+                                                 f'你需要编写的文件: {name}\n文件描述: {description}\n'),
+                ]
+                programmer = Programmer(_config, tag=f'programmer-{index+1}', trust_remote_code=True)
+                await programmer.run(messages)
+                index += 1
                 file_status = self.refresh_file_status()
 
     def refresh_file_status(self):
