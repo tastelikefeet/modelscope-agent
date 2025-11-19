@@ -25,7 +25,7 @@ class SplitTask(ToolBase):
     async def cleanup(self):
         pass
 
-    async def get_tools(self):
+    async def _get_tools_inner(self):
         return {
             'split_task': [
                 Tool(

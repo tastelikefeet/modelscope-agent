@@ -19,7 +19,7 @@ class Shell(ToolBase):
     async def connect(self) -> None:
         pass
 
-    async def get_tools(self) -> Dict[str, Any]:
+    async def _get_tools_inner(self) -> Dict[str, Any]:
         tools = {
             'shell': [
                 Tool(
@@ -52,12 +52,7 @@ class Shell(ToolBase):
                     }),
             ]
         }
-        return {
-            'file_system': [
-                t for t in tools['file_system']
-                if t['tool_name'] not in self.exclude_functions
-            ]
-        }
+        return tools
 
     def check_safe(self, command, work_dir):
         # 1. Check work_dir

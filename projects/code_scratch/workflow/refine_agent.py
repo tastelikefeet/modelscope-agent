@@ -2,36 +2,41 @@
 import os
 import subprocess
 from contextlib import contextmanager
-from typing import List, Optional
+from typing import LiteralString, Optional
 
-from file_parser import extract_code_blocks
-from ms_agent.agent.runtime import Runtime
-from ms_agent.callbacks import Callback
+from omegaconf import DictConfig
+
+from ms_agent import LLMAgent
 from ms_agent.llm.utils import Message
 from ms_agent.tools.filesystem_tool import FileSystemTool
 from ms_agent.utils import get_logger
-from omegaconf import DictConfig
+from ms_agent.utils.constants import DEFAULT_TAG
+from utils import extract_code_blocks
 
 logger = get_logger()
 
 
-class EvalCallback(Callback):
+class RefineAgent(LLMAgent):
     """Eval the code by compiling and human eval.
     """
 
-    def __init__(self, config: DictConfig):
-        super().__init__(config)
+    def __init__(self,
+                 config: DictConfig = DictConfig({}),
+                 tag: str = DEFAULT_TAG,
+                 trust_remote_code: bool = False,
+                 **kwargs):
+        super().__init__(config, tag, trust_remote_code, **kwargs)
         self.feedback_ended = False
         self.file_system = FileSystemTool(config)
         self.compile_round = 300
         self.cur_round = 0
         self.last_issue_length = 0
 
-    async def on_task_begin(self, runtime: Runtime, messages: List[Message]):
+    async def on_task_begin(self, messages):
         self.omit_intermediate_messages(messages)
         await self.file_system.connect()
 
-    def omit_intermediate_messages(self, messages: List[Message]):
+    def omit_intermediate_messages(self, messages):
         messages[2].tool_calls = None
         tmp = messages[:3]
         if self.last_issue_length > 0:
@@ -79,7 +84,7 @@ class EvalCallback(Callback):
                                     text=True,
                                     check=True)
         except subprocess.CalledProcessError as e:
-            output = EvalCallback._parse_e_msg(e)
+            output = RefineAgent._parse_e_msg(e)
         else:
             output = result.stdout + '\n' + result.stderr
         return output
@@ -100,9 +105,9 @@ class EvalCallback(Callback):
                                         text=True,
                                         check=True)
         except subprocess.CalledProcessError as e:
-            output = EvalCallback._parse_e_msg(e)
+            output = RefineAgent._parse_e_msg(e)
         except subprocess.TimeoutExpired as e:
-            output = EvalCallback._parse_e_msg(e)
+            output = RefineAgent._parse_e_msg(e)
         else:
             output = result.stdout + '\n' + result.stderr
         os.system('pkill -f node')
@@ -130,8 +135,7 @@ class EvalCallback(Callback):
         self.cur_round = 0
         return input('>>>')
 
-    async def on_generate_response(self, runtime: Runtime,
-                                   messages: List[Message]):
+    async def on_generate_response(self, messages):
         if messages[-1].tool_calls or messages[-1].role == 'tool':  # noqa
             # subtask or tool-calling or tool response, skip
             return
@@ -158,17 +162,21 @@ class EvalCallback(Callback):
                 f'Now please analyze and fix this issue:\n')
         messages.append(Message(role='user', content=feedback))
 
-    async def on_tool_call(self, runtime: Runtime, messages: List[Message]):
-        design, _ = extract_code_blocks(
-            messages[-1].content, target_filename='design.txt')
-        if len(design) > 0:
-            front, design = messages[-1].content.split(
-                '```text: design.txt', maxsplit=1)
-            design, end = design.rsplit('```', 1)
-            design = design.strip()
-            if design:
-                messages[2].content = await self.do_arch_update(
-                    runtime=runtime, messages=messages, updated_arch=design)
+    async def on_tool_call(self, messages):
+        if messages[-1].tool_calls or messages[-1].role == 'tool':
+            return
+        await self.file_system.create_directory()
+        content = '\n'.join([m.content for m in messages[2:]])
+        all_files, _ = extract_code_blocks(content)
+        results = []
+        for f in all_files:
+            result = await self.file_system.write_file(f['filename'],
+                                                       f['code'])
+            results.append(result)
 
-    async def after_tool_call(self, runtime: Runtime, messages: List[Message]):
-        runtime.should_stop = runtime.should_stop and self.feedback_ended
+        r: LiteralString = '\n'.join(results)
+        if len(r) > 0:
+            messages.append(Message(role='user', content=r))
+
+    async def after_tool_call(self, messages):
+        self.runtime.should_stop = self.runtime.should_stop and self.feedback_ended

@@ -67,16 +67,11 @@ prompt:
 
     Let's begin:
 
-callbacks:
-  - callbacks/artifact_callback
-  - callbacks/eval_callback
-
 tools:
   file_system:
     mcp: false
     exclude:
       - create_directory
-      - write_file
       - list_files
 
 max_chat_round: 100

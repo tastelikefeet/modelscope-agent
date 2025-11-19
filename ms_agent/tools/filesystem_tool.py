@@ -1,4 +1,5 @@
 # Copyright (c) Alibaba, Inc. and its affiliates.
+import json
 import os
 import shutil
 from typing import Optional
@@ -33,7 +34,7 @@ class FileSystemTool(ToolBase):
             '[IMPORTANT]FileSystemTool is not implemented with sandbox, please consider other similar '
             'tools if you want to run dangerous code.')
 
-    async def get_tools(self):
+    async def _get_tools_inner(self):
         tools = {
             'file_system': [
                 Tool(
@@ -127,12 +128,7 @@ class FileSystemTool(ToolBase):
                     }),
             ]
         }
-        return {
-            'file_system': [
-                t for t in tools['file_system']
-                if t['tool_name'] not in self.exclude_functions
-            ]
-        }
+        return tools
 
     async def call_tool(self, server_name: str, *, tool_name: str,
                         tool_args: dict) -> str:
@@ -214,9 +210,11 @@ class FileSystemTool(ToolBase):
 
                 with open(target_path_real, 'r') as f:
                     results[path] = f.read()
+            except FileNotFoundError:
+                results[path] = f'Read file <{path}> failed: FileNotFound'
             except Exception as e:
                 results[path] = f'Read file <{path}> failed, error: ' + str(e)
-        return str(results)
+        return json.dumps(results, indent=2, ensure_ascii=False)
 
     async def delete_file_or_dir(self, path: str):
         """Delete a file or a directory.

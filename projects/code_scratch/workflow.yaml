@@ -1,14 +1,31 @@
-architecture:
+user_story:
+  agent_config: user_story.yaml
+  agent:
+    kwargs:
+      code_file: workflow/user_story.py
+  next:
+    - split_module
+
+split_module:
+  agent_config: split_module.yaml
+  agent:
+    kwargs:
+      code_file: workflow/split_module.py
+  next:
+    - file_design
+
+file_design:
+  agent:
+    kwargs:
+      code_file: workflow/file_design.py
+  agent_config: file_design.yaml
   next:
     - coding
-  agent_config: architecture.yaml
-
 
 coding:
+  agent_config: coding2.yaml
+  agent:
+    kwargs:
+      code_file: workflow/coding.py
   next:
-    - refine
-  agent_config: coding.yaml
-
-
-refine:
-  agent_config: refine.yaml
+    - file_design
