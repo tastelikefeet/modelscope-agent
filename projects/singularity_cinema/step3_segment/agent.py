@@ -29,7 +29,7 @@ class Segment(LLMAgent):
 - Write specific narration for each storyboard panel, technical animation requirements, and **detailed** background image requirements
     * Specify your expected manim animation content, presentation details, position and size, etc., and remind the large model generating manim of technical requirements, and **absolutely prevent size overflow and animation position overlap**
     * Estimate the reading duration of this storyboard panel to estimate the duration of the manim animation. The actual duration will be completely determined in the next step of voice generation
-    * The video resolution is around 1920*1080, **the size ratio of manim canvas is 16:9**.
+    * The video resolution is around 1920*1080, **the ratio of the manim size is 16:9**.
     * Use thicker lines to emphasis elements
     * Use small and medium font/elements in Manim animations to prevent from going beyond the canvas
     * LLMs excel at animation complexity, not layout complexity.
@@ -38,22 +38,22 @@ class Segment(LLMAgent):
         - With four or more horizontal elements, put summary text or similar content at the canvas bottom, this will effectively reduce the cutting off and overlap problems
     * Consider the synchronization between animations and content. When read at a normal speaking pace, the content should align with the animation's progression.
     * Specify the language of the manim texts, it should be the same with the script and the storyboard content(Chinese/English for example)
-    * Do not use any matchstick-style or pixel-style animations. Use dynamic charts, images, and industrial/academic-style animations
-    * Do not create multi-track manim animations. Only one object per segment, or two to three(NO MORE THAN 3) object arranged in a simple manner, here are some layout suggestions:
-        - One object in the middle
-        - Two objects, left-right structure, same y axis, same size
-        - Three objects, left-middle-right structure, same y axis, same size. No more than 3 elements in one segment
-        - Split complex animation into sevaral segments
-        - Less words in the animation, titles of objects at the bottom
-        - Use black fonts, **no gray fonts**
-        - CRITICAL: **NEVER put an element to a corner, do use tic-tac-toe grid**
+    * Do not use any matchstick-style or pixel-style animations. Use charts, images, industrial/academic-style animations
+    * Do not create multi-track manim animations. One object per segment, or two to three(NO MORE THAN 3) object arranged in a simple manner, manim layout rules:
+        1. One object in the middle
+        2. Two objects, left-right structure, same y axis, same size
+        3. Three objects, left-middle-right structure, same y axis, same size. No more than 3 elements in one segment
+        4. Split complex animation into sevaral segments
+        5. Less text boxes in the animation, only titles/definitions/formulars
+        6. Use black fonts, **no gray fonts**
+        7. CRITICAL: **NEVER put an element to a corner, do use horizonal/vertical grid**
 
 - You will be given a script. Your storyboard design needs to be based on the script. You can also add some additional information you think is useful
 
 - Review the requirements and any provided documents. Integrate their content, formulas, charts, and visuals into the script to refine the video's screenplay and animations.
     [CRITICAL]: The manim and image generation steps will not receive the original requirements and files. Supply very detail information for them, especially any data/points/formulas to prevent any mismatch with the original query and/or documentation
 
-- Don't include the `content` in the animation; subtitles of the `content` will be added separately to the video
+- DO NOT print the `content` in the animation; subtitles of the `content` will be added separately to the video
 
 - Your return format is JSON format, no need to save file, later the json will be parsed out of the response body
 
@@ -142,10 +142,10 @@ Now begin:""" # noqa
     
     * **Use smaller image sizes for generated images and larger image sizes for user doc images. DO NOT use circular frame to user doc images**
 
-2. The manim field is used as guidance for subsequent manim animation generation. Modify this field so that the downstream manim generation model clearly understands how to use these images.
-    * No more than 2 images in a segment, 0 image is allowed
+2. The manim field is used as guidance for subsequent manim animation generation. Read the manim field content, **recreate the animation/manim**, and perfectly integrate the images into it
+    * No more than 2 images in a segment, 0 image in one segment is allowed
     * One image can only use once(one segment and one position)
-    * CRITICAL: DO NOT put images to the canvas corner
+    * DO NOT put images to the canvas corner
 
 3. The number of images used for each storyboard doesn't need to be the same, and images may not be used at all.
 
@@ -157,7 +157,7 @@ Now begin:""" # noqa
 
 6. Your return length should be the same as the source storyboard length. If images are not needed, return empty user_image and foreground lists.
 
-7. Don't include the `content` in the animation; subtitles of the `content` will be added separately to the video
+7. DO NOT print the `content` in the animation; subtitles of the `content` will be added separately to the video
 
 An example:
 
