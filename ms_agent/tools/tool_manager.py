@@ -15,6 +15,7 @@ from ms_agent.tools.code.code_executor import CodeExecutionTool
 from ms_agent.tools.filesystem_tool import FileSystemTool
 from ms_agent.tools.findata.findata_fetcher import FinancialDataFetcher
 from ms_agent.tools.mcp_client import MCPClient
+from ms_agent.tools.shell.shell import Shell
 from ms_agent.tools.split_task import SplitTask
 from ms_agent.utils import get_logger
 from ms_agent.utils.constants import TOOL_PLUGIN_NAME
@@ -44,6 +45,8 @@ class ToolManager:
         self.has_split_task_tool = False
         if hasattr(config, 'tools') and hasattr(config.tools, 'split_task'):
             self.extra_tools.append(SplitTask(config))
+        if hasattr(config, 'tools') and hasattr(config.tools, 'shell'):
+            self.extra_tools.append(Shell(config))
         if hasattr(config, 'tools') and hasattr(config.tools, 'file_system'):
             self.extra_tools.append(
                 FileSystemTool(

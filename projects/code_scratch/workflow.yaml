@@ -34,4 +34,4 @@ refine:
   agent:
     kwargs:
       code_file: workflow/refine.py
-  agent_config: refine.yaml
+  agent_config: refine2.yaml

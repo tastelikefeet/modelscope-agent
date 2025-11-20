@@ -167,9 +167,11 @@ class CodingAgent(CodeAgent):
                     file_relation[file_name] = FileRelation(name=file_name, description=description)
                 file_relation[file_name].done = os.path.exists(file_path)
 
-    def construct_file_information(self, file_relation):
+    def construct_file_information(self, file_relation, add_output_dir=False):
         file_info = '以下文件按架构设计编写顺序排序：\n'
         for file, relation in file_relation.items():
+            if add_output_dir:
+                file = os.path.join(self.output_dir, file)
             if relation.done:
                 file_info += f'{file}: ✅已构建\n'
             else:

@@ -481,7 +481,7 @@ Manim instructions:
     - Three objects, left-middle-right structure, same y axis, same size
     - Less words in the animation, titles of objects at the bottom
     - Use black fonts, no gray fonts
-    - No element should be put to a corner of another element, like right-top corner, use tic-tac-toe grid
+    - CRITICAL: **NEVER put an element to a corner, do use tic-tac-toe grid**
 
 **Color Suggestions**:
 * You need to explicitly specify element colors and make these colors coordinated and elegant in style.

@@ -29,7 +29,7 @@ class Segment(LLMAgent):
 - Write specific narration for each storyboard panel, technical animation requirements, and **detailed** background image requirements
     * Specify your expected manim animation content, presentation details, position and size, etc., and remind the large model generating manim of technical requirements, and **absolutely prevent size overflow and animation position overlap**
     * Estimate the reading duration of this storyboard panel to estimate the duration of the manim animation. The actual duration will be completely determined in the next step of voice generation
-    * The video resolution is around 1920*1080, **the size ratio of manim canvas is 16:9** too.
+    * The video resolution is around 1920*1080, **the size ratio of manim canvas is 16:9**.
     * Use thicker lines to emphasis elements
     * Use small and medium font/elements in Manim animations to prevent from going beyond the canvas
     * LLMs excel at animation complexity, not layout complexity.
@@ -39,13 +39,14 @@ class Segment(LLMAgent):
     * Consider the synchronization between animations and content. When read at a normal speaking pace, the content should align with the animation's progression.
     * Specify the language of the manim texts, it should be the same with the script and the storyboard content(Chinese/English for example)
     * Do not use any matchstick-style or pixel-style animations. Use dynamic charts, images, and industrial/academic-style animations
-    * Do not create multi-track manim animations. Only one object per segment, or two to three object arranged in a simple manner, here are some layout suggestions:
+    * Do not create multi-track manim animations. Only one object per segment, or two to three(NO MORE THAN 3) object arranged in a simple manner, here are some layout suggestions:
         - One object in the middle
         - Two objects, left-right structure, same y axis, same size
-        - Three objects, left-middle-right structure, same y axis, same size
+        - Three objects, left-middle-right structure, same y axis, same size. No more than 3 elements in one segment
+        - Split complex animation into sevaral segments
         - Less words in the animation, titles of objects at the bottom
-        - Use black fonts, no gray fonts
-        - Important: NEVER put an element to a corner, do use tic-tac-toe grid
+        - Use black fonts, **no gray fonts**
+        - CRITICAL: **NEVER put an element to a corner, do use tic-tac-toe grid**
 
 - You will be given a script. Your storyboard design needs to be based on the script. You can also add some additional information you think is useful
 
@@ -142,8 +143,9 @@ Now begin:""" # noqa
     * **Use smaller image sizes for generated images and larger image sizes for user doc images. DO NOT use circular frame to user doc images**
 
 2. The manim field is used as guidance for subsequent manim animation generation. Modify this field so that the downstream manim generation model clearly understands how to use these images.
-    * No more than 2 images in a segment
+    * No more than 2 images in a segment, 0 image is allowed
     * One image can only use once(one segment and one position)
+    * CRITICAL: DO NOT put images to the canvas corner
 
 3. The number of images used for each storyboard doesn't need to be the same, and images may not be used at all.
 

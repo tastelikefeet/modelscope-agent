@@ -20,7 +20,7 @@ class RefineAgent(LLMAgent):
 
         file_relation = OrderedDict()
         CodingAgent.refresh_file_status(self, file_relation)
-        file_info = CodingAgent.construct_file_information(self, file_relation)
+        file_info = CodingAgent.construct_file_information(self, file_relation, True)
         messages = [
             Message(role='system', content=self.config.prompt.system),
             Message(role='user', content=f'原始需求(topic.txt): {topic}\n'
