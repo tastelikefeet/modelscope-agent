@@ -38,7 +38,7 @@ prompt:
     1. 读取topic.txt和user_story.txt来获取原始需求和用户故事
     2. 设计技术选型，如果用户指定了技术选型，则优先使用用户的技术选型，并针对缺失的部分进行补充
       * [历史错误]:经常出现不同文件编写使用相同语言中不同技术框架运行失败问题。你的framework信息应当防止这个问题继续出现
-        例子：CommonJS和ES6在package.json和server.js混用导致运行失败
+        - 例子：CommonJS和ES6在package.json和server.js混用导致运行失败,你应当在framework.txt中指定语法规则
       * 技术选型以简洁、清晰的描述存储在framework.txt中，不超过1000个字
       
     3. 设计协议，根据上述技术选型，设计各类中间件和通讯的地址和端口
