@@ -85,8 +85,9 @@ class CreateBackground(CodeAgent):
             y_position += bbox[3] - bbox[1] + 5
 
         line_y = height - config['padding'] - config['line_position_offset']
-        draw.line([(0, line_y), (width, line_y)],
-                  fill=(0, 0, 0),
-                  width=config['line_width'])
+        if self.config.use_subtitle:
+            draw.line([(0, line_y), (width, line_y)],
+                      fill=(0, 0, 0),
+                      width=config['line_width'])
         image.save(self.bg_path)
         return messages

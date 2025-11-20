@@ -29,7 +29,7 @@ class Segment(LLMAgent):
 - Write specific narration for each storyboard panel, technical animation requirements, and **detailed** background image requirements
     * Specify your expected manim animation content, presentation details, position and size, etc., and remind the large model generating manim of technical requirements, and **absolutely prevent size overflow and animation position overlap**
     * Estimate the reading duration of this storyboard panel to estimate the duration of the manim animation. The actual duration will be completely determined in the next step of voice generation
-    * The video resolution is around 1920*1080, 200-pixel margin on all four sides for title and subtitle, so **manim can use center (1250, 700)**.
+    * The video resolution is around 1920*1080, **the size ratio of manim canvas is 16:9** too.
     * Use thicker lines to emphasis elements
     * Use small and medium font/elements in Manim animations to prevent from going beyond the canvas
     * LLMs excel at animation complexity, not layout complexity.
@@ -39,11 +39,20 @@ class Segment(LLMAgent):
     * Consider the synchronization between animations and content. When read at a normal speaking pace, the content should align with the animation's progression.
     * Specify the language of the manim texts, it should be the same with the script and the storyboard content(Chinese/English for example)
     * Do not use any matchstick-style or pixel-style animations. Use dynamic charts, images, and industrial/academic-style animations
+    * Do not create multi-track manim animations. Only one object per segment, or two to three object arranged in a simple manner, here are some layout suggestions:
+        - One object in the middle
+        - Two objects, left-right structure, same y axis, same size
+        - Three objects, left-middle-right structure, same y axis, same size
+        - Less words in the animation, titles of objects at the bottom
+        - Use black fonts, no gray fonts
+        - No element should be put to a corner of another element, like right-top corner, use tic-tac-toe grid
 
 - You will be given a script. Your storyboard design needs to be based on the script. You can also add some additional information you think is useful
 
 - Review the requirements and any provided documents. Integrate their content, formulas, charts, and visuals into the script to refine the video's screenplay and animations.
     [CRITICAL]: The manim and image generation steps will not receive the original requirements and files. Supply very detail information for them, especially any data/points/formulas to prevent any mismatch with the original query and/or documentation
+
+- Don't include dialogue in the animation; subtitles will be added separately to the short video
 
 - Your return format is JSON format, no need to save file, later the json will be parsed out of the response body
 
@@ -125,12 +134,15 @@ Now begin:""" # noqa
     * If the user's documentation contains any images, the information will be given to you:
         a. The image information will include content description, size(width*height) and filename
         b. Carefully select useful images in each segment as best as you can and reference the filename in the `user_image` field
+        c. **The images with important knowledge should have more show time, bigger size**
 
     * User-provided images may be insufficient. Trust text-to-image models to generate additional images for more visually compelling videos
         a. Output image generation requirements and the generated filenames(with .png format) in `foreground` field
         b. The shape of generated images are square
 
 2. The manim field is used as guidance for subsequent manim animation generation. Modify this field so that the downstream manim generation model clearly understands how to use these images.
+    * No more than 2 images in a segment
+    * One image can only use once(one segment and one position)
 
 3. The number of images used for each storyboard doesn't need to be the same, and images may not be used at all.
 
@@ -141,6 +153,8 @@ Now begin:""" # noqa
     * Recommended size is from 1/8 to 1/4 on the canvas. If the image if the one unique element, the size can reach 1/2 or more
 
 6. Your return length should be the same as the source storyboard length. If images are not needed, return empty user_image and foreground lists.
+
+7. Don't include the `content` in the animation; subtitles of the `content` will be added separately to the video
 
 An example:
 

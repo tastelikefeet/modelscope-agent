@@ -132,11 +132,13 @@ class GenerateManimCode(CodeAgent):
     * Ensure aspect ratios of non-square images remain correct
     * When using circular frames around images in Manim, you MUST crop the image to a circle using PIL before loading it. A square image inside a circular frame looks unprofessional. Create a helper function that uses PIL's ImageDraw to create a circular mask, applies it to the image, saves it temporarily, then loads it with ImageMobject - simply creating a Circle object does NOT crop the image.
     * If using any image, decorate it with a gorgeous frame
+    * **The images with important knowledge should have more show time, bigger size**
+    * **Watch out your image cut off by the 16:9 edge!**
 - [IMPORTANT] If images files is not empty, **you must use them all at the appropriate time and position in your animation**. Here is the image files list:
 
 {images_info}
 
-* Canvas size: (1250, 700) (width x height) which is the top 3/4 of screen, bottom is left for subtitles
+* Canvas size ratio: 16:9
 * Ensure all content stays within safe bounds x∈(-6.0, 6.0), y∈(-3.4, 3.4) with minimum buff=0.5 from any edge to prevent cropping.
 * [CRITICAL]Absolutely prevent **element spatial overlap** or **elements going out of bounds** or **elements not aligned**.
 * [CRITICAL]Connection lines between boxes/text are of proper length, with **both endpoints attached to the objects**.
@@ -150,6 +152,13 @@ class GenerateManimCode(CodeAgent):
 * Scale the images
     a. The image size on the canvas depend on its importance, important image occupies more spaces
     b. Recommended size is from 1/8 to 1/4 on the canvas. If the image if the one unique element, the size can reach 1/2 or more
+* Do not create multi-track manim animations. Only one object per segment, or two to three object arranged in a simple manner, here are some layout suggestions:
+    - One object in the middle
+    - Two objects, left-right structure, same y axis, same size
+    - Three objects, left-middle-right structure, same y axis, same size
+    - Less words in the animation, titles of objects at the bottom
+    - Use black fonts, no gray fonts
+    - No element should be put to a corner of another element, like right-top corner, use tic-tac-toe grid
 
 Please create Manim animation code that meets the above requirements.""" # noqa
 

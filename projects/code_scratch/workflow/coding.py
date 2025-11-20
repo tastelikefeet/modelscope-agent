@@ -17,13 +17,14 @@ logger = get_logger()
 class Programmer(LLMAgent):
 
     async def condense_memory(self, messages):
-        if not getattr(self, '_memory_fetched', False):
-            for memory_tool in self.memory_tools:
-                messages = await memory_tool.run(messages)
-            self._memory_fetched = True
+        #if not getattr(self, '_memory_fetched', False):
+        #    for memory_tool in self.memory_tools:
+        #        messages = await memory_tool.run(messages)
+        #    self._memory_fetched = True
         return messages
 
     def save_memory(self, messages):
+        pass
         new_messages = []
         for idx, message in enumerate(messages):
             if message.role == 'assistant' and message.tool_calls:
@@ -54,14 +55,10 @@ class FileRelation:
 class CodingAgent(CodeAgent):
 
     _fast_fail = """
-6. 如果你发现依赖的任一底层代码文件不存在，你不应当继续编写代码文件，而应当退出当前的代码编写任务，并将你需要的底层文件名称(按行分隔)写入missing.txt中
-    ```missing.txt
-      config.js
-      ...
-    ```
+6. 如果你发现依赖的任一底层代码文件不存在，你不应当继续编写代码文件，而应当调用**missing_dependency工具**汇报缺失文件
 """
     _continue = """
-    6. 如果你发现依赖的任一底层代码文件不存在，你应当创建这个代码文件和对应的缩略文件
+6. 如果你发现依赖的任一底层代码文件不存在，你应当创建这个代码文件和对应的缩略文件
 """
 
     worker_index = 1
@@ -69,9 +66,11 @@ class CodingAgent(CodeAgent):
     async def write_code(self, topic, user_story, framework, protocol,
                          name, description, file_information, fast_fail):
         logger.info(f'Writing {name}')
+        _config = deepcopy(self.config)
         if fast_fail:
             system = self.config.prompt.system + self._fast_fail
         else:
+            _config.tools.plugins.pop(-1)
             system = self.config.prompt.system + self._continue
         messages = [
             Message(role='system', content=system),
@@ -171,10 +170,10 @@ class CodingAgent(CodeAgent):
                 file_relation[file_name].done = os.path.exists(file_path)
 
     def construct_file_information(self, file_relation):
-        file_info = ''
-        for file, status in file_relation.items():
-            if status:
-                file += f'{file}: ✅已构建\n'
+        file_info = '以下文件按架构设计编写顺序排序：\n'
+        for file, relation in file_relation.items():
+            if relation.done:
+                file_info += f'{file}: ✅已构建\n'
             else:
-                file += f'{file}: ❌未构建\n'
+                file_info += f'{file}: ❌未构建\n'
         return file_info

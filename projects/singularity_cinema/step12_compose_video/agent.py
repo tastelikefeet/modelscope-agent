@@ -197,7 +197,7 @@ class ComposeVideo(CodeAgent):
                            foreground_paths[i]):
                 fg_clip = mp.VideoFileClip(foreground_paths[i], has_mask=True)
                 original_w, original_h = fg_clip.size
-                available_w, available_h = 1250, 700
+                available_w, available_h = (1250, 700) if self.config.use_subtitle else (1600, 900)
                 scale_w = available_w / original_w
                 scale_h = available_h / original_h
                 scale = min(scale_w, scale_h, 1.0)
@@ -222,27 +222,27 @@ class ComposeVideo(CodeAgent):
                 fg_clip = fg_clip.with_position(('center', 'center'))
                 fg_clip = fg_clip.with_duration(duration)
                 current_video_clips.append(fg_clip)
+            if self.config.use_subtitle:
+                if i < len(
+                        subtitle_paths) and subtitle_paths[i] and os.path.exists(
+                            subtitle_paths[i]):
+                    subtitle_img = Image.open(subtitle_paths[i])
+                    subtitle_w, subtitle_h = subtitle_img.size
 
-            if i < len(
-                    subtitle_paths) and subtitle_paths[i] and os.path.exists(
-                        subtitle_paths[i]):
-                subtitle_img = Image.open(subtitle_paths[i])
-                subtitle_w, subtitle_h = subtitle_img.size
-
-                # Validate subtitle dimensions
-                if subtitle_w <= 0 or subtitle_h <= 0:
-                    logger.error(
-                        f'Invalid subtitle dimensions: {subtitle_w}x{subtitle_h} for {subtitle_paths[i]}'
-                    )
-                else:
-                    subtitle_clip = mp.ImageClip(
-                        subtitle_paths[i], duration=duration)
-                    subtitle_clip = subtitle_clip.resized(
-                        (subtitle_w, subtitle_h))
-                    subtitle_y = 900
-                    subtitle_clip = subtitle_clip.with_position(
-                        ('center', subtitle_y))
-                    current_video_clips.append(subtitle_clip)
+                    # Validate subtitle dimensions
+                    if subtitle_w <= 0 or subtitle_h <= 0:
+                        logger.error(
+                            f'Invalid subtitle dimensions: {subtitle_w}x{subtitle_h} for {subtitle_paths[i]}'
+                        )
+                    else:
+                        subtitle_clip = mp.ImageClip(
+                            subtitle_paths[i], duration=duration)
+                        subtitle_clip = subtitle_clip.resized(
+                            (subtitle_w, subtitle_h))
+                        subtitle_y = 900
+                        subtitle_clip = subtitle_clip.with_position(
+                            ('center', subtitle_y))
+                        current_video_clips.append(subtitle_clip)
 
             if current_video_clips:
                 segment_video = mp.CompositeVideoClip(

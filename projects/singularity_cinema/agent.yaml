@@ -79,14 +79,17 @@ t2i_num_parallel: 1
 llm_num_parallel: 10
 
 code_fix_round: 5
-mllm_fix_round: 1
+mllm_fix_round: 0
 
 video:
   bitrate: 2500k
   preset: ultrafast
   fps: 24
 
-subtitle_lang:
+use_subtitle: false
+
+subtitle_translate:
+
 voice: male
 
 voices:

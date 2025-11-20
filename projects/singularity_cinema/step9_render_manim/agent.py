@@ -30,6 +30,8 @@ class RenderManim(CodeAgent):
                  trust_remote_code: bool = False,
                  **kwargs):
         super().__init__(config, tag, trust_remote_code, **kwargs)
+        if not self.config.use_subtitle:
+            self.window_size = (1600,900)
         self.work_dir = getattr(self.config, 'output_dir', 'output')
         self.num_parallel = getattr(self.config, 'llm_num_parallel', 10)
         self.manim_render_timeout = getattr(self.config,
@@ -265,7 +267,7 @@ You are a Manim animation layout inspection expert, responsible for checking lay
 
 **Background Information**
 - The images you receive are video frames rendered by Manim (intermediate frames or final frames)
-- Video dimensions: 1250×700
+- Video dimensions: 1920*1080
 
 **Inspection Focus**
 
@@ -458,7 +460,7 @@ These images must be used.
 
 Manim instructions:
 
-* Canvas size: (1250, 700) (width x height) which is the top 3/4 of screen, bottom is left for subtitles
+* Canvas size ratio: 16:9
 * Ensure all content stays within safe bounds x∈(-6.0, 6.0), y∈(-3.4, 3.4) with minimum buff=0.5 from any edge to prevent cropping.
 * [CRITICAL]Absolutely prevent **element spatial overlap** or **elements going out of bounds** or **elements not aligned**.
 * [CRITICAL]Connection lines between boxes/text are of proper length, with **both endpoints attached to the objects**.
@@ -469,9 +471,17 @@ Manim instructions:
 * Use a cohesive color palette of 2-4 colors for the entire video. Avoid cluttered colors, bright blue, and bright yellow. Prefer deep, dark tones
 * Low-quality animations such as stick figures are forbidden
 * Do not use any matchstick-style or pixel-style animations. Use dynamic charts, images, and industrial/academic-style animations
+* **The images with important knowledge should have more show time, bigger size**
 * Scale the images
     a. The image size on the canvas depend on its importance, important image occupies more spaces
     b. Recommended size is from 1/8 to 1/4 on the canvas. If the image if the one unique element, the size can reach 1/2 or more
+* Do not create multi-track manim animations. Only one object per segment, or two to three object arranged in a simple manner, here are some layout suggestions:
+    - One object in the middle
+    - Two objects, left-right structure, same y axis, same size
+    - Three objects, left-middle-right structure, same y axis, same size
+    - Less words in the animation, titles of objects at the bottom
+    - Use black fonts, no gray fonts
+    - No element should be put to a corner of another element, like right-top corner, use tic-tac-toe grid
 
 **Color Suggestions**:
 * You need to explicitly specify element colors and make these colors coordinated and elegant in style.

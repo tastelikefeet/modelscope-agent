@@ -24,7 +24,7 @@ prompt:
       * protocol.txt：通讯协议
       * framework.txt：技术选型
       * 代码文件列表和完成情况
-    2. 在user字段中会给你文件列表和需要你完成的代码文件，你需要认真查看文件列表，读取你需要依赖的文件
+    2. 在user字段中会给你文件列表和需要你完成的代码文件，你需要认真查看文件列表，读取你需要依赖的文件。在文件列表中标注“未构建”的文件目前并未编写，与实际硬盘记录对应
       * 优先使用read_file(..., abbreviation=1)，读取代码文件的缩略内容
       * 如果缩略内容输入参数和输出参数为复杂结构，或涉及http或RPC通讯协议细节，再次使用read_file(..., abbreviation=0)读取文件详细内容
     3. 编写代码，并调用write_file(..., abbreviation=0)存储文件
@@ -44,12 +44,13 @@ prompt:
 tools:
   plugins:
     - workflow/abbr_file_system
+    - workflow/missing_dependency
 
 memory:
   - name: mem0
     user_id: "code_scratch"
     agent_id: "subtask"
-    conversation_search_limit: 3
+    conversation_search_limit: 0
     procedural_search_limit: 0
     embedding_model: "text-embedding-v4"
     summary_model: "qwen3-coder-plus"

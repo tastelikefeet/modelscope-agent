@@ -203,8 +203,8 @@ class GenerateImages(CodeAgent):
                 'Applying fade effect to background image (Manim animation present)'
             )
             arr = np.array(img, dtype=np.float32)
-            fade_factor = 0.5  # Reduce color intensity to 50%
-            brightness_boost = 60  # Add brightness to lighten the image
+            fade_factor = 0.3  # Reduce color intensity to 50%
+            brightness_boost = 80  # Add brightness to lighten the image
             arr[..., :3] = arr[..., :3] * fade_factor + brightness_boost
             arr[..., :3] = np.clip(arr[..., :3], 0, 255)
             arr[..., 3] = arr[..., 3] * 0.7  # Reduce opacity to 70%
