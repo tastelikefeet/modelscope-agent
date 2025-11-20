@@ -45,14 +45,14 @@ class Segment(LLMAgent):
         - Three objects, left-middle-right structure, same y axis, same size
         - Less words in the animation, titles of objects at the bottom
         - Use black fonts, no gray fonts
-        - No element should be put to a corner of another element, like right-top corner, use tic-tac-toe grid
+        - Important: NEVER put an element to a corner, do use tic-tac-toe grid
 
 - You will be given a script. Your storyboard design needs to be based on the script. You can also add some additional information you think is useful
 
 - Review the requirements and any provided documents. Integrate their content, formulas, charts, and visuals into the script to refine the video's screenplay and animations.
     [CRITICAL]: The manim and image generation steps will not receive the original requirements and files. Supply very detail information for them, especially any data/points/formulas to prevent any mismatch with the original query and/or documentation
 
-- Don't include dialogue in the animation; subtitles will be added separately to the short video
+- Don't include the `content` in the animation; subtitles of the `content` will be added separately to the video
 
 - Your return format is JSON format, no need to save file, later the json will be parsed out of the response body
 
@@ -134,11 +134,12 @@ Now begin:""" # noqa
     * If the user's documentation contains any images, the information will be given to you:
         a. The image information will include content description, size(width*height) and filename
         b. Carefully select useful images in each segment as best as you can and reference the filename in the `user_image` field
-        c. **The images with important knowledge should have more show time, bigger size**
 
     * User-provided images may be insufficient. Trust text-to-image models to generate additional images for more visually compelling videos
         a. Output image generation requirements and the generated filenames(with .png format) in `foreground` field
         b. The shape of generated images are square
+    
+    * **Use smaller image sizes for generated images and larger image sizes for user doc images. DO NOT use circular frame to user doc images**
 
 2. The manim field is used as guidance for subsequent manim animation generation. Modify this field so that the downstream manim generation model clearly understands how to use these images.
     * No more than 2 images in a segment

@@ -132,7 +132,7 @@ class GenerateManimCode(CodeAgent):
     * Ensure aspect ratios of non-square images remain correct
     * When using circular frames around images in Manim, you MUST crop the image to a circle using PIL before loading it. A square image inside a circular frame looks unprofessional. Create a helper function that uses PIL's ImageDraw to create a circular mask, applies it to the image, saves it temporarily, then loads it with ImageMobject - simply creating a Circle object does NOT crop the image.
     * If using any image, decorate it with a gorgeous frame
-    * **The images with important knowledge should have more show time, bigger size**
+    * **Use smaller image sizes for generated images and larger image sizes for user doc images. DO NOT use circular frame to user doc images**
     * **Watch out your image cut off by the 16:9 edge!**
 - [IMPORTANT] If images files is not empty, **you must use them all at the appropriate time and position in your animation**. Here is the image files list:
 

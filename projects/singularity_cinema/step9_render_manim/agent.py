@@ -31,7 +31,7 @@ class RenderManim(CodeAgent):
                  **kwargs):
         super().__init__(config, tag, trust_remote_code, **kwargs)
         if not self.config.use_subtitle:
-            self.window_size = (1600,900)
+            self.window_size = (1450,800)
         self.work_dir = getattr(self.config, 'output_dir', 'output')
         self.num_parallel = getattr(self.config, 'llm_num_parallel', 10)
         self.manim_render_timeout = getattr(self.config,
@@ -471,7 +471,7 @@ Manim instructions:
 * Use a cohesive color palette of 2-4 colors for the entire video. Avoid cluttered colors, bright blue, and bright yellow. Prefer deep, dark tones
 * Low-quality animations such as stick figures are forbidden
 * Do not use any matchstick-style or pixel-style animations. Use dynamic charts, images, and industrial/academic-style animations
-* **The images with important knowledge should have more show time, bigger size**
+* **Use smaller image sizes for generated images and larger image sizes for user doc images. DO NOT use circular frame to user doc images**
 * Scale the images
     a. The image size on the canvas depend on its importance, important image occupies more spaces
     b. Recommended size is from 1/8 to 1/4 on the canvas. If the image if the one unique element, the size can reach 1/2 or more
