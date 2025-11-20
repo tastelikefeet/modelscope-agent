@@ -90,7 +90,7 @@ use_subtitle: false
 
 subtitle_translate:
 
-voice: male
+voice: female
 
 voices:
   male:
@@ -124,7 +124,7 @@ manim_render_timeout: 120
 
 output_dir: output_video
 
-slogan: ['History Story', 'Talk Radio']
+slogan: ['知识元气弹', '梯度爆炸']
 
 fonts:
   - Alibaba PuHuiTi

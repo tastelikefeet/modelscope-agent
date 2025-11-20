@@ -27,3 +27,11 @@ coding:
   agent:
     kwargs:
       code_file: workflow/coding.py
+  next:
+    - refine
+
+refine:
+  agent:
+    kwargs:
+      code_file: workflow/refine.py
+  agent_config: refine.yaml

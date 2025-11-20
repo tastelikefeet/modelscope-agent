@@ -90,9 +90,6 @@ class CodingAgent(CodeAgent):
         self.worker_index += 1
 
     async def execute_code(self, inputs, **kwargs):
-        with open(os.path.join(self.output_dir, 'file_design.txt')) as f:
-            file_designs = json.load(f)
-
         with open(os.path.join(self.output_dir, 'topic.txt')) as f:
             topic = f.read()
         with open(os.path.join(self.output_dir, 'user_story.txt')) as f:
@@ -120,6 +117,7 @@ class CodingAgent(CodeAgent):
             current, fast_fail = self.get_next_file(file_relation)
             if not current:
                 break
+        return inputs
 
     @staticmethod
     def get_next_file(file_relation):
