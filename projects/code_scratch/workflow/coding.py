@@ -54,9 +54,6 @@ class CodingAgent(CodeAgent):
     _continue = """
 6. 如果你发现依赖的任一底层代码文件不存在，你应当创建这个代码文件和对应的缩略文件
 """
-
-    worker_index = 1
-
     async def write_code(self, topic, user_story, framework, protocol,
                          name, description, fast_fail):
         logger.info(f'Writing {name}')
@@ -78,9 +75,8 @@ class CodingAgent(CodeAgent):
         _config = deepcopy(self.config)
         _config.save_history = False
         _config.load_cache = False
-        programmer = Programmer(_config, tag=f'programmer-{self.worker_index}', trust_remote_code=True)
+        programmer = Programmer(_config, tag=f'programmer-{name}', trust_remote_code=True)
         await programmer.run(messages)
-        self.worker_index += 1
 
     async def execute_code(self, inputs, **kwargs):
         with open(os.path.join(self.output_dir, 'topic.txt')) as f:
@@ -92,24 +88,23 @@ class CodingAgent(CodeAgent):
         with open(os.path.join(self.output_dir, 'protocol.txt')) as f:
             protocol = f.read()
 
+        file_orders = self.construct_file_orders()
         file_relation = OrderedDict()
-        fast_fail = True
         self.refresh_file_status(file_relation)
-        current = next(iter(file_relation.values())).name
-        while True:
-            file = file_relation[current]
-            if not file.done:
-                name = file.name
-                description = file.description
+
+        for files in file_orders:
+            while True:
+                files = self.filter_done_files(files)
+                files = self.find_description(files)
                 self.construct_file_information(file_relation)
-                await self.write_code(topic, user_story, framework, protocol, name, description,
-                                      fast_fail=fast_fail)
-                _missing_files = self.get_missing_files()
-                file.deps.update(_missing_files)
-                self.refresh_file_status(file_relation)
-            current, fast_fail = self.get_next_file(file_relation)
-            if not current:
-                break
+                if not files:
+                    break
+
+                for name, description in files.items():
+                    await self.write_code(topic, user_story, framework, protocol, name, description,
+                                          fast_fail=False)
+
+            self.refresh_file_status(file_relation)
 
         self.construct_file_information(file_relation)
         return inputs
@@ -147,6 +142,43 @@ class CodingAgent(CodeAgent):
             return missing_files
         else:
             return []
+
+    def construct_file_orders(self):
+        with open(os.path.join(self.output_dir, 'file_order.txt')) as f:
+            file_order = json.load(f)
+
+        file_orders = []
+        for files in file_order:
+            file_orders.append(files['files'])
+        return file_orders
+
+    def find_description(self, files):
+        file_desc = {file: '' for file in files}
+        with open(os.path.join(self.output_dir, 'file_design.txt')) as f:
+            file_design = json.load(f)
+
+        for module in file_design:
+            files = module['files']
+            for file in files:
+                name = file['name']
+                description = file['description']
+                if name in file_desc:
+                    file_desc[name] = description
+        return file_desc
+
+    def filter_done_files(self, file_group):
+        output = []
+        with open(os.path.join(self.output_dir, 'file_design.txt')) as f:
+            file_designs = json.load(f)
+
+        for file_design in file_designs:
+            files = file_design['files']
+            for file in files:
+                file_name = file['name']
+                file_path = os.path.join(self.output_dir, file_name)
+                if file_name in file_group and not os.path.exists(file_path):
+                    output.append(file_name)
+        return output
 
     def refresh_file_status(self, file_relation):
         with open(os.path.join(self.output_dir, 'file_design.txt')) as f:
