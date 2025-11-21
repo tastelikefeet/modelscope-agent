@@ -3,12 +3,11 @@ import json
 import os
 from collections import OrderedDict
 from copy import deepcopy
-from typing import List, Set
+from typing import Set
 
 from ms_agent import LLMAgent
 from ms_agent.agent import CodeAgent
 from ms_agent.llm import Message
-from ms_agent.memory.mem0ai import Mem0Memory
 from ms_agent.utils import get_logger
 
 logger = get_logger()
@@ -17,14 +16,13 @@ logger = get_logger()
 class Programmer(LLMAgent):
 
     async def condense_memory(self, messages):
-        #if not getattr(self, '_memory_fetched', False):
-        #    for memory_tool in self.memory_tools:
-        #        messages = await memory_tool.run(messages)
-        #    self._memory_fetched = True
+        if not getattr(self, '_memory_fetched', False):
+            for memory_tool in self.memory_tools:
+                messages = await memory_tool.run(messages)
+            self._memory_fetched = True
         return messages
 
-    def save_memory(self, messages):
-        pass
+    def add_memory(self, messages, **kwargs):
         new_messages = []
         for idx, message in enumerate(messages):
             if message.role == 'assistant' and message.tool_calls:
@@ -36,11 +34,7 @@ class Programmer(LLMAgent):
                         new_messages.append(messages[idx+1])
 
         if new_messages:
-            for memory_tool in self.memory_tools:
-                if isinstance(memory_tool, Mem0Memory):
-                    memory_tool.add_memories_from_procedural(
-                        new_messages, self.get_user_id(), self.tag,
-                        'procedural_memory')
+            super().add_memory(new_messages, **kwargs)
 
 
 @dataclasses.dataclass
@@ -64,7 +58,7 @@ class CodingAgent(CodeAgent):
     worker_index = 1
 
     async def write_code(self, topic, user_story, framework, protocol,
-                         name, description, file_information, fast_fail):
+                         name, description, fast_fail):
         logger.info(f'Writing {name}')
         _config = deepcopy(self.config)
         if fast_fail:
@@ -78,7 +72,6 @@ class CodingAgent(CodeAgent):
                                          f'LLM规划的用户故事(user_story.txt): {user_story}\n'
                                          f'技术栈(framework.txt): {framework}\n'
                                          f'通讯协议(protocol.txt): {protocol}\n'
-                                         f'文件列表:{file_information}\n'
                                          f'你需要编写的文件: {name}\n文件描述: {description}\n'),
         ]
 
@@ -108,8 +101,8 @@ class CodingAgent(CodeAgent):
             if not file.done:
                 name = file.name
                 description = file.description
-                file_information = self.construct_file_information(file_relation)
-                await self.write_code(topic, user_story, framework, protocol, name, description, file_information,
+                self.construct_file_information(file_relation)
+                await self.write_code(topic, user_story, framework, protocol, name, description,
                                       fast_fail=fast_fail)
                 _missing_files = self.get_missing_files()
                 file.deps.update(_missing_files)
@@ -117,6 +110,8 @@ class CodingAgent(CodeAgent):
             current, fast_fail = self.get_next_file(file_relation)
             if not current:
                 break
+
+        self.construct_file_information(file_relation)
         return inputs
 
     @staticmethod
@@ -176,4 +171,5 @@ class CodingAgent(CodeAgent):
                 file_info += f'{file}: ✅已构建\n'
             else:
                 file_info += f'{file}: ❌未构建\n'
-        return file_info
+        with open(os.path.join(self.output_dir, 'tasks.txt'), 'w') as f:
+            f.write(file_info)

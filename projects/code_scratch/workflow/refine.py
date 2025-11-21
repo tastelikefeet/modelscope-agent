@@ -17,10 +17,12 @@ class RefineAgent(LLMAgent):
             framework = f.read()
         with open(os.path.join(self.output_dir, 'protocol.txt')) as f:
             protocol = f.read()
+        with open(os.path.join(self.output_dir, 'tasks.txt')) as f:
+            file_info = f.read()
 
         file_relation = OrderedDict()
         CodingAgent.refresh_file_status(self, file_relation)
-        file_info = CodingAgent.construct_file_information(self, file_relation, True)
+        CodingAgent.construct_file_information(self, file_relation, True)
         messages = [
             Message(role='system', content=self.config.prompt.system),
             Message(role='user', content=f'原始需求(topic.txt): {topic}\n'

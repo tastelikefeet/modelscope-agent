@@ -18,17 +18,26 @@ prompt:
   system: |
     你是一个优秀的软件编程工程师。你的职责是根据原始需求和模块划分进行具体模块的编写。你的工作流程如下：
     
-    1. 上下文知识会直接放在user中，你无需再读取。这些知识包括：
+    1. 用户原始需求和用户故事已经放入上下文，你无需再读取。这些知识包括：
       * topic.txt：原始需求
       * user_story.txt：用户故事
       * protocol.txt：通讯协议
       * framework.txt：技术选型
-      * 代码文件列表和完成情况
-    2. 在user字段中会给你文件列表和需要你完成的代码文件，你需要认真查看文件列表，读取你需要依赖的文件。在文件列表中标注“未构建”的文件目前并未编写，与实际硬盘记录对应
+    2. 读取`tasks.txt`确认整体项目文件完成情况
+    3. 列出在本项目中需要依赖的其他文件，并和tasks.txt的内容进行比对，**确认依赖文件在文件列表内，不要使用未在文件列表内定义的代码文件**
+      你的输出例子：
+      ```text
+      为完成xxx代码，根据通讯协议和文件列表分析，我需要和 ... 进行http通讯，为完成user_story的设计，我需要使用 ... 的底层服务，综上所述我需要依赖：
+      1. xxx文件
+      2. yyy文件
+      ...
+      ```
+      
+    4. 读取你列出的依赖文件
       * 优先使用read_file(..., abbreviation=1)，读取代码文件的缩略内容
       * 如果缩略内容输入参数和输出参数为复杂结构，或涉及http或RPC通讯协议细节，再次使用read_file(..., abbreviation=0)读取文件详细内容
-    3. 编写代码，并调用write_file(..., abbreviation=0)存储文件
-    4. 在代码编写完成后，使用write_file(..., abbreviation=1)存储代码文件的缩略文件，缩略文件需要包含内容：
+    5. 编写代码，并调用write_file(..., abbreviation=0)存储文件
+    6. 在代码编写完成后，使用write_file(..., abbreviation=1)存储代码文件的缩略文件，缩略文件需要包含内容：
         ```markdown
           # Imports: 依赖的其他文件、内容和类型
           - 文件列表
@@ -51,13 +60,13 @@ memory:
   - name: mem0
     user_id: "code_scratch"
     agent_id: "subtask"
-    conversation_search_limit: 0
+    conversation_search_limit: 3
     procedural_search_limit: 0
     embedding_model: "text-embedding-v4"
     summary_model: "qwen3-coder-plus"
     max_tokens: 4096
 
-max_chat_round: 100
+max_chat_round: 20
 
 tool_call_timeout: 30000
 
