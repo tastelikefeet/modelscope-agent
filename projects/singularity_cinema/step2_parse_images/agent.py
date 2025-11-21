@@ -39,6 +39,8 @@ class ParseImages(CodeAgent):
         os.makedirs(self.image_dir, exist_ok=True)
 
     async def execute_code(self, messages, **kwargs):
+        if not self.config.use_doc_image:
+            return messages
         logger.info('Parsing images.')
         docs_file = os.path.join(self.work_dir, 'docs.txt')
         if not os.path.exists(docs_file):

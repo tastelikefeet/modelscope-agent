@@ -41,10 +41,13 @@ class GenerateImages(CodeAgent):
             segments = json.load(f)
         illustration_prompts = []
         for i in range(len(segments)):
-            with open(
-                    os.path.join(self.illustration_prompts_dir,
-                                 f'segment_{i+1}.txt'), 'r') as f:
-                illustration_prompts.append(f.read())
+            if self.config.background == 'image':
+                with open(
+                        os.path.join(self.illustration_prompts_dir,
+                                     f'segment_{i+1}.txt'), 'r') as f:
+                    illustration_prompts.append(f.read())
+            else:
+                illustration_prompts.append(None)
         logger.info('Generating images.')
 
         tasks = [

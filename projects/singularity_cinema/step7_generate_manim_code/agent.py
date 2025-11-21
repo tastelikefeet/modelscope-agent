@@ -114,8 +114,7 @@ class GenerateManimCode(CodeAgent):
             images_info = 'No images offered.'
 
         if config.foreground == 'image':
-            image_usage = f"""
-**Image usage**
+            image_usage = f"""**Image usage**
 - You'll receive an actual image list with three fields per image: filename, size, and description，consider deeply how to use them in your animation
 - Pay attention to the size field, write Manim code that respects the image's aspect ratio, size it if it's too big
 - Consider the image integration with the background and overall animation. Use blending/glow effects, frames, movements, borders etc. to make it more beautiful and gorgeous
@@ -133,8 +132,7 @@ DO NOT let the image and the manim element overlap. Reorganize them in your anim
 
 * Scale the images
     a. The image size on the canvas depend on its importance, important image occupies more spaces
-    b. Recommended size is from 1/8 to 1/4 on the canvas. If the image if the one unique element, the size can reach 1/2 or more
-""" # noqa
+    b. Recommended size is from 1/8 to 1/4 on the canvas. If the image if the one unique element, the size can reach 1/2 or more""" # noqa
         else:
             image_usage = ''
 

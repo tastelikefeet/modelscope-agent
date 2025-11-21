@@ -86,6 +86,8 @@ video:
   preset: ultrafast
   fps: 24
 
+use_doc_image: false
+
 use_subtitle: false
 
 subtitle_translate:
@@ -95,10 +97,10 @@ bg_audio_path: bg_audio.mp3
 bg_audio_volume: 0.4
 
 # image/#000000/BLACK/WHITE
-background: image
+background: BLACK
 
 # image/blank value
-foreground: image
+foreground:
 
 voice: male
 
