@@ -20,6 +20,14 @@ file_design:
       code_file: workflow/file_design.py
   agent_config: file_design.yaml
   next:
+    - file_order
+
+file_order:
+  agent:
+    kwargs:
+      code_file: workflow/file_order.py
+  agent_config: file_order.yaml
+  next:
     - coding
 
 coding:
