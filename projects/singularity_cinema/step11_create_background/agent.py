@@ -43,13 +43,13 @@ class CreateBackground(CodeAgent):
             title = f.read()
         width, height = 1920, 1080
         # Use transparent background
-        title_color = (0, 0, 0)
+        slogan_subtitle_color = self.config.slogan_subtitle_color
 
         config = {
             'title_font_size': 50,
             'subtitle_font_size': 54,
             'title_max_width': 15,
-            'subtitle_color': (0, 0, 0),
+            'subtitle_color': slogan_subtitle_color,
             'line_spacing': 15,
             'padding': 50,
             'line_width': 8,
@@ -71,7 +71,7 @@ class CreateBackground(CodeAgent):
             draw.text((config['padding'], y_position),
                       line,
                       font=title_font,
-                      fill=title_color)
+                      fill=slogan_subtitle_color)
             y_position += (bbox[3] - bbox[1]) + config['line_spacing']
         subtitle_lines = self.slogan
         y_position = config['padding']
