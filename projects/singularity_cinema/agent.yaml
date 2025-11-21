@@ -90,7 +90,14 @@ use_subtitle: false
 
 subtitle_translate:
 
-voice: female
+bg_audio_path: bg_audio.mp3
+
+bg_audio_volume: 0.4
+
+# image/
+background: image
+
+voice: male
 
 voices:
   male:

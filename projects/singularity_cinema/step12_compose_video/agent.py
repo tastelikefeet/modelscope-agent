@@ -291,8 +291,11 @@ class ComposeVideo(CodeAgent):
 
                 final_video = final_video.with_audio(final_audio)
 
-            bg_music_path = os.path.join(
-                os.path.dirname(__file__), 'bg_audio.mp3')
+            if os.path.exists(self.config.bg_audio_path):
+                bg_music_path = self.config.bg_audio_path
+            else:
+                bg_music_path = os.path.join(
+                    self.config.local_dir, self.config.bg_audio_path)
             if os.path.exists(bg_music_path):
                 bg_music = mp.AudioFileClip(bg_music_path)
                 if bg_music.duration < final_video.duration:
@@ -303,7 +306,7 @@ class ComposeVideo(CodeAgent):
                     bg_music = bg_music.subclipped(0, final_video.duration)
                 elif bg_music.duration > final_video.duration:
                     bg_music = bg_music.subclipped(0, final_video.duration)
-                bg_music = bg_music.with_volume_scaled(0.4)
+                bg_music = bg_music.with_volume_scaled(self.config.bg_audio_volume)
                 if final_video.audio:
                     tts_audio = final_video.audio.with_duration(
                         final_video.duration).with_volume_scaled(1.0)
