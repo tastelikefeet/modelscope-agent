@@ -57,6 +57,8 @@ class Programmer(LLMAgent):
                 for chunk in chunks:
                     _messages = [Message(role='assistant', content=chunk)]
                     await super().add_memory(_messages, **kwargs)
+        
+        
 
 
 @dataclasses.dataclass
