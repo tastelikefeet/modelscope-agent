@@ -24,18 +24,39 @@ class Programmer(LLMAgent):
         return messages
 
     async def add_memory(self, messages, **kwargs):
-        new_messages = []
+        if not self.runtime.should_stop:
+            return
+        all_written_files = []
         for idx, message in enumerate(messages):
             if message.role == 'assistant' and message.tool_calls:
                 if message.tool_calls[0]['tool_name'] == 'file_system---write_file':
                     arguments = message.tool_calls[0]['arguments']
                     arguments = json.loads(arguments)
                     if not arguments.get('abbreviation', False) and not arguments['path'].startswith('abbr'):
-                        new_messages.append(message)
-                        new_messages.append(messages[idx+1])
+                        all_written_files.append(arguments['content'])
 
-        if new_messages:
-            await super().add_memory(new_messages, **kwargs)
+        if all_written_files:
+            for file_content in all_written_files:
+                file_len = len(file_content)
+                chunk_size = 2048
+                overlap = 256
+                chunks = []
+                
+                if file_len <= chunk_size:
+                    chunks.append(file_content)
+                else:
+                    start = 0
+                    while start < file_len:
+                        end = min(start + chunk_size, file_len)
+                        chunks.append(file_content[start:end])
+                        if end >= file_len:
+                            break
+                        start += (chunk_size - overlap)
+                
+                # Add each chunk to memory
+                for chunk in chunks:
+                    _messages = [Message(role='assistant', content=chunk)]
+                    await super().add_memory(_messages, **kwargs)
 
 
 @dataclasses.dataclass

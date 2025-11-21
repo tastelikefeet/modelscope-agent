@@ -64,9 +64,9 @@ memory:
       memory_type: "procedural_memory"
     search:
       - user_id: "code_scratch"
-        search_limit: 10
+        search_limit: 5
       - user_id: "subagent"
-        search_limit: 3
+        search_limit: 0
     embedder:
       service: dashscope
       model: text-embedding-v4
