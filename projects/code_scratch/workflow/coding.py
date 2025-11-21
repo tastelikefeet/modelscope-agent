@@ -1,7 +1,9 @@
+import asyncio
 import dataclasses
 import json
 import os
 from collections import OrderedDict
+from concurrent.futures import ThreadPoolExecutor
 from copy import deepcopy
 from typing import Set
 
@@ -100,9 +102,11 @@ class CodingAgent(CodeAgent):
                 if not files:
                     break
 
-                for name, description in files.items():
-                    await self.write_code(topic, user_story, framework, protocol, name, description,
-                                          fast_fail=False)
+                tasks = [
+                    self.write_code(topic, user_story, framework, protocol, name, description, fast_fail=False)
+                    for name, description in files.items()
+                ]
+                await asyncio.gather(*tasks)
 
             self.refresh_file_status(file_relation)
 
