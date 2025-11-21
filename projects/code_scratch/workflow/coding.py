@@ -3,7 +3,6 @@ import dataclasses
 import json
 import os
 from collections import OrderedDict
-from concurrent.futures import ThreadPoolExecutor
 from copy import deepcopy
 from typing import Set
 
