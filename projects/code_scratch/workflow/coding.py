@@ -22,7 +22,7 @@ class Programmer(LLMAgent):
             self._memory_fetched = True
         return messages
 
-    def add_memory(self, messages, **kwargs):
+    async def add_memory(self, messages, **kwargs):
         new_messages = []
         for idx, message in enumerate(messages):
             if message.role == 'assistant' and message.tool_calls:
@@ -34,7 +34,7 @@ class Programmer(LLMAgent):
                         new_messages.append(messages[idx+1])
 
         if new_messages:
-            super().add_memory(new_messages, **kwargs)
+            await super().add_memory(new_messages, **kwargs)
 
 
 @dataclasses.dataclass

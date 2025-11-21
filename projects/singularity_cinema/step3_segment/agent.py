@@ -15,15 +15,15 @@ class Segment(LLMAgent):
 
     system = """You are an animation storyboard designer. Now there is a short video scene that needs storyboard design. The storyboard needs to meet the following conditions:
 
-- Each storyboard panel will carry a piece of narration, one manim technical animation, one generated image background, and one subtitle
+- Each storyboard panel will carry a piece of narration, one manim technical animation, one image background, and one subtitle
     * Use clear, high-contrast font colors to prevent text from blending with the background
     * Use a cohesive color palette of 2-4 colors for the entire video. Avoid cluttered colors, bright blue, and bright yellow. Prefer deep, dark tones
     * Low-quality animations such as stick figures are forbidden
 
 - Each of your storyboard panels should take about 5 seconds to 10 seconds to read at normal speaking speed. Avoid the feeling of frequent switching and static
-    * Pay attention to the coordination between the background image and the manim animation.
-        - If a manim animation exists, the background image should not be too flashy. Else the background image will become the main focus, and the image details should be richer
-        - The foreground and the background should not have the same objects. For example, draw birds at the foreground, sky and clouds at the background, other examples like charts and scientist, cloth and girls
+    * Pay attention to the color and content coordination between the background image and the manim animation.
+    * If a manim animation exists, the background image should not be too flashy. Else the background image will become the main focus, and the image details should be richer
+    * The foreground and the background should not have the same objects. For example, draw birds at the foreground, sky and clouds at the background, other examples like charts and scientist, cloth and girls
     * If a storyboard panel has manim animation, the image should be more concise, with a stronger supporting role
 
 - Write specific narration for each storyboard panel, technical animation requirements, and **detailed** background image requirements
@@ -75,13 +75,71 @@ An example:
 
 Now begin:""" # noqa
 
+    pure_color_system = """You are an animation storyboard designer. Now there is a short video scene that needs storyboard design. The storyboard needs to meet the following conditions:
+
+    - Each storyboard panel will carry a piece of narration, one manim technical animation, and one subtitle
+        * Use clear, high-contrast font colors to prevent text from blending with the background
+        * Use a cohesive color palette of 2-4 colors for the entire video. Avoid cluttered colors, bright blue, and bright yellow. Prefer deep, dark tones
+        * Low-quality animations such as stick figures are forbidden
+
+    - Each of your storyboard panels should take about 5 seconds to 10 seconds to read at normal speaking speed. Avoid the feeling of frequent switching and static
+        * Pay attention to the color and content coordination between the background image and the manim animation.
+        * Based on the background image color, select manim color scheme to make the foreground as clear as possible.
+
+    - Write specific narration for each storyboard panel, technical animation requirements
+        * Specify your expected manim animation content, presentation details, position and size, etc., and remind the large model generating manim of technical requirements, and **absolutely prevent size overflow and animation position overlap**
+        * Estimate the reading duration of this storyboard panel to estimate the duration of the manim animation. The actual duration will be completely determined in the next step of voice generation
+        * The video resolution is around 1920*1080, **the ratio of the manim size is 16:9**.
+        * Use thicker lines to emphasis elements
+        * Use small and medium font/elements in Manim animations to prevent from going beyond the canvas
+        * LLMs excel at animation complexity, not layout complexity.
+            - Use multiple storyboard scenes rather than adding more elements to one animation to avoid layout problems
+            - For animations with many elements, consider layout carefully. For instance, arrange elements horizontally given the canvas's wider width
+            - With four or more horizontal elements, put summary text or similar content at the canvas bottom, this will effectively reduce the cutting off and overlap problems
+        * Consider the synchronization between animations and content. When read at a normal speaking pace, the content should align with the animation's progression.
+        * Specify the language of the manim texts, it should be the same with the script and the storyboard content(Chinese/English for example)
+        * Do not use any matchstick-style or pixel-style animations. Use charts, images, industrial/academic-style animations
+        * Do not create multi-track manim animations. One object per segment, or two to three(NO MORE THAN 3 elements in one segment) object arranged in a simple manner, manim layout rules:
+            1. One object in the middle
+            2. Two objects, left-right structure, same y axis, same size
+            3. Three objects, left-middle-right structure, same y axis, same size. No more than 3 elements in one segment
+            4. Split complex animation into sevaral segments
+            5. Less text boxes in the animation, only titles/definitions/formulars
+            6. Use black fonts, **no gray fonts**
+            7. CRITICAL: **NEVER put an element to a corner, do use horizonal/vertical grid**
+
+    - You will be given a script. Your storyboard design needs to be based on the script. You can also add some additional information you think is useful
+
+    - Review the requirements and any provided documents. Integrate their content, formulas, charts, and visuals into the script to refine the video's screenplay and animations.
+        [CRITICAL]: The manim steps will not receive the original requirements and files. Supply very detail information for them, especially any data/points/formulas to prevent any mismatch with the original query and/or documentation
+
+    - DO NOT print the `content` in the animation; subtitles of the `content` will be added separately to the video
+
+    - Your return format is JSON format, no need to save file, later the json will be parsed out of the response body
+
+    - You need to pay attention not to use Chinese quotation marks. Use [] to replace them, for example [attention]
+
+    An example:
+    ```json
+    [
+        {
+            "index": 1, # index of the segment, start from 1
+            "content": "Your refine here",
+            "manim": "The animation should ... draw component ...",
+        },
+        ...
+    ]
+    ```
+    ```
+
+    Now begin:"""  # noqa
+
     def __init__(self,
                  config: DictConfig,
                  tag: str,
                  trust_remote_code: bool = False,
                  **kwargs):
         _config = deepcopy(config)
-        _config.prompt.system = self.system
         _config.tools = DictConfig({})
         super().__init__(_config, tag, trust_remote_code, **kwargs)
         self.work_dir = getattr(self.config, 'output_dir', 'output')
@@ -89,8 +147,9 @@ Now begin:""" # noqa
 
     async def create_messages(self, messages):
         assert isinstance(messages, str)
+        system = self.system if self.config.background == 'image' else self.pure_color_system
         return [
-            Message(role='system', content=self.system),
+            Message(role='system', content=system),
             Message(role='user', content=messages),
         ]
 
@@ -103,8 +162,13 @@ Now begin:""" # noqa
         with open(os.path.join(self.work_dir, 'topic.txt'), 'r') as f:
             topic = f.read()
 
+        image_prompt = ''
+        if self.config.background != 'image':
+            image_prompt = f'\n\nThe background image is pure color: {self.config.background}\n\n'
+
         query = (f'Original topic: \n\n{topic}\n\n'
                  f'Original script：\n\n{script}\n\n'
+                 f'{image_prompt}'
                  f'Please finish your animation storyboard design:\n')
         messages = await super().run(query, **kwargs)
         response = messages[-1].content
@@ -113,11 +177,15 @@ Now begin:""" # noqa
         elif '```' in response:
             response = response.split('```')[1].split('```')[0]
         segments = json.loads(response)
-        segments = await self.add_images(segments, topic, script, **kwargs)
+        if self.config.foreground == 'image':
+            segments = await self.add_images(segments, topic, script, **kwargs)
 
         for i, segment in enumerate(segments):
             assert 'content' in segment
-            assert 'background' in segment
+            if self.config.background == 'image':
+                assert 'background' in segment
+            else:
+                segment["background"] = self.config.background
             logger.info(
                 f'\nScene {i}\n'
                 f'Content: {segment["content"]}\n'

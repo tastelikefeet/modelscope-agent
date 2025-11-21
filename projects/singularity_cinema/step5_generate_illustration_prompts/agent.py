@@ -79,10 +79,12 @@ Only return the prompt itself, do not add any other explainations or marks."""  
                                               illustration_prompts_dir):
         """Static method for multiprocessing"""
         llm = LLM.from_config(config)
-        GenerateIllustrationPrompts._generate_illustration_impl(
-            llm, i, segment, style, system, illustration_prompts_dir)
-        GenerateIllustrationPrompts._generate_foreground_impl(
-            llm, i, segment, system, illustration_prompts_dir)
+        if config.background == 'image':
+            GenerateIllustrationPrompts._generate_illustration_impl(
+                llm, i, segment, style, system, illustration_prompts_dir)
+        if config.foreground == 'image':
+            GenerateIllustrationPrompts._generate_foreground_impl(
+                llm, i, segment, system, illustration_prompts_dir)
 
     @staticmethod
     def _generate_illustration_impl(llm, i, segment, style, system,

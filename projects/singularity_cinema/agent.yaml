@@ -94,8 +94,11 @@ bg_audio_path: bg_audio.mp3
 
 bg_audio_volume: 0.4
 
-# image/
+# image/#000000/BLACK/WHITE
 background: image
+
+# image/blank value
+foreground: image
 
 voice: male
 

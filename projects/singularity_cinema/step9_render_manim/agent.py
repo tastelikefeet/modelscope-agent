@@ -437,6 +437,23 @@ The right component is squeezed to the edge. Fix suggestion: Reduce the width of
                              audio_duration, segment, i, work_dir):
         image_dir = os.path.join(work_dir, 'images')
         images_info = RenderManim.get_all_images_info(segment, i, image_dir)
+
+        if images_info:
+            image_prompt = f"""
+- ImageInfo:
+
+{images_info}
+
+These images must be used.
+
+* **Use smaller image sizes for generated images and larger image sizes for user doc images. DO NOT use circular frame to user doc images**
+* Scale the images
+    a. The image size on the canvas depend on its importance, important image occupies more spaces
+    b. Recommended size is from 1/8 to 1/4 on the canvas. If the image if the one unique element, the size can reach 1/2 or more
+"""
+        else:
+            image_prompt = ''
+
         fix_request = f"""You are a professional code debugging specialist. You need to help me fix issues in the code. Error messages will be passed directly to you. You need to carefully examine the problems and provide the correct, complete code.
 {error_log}
 
@@ -445,6 +462,8 @@ The right component is squeezed to the edge. Fix suggestion: Reduce the width of
 {manim_code}
 ```
 
+{image_prompt}
+
 {fix_history}
 
 **Original code task**: Create manim animation
@@ -452,11 +471,7 @@ The right component is squeezed to the edge. Fix suggestion: Reduce the width of
 - Content: {content}
 - Duration: {audio_duration} seconds
 - Code language: **Python**
-- ImageInfo:
 
-{images_info}
-
-These images must be used.
 
 Manim instructions:
 
@@ -471,10 +486,6 @@ Manim instructions:
 * Use a cohesive color palette of 2-4 colors for the entire video. Avoid cluttered colors, bright blue, and bright yellow. Prefer deep, dark tones
 * Low-quality animations such as stick figures are forbidden
 * Do not use any matchstick-style or pixel-style animations. Use charts, images, industrial/academic-style animations
-* **Use smaller image sizes for generated images and larger image sizes for user doc images. DO NOT use circular frame to user doc images**
-* Scale the images
-    a. The image size on the canvas depend on its importance, important image occupies more spaces
-    b. Recommended size is from 1/8 to 1/4 on the canvas. If the image if the one unique element, the size can reach 1/2 or more
 * Do not create multi-track manim animations. One object per segment, or two to three(NO MORE THAN 3) object arranged in a simple manner, manim layout rules:
     1. One object in the middle
     2. Two objects, left-right structure, same y axis, same size

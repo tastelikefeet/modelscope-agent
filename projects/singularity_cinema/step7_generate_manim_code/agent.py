@@ -67,7 +67,7 @@ class GenerateManimCode(CodeAgent):
         llm = LLM.from_config(config)
         return GenerateManimCode._generate_manim_impl(llm, segment,
                                                       audio_duration, i,
-                                                      image_dir)
+                                                      image_dir, config)
 
     @staticmethod
     def get_image_size(filename):
@@ -102,7 +102,7 @@ class GenerateManimCode(CodeAgent):
         return all_images_info
 
     @staticmethod
-    def _generate_manim_impl(llm, segment, audio_duration, i, image_dir):
+    def _generate_manim_impl(llm, segment, audio_duration, i, image_dir, config):
         class_name = f'Scene{i + 1}'
         content = segment['content']
         manim_requirement = segment['manim']
@@ -113,16 +113,8 @@ class GenerateManimCode(CodeAgent):
         else:
             images_info = 'No images offered.'
 
-        prompt = f"""You are a professional Manim animation expert, creating clear and beautiful educational animations.
-
-**Task**: Create animation
-- Class name: {class_name}
-- Content: {content}
-- Requirement from the storyboard designer: {manim_requirement}
-    * If the storyboard designer's layout is poor, create a better custom layout
-- Duration: {audio_duration} seconds
-- Code language: **Python**
-
+        if config.foreground == 'image':
+            image_usage = f"""
 **Image usage**
 - You'll receive an actual image list with three fields per image: filename, size, and description，consider deeply how to use them in your animation
 - Pay attention to the size field, write Manim code that respects the image's aspect ratio, size it if it's too big
@@ -136,8 +128,27 @@ class GenerateManimCode(CodeAgent):
 - [IMPORTANT] If images files is not empty, **you must use them all at the appropriate time and position in your animation**. Here is the image files list:
 
 {images_info}
-chu
+
 DO NOT let the image and the manim element overlap. Reorganize them in your animation.
+
+* Scale the images
+    a. The image size on the canvas depend on its importance, important image occupies more spaces
+    b. Recommended size is from 1/8 to 1/4 on the canvas. If the image if the one unique element, the size can reach 1/2 or more
+""" # noqa
+        else:
+            image_usage = ''
+
+        prompt = f"""You are a professional Manim animation expert, creating clear and beautiful educational animations.
+
+**Task**: Create animation
+- Class name: {class_name}
+- Content: {content}
+- Requirement from the storyboard designer: {manim_requirement}
+    * If the storyboard designer's layout is poor, create a better custom layout
+- Duration: {audio_duration} seconds
+- Code language: **Python**
+
+{image_usage}
 
 * Canvas size ratio: 16:9
 * Ensure all content stays within safe bounds x∈(-6.0, 6.0), y∈(-3.4, 3.4) with minimum buff=0.5 from any edge to prevent cropping.
@@ -150,9 +161,6 @@ DO NOT let the image and the manim element overlap. Reorganize them in your anim
 * Use a cohesive color palette of 2-4 colors for the entire video. Avoid cluttered colors, bright blue, and bright yellow. Prefer deep, dark tones
 * Low-quality animations such as stick figures are forbidden
 * Do not use any matchstick-style or pixel-style animations. Use charts, images, industrial/academic-style animations
-* Scale the images
-    a. The image size on the canvas depend on its importance, important image occupies more spaces
-    b. Recommended size is from 1/8 to 1/4 on the canvas. If the image if the one unique element, the size can reach 1/2 or more
 * Do not create multi-track manim animations. One object per segment, or two to three(NO MORE THAN 3) object arranged in a simple manner, manim layout rules:
     1. One object in the middle
     2. Two objects, left-right structure, same y axis, same size
