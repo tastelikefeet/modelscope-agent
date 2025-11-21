@@ -21,7 +21,7 @@ class CreateBackground(CodeAgent):
                  **kwargs):
         super().__init__(config, tag, trust_remote_code, **kwargs)
         self.work_dir = getattr(self.config, 'output_dir', 'output')
-        self.bg_path = os.path.join(self.work_dir, 'background.jpg')
+        self.bg_path = os.path.join(self.work_dir, 'background.png')
         self.llm: OpenAI = LLM.from_config(self.config)
         self.fonts = self.config.fonts
         self.slogan = getattr(self.config, 'slogan', [])
@@ -42,7 +42,7 @@ class CreateBackground(CodeAgent):
         with open(os.path.join(self.work_dir, 'title.txt'), 'r') as f:
             title = f.read()
         width, height = 1920, 1080
-        background_color = (255, 255, 255)
+        # Use transparent background
         title_color = (0, 0, 0)
 
         config = {
@@ -57,7 +57,8 @@ class CreateBackground(CodeAgent):
             'line_position_offset': 140
         }
 
-        image = Image.new('RGB', (width, height), background_color)
+        # Create image with transparent background (RGBA mode)
+        image = Image.new('RGBA', (width, height), (255, 255, 255, 0))
         draw = ImageDraw.Draw(image)
 
         title_font = self.get_font(config['title_font_size'])

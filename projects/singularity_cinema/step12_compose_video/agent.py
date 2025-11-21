@@ -23,7 +23,7 @@ class ComposeVideo(CodeAgent):
         self.work_dir = getattr(self.config, 'output_dir', 'output')
         self.transition = getattr(self.config.text2image, 't2i_transition',
                                   None)
-        self.bg_path = os.path.join(self.work_dir, 'background.jpg')
+        self.bg_path = os.path.join(self.work_dir, 'background.png')
         self.render_dir = os.path.join(self.work_dir, 'manim_render')
         self.tts_dir = os.path.join(self.work_dir, 'audio')
         self.images_dir = os.path.join(self.work_dir, 'images')
@@ -78,11 +78,7 @@ class ComposeVideo(CodeAgent):
 
             current_video_clips = []
 
-            if background_path and os.path.exists(background_path):
-                bg_clip = mp.ImageClip(background_path, duration=duration)
-                bg_clip = bg_clip.resized((1920, 1080))
-                current_video_clips.append(bg_clip)
-
+            # Add illustration first (as base layer)
             if i < len(illustration_paths
                        ) and illustration_paths[i] and os.path.exists(
                            illustration_paths[i]):
@@ -192,6 +188,8 @@ class ComposeVideo(CodeAgent):
 
                 current_video_clips.append(illustration_clip)
 
+            # Add foreground animation layer
+
             if i < len(foreground_paths
                        ) and foreground_paths[i] and os.path.exists(
                            foreground_paths[i]):
@@ -243,6 +241,12 @@ class ComposeVideo(CodeAgent):
                         subtitle_clip = subtitle_clip.with_position(
                             ('center', subtitle_y))
                         current_video_clips.append(subtitle_clip)
+
+            # Add background as top layer (transparent PNG with decorative elements)
+            if background_path and os.path.exists(background_path):
+                bg_clip = mp.ImageClip(background_path, duration=duration)
+                bg_clip = bg_clip.resized((1920, 1080))
+                current_video_clips.append(bg_clip)
 
             if current_video_clips:
                 segment_video = mp.CompositeVideoClip(
