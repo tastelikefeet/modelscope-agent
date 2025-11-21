@@ -39,7 +39,7 @@ class Segment(LLMAgent):
     * Consider the synchronization between animations and content. When read at a normal speaking pace, the content should align with the animation's progression.
     * Specify the language of the manim texts, it should be the same with the script and the storyboard content(Chinese/English for example)
     * Do not use any matchstick-style or pixel-style animations. Use charts, images, industrial/academic-style animations
-    * Do not create multi-track manim animations. One object per segment, or two to three(NO MORE THAN 3) object arranged in a simple manner, manim layout rules:
+    * Do not create multi-track manim animations. One object per segment, or two to three(NO MORE THAN 3 elements in one segment) object arranged in a simple manner, manim layout rules:
         1. One object in the middle
         2. Two objects, left-right structure, same y axis, same size
         3. Three objects, left-middle-right structure, same y axis, same size. No more than 3 elements in one segment
@@ -64,7 +64,7 @@ An example:
 [
     {
         "index": 1, # index of the segment, start from 1
-        "content": "Now let's explain...",
+        "content": "Your refine here",
         "background": "An image describe... color ... (your detailed requirements here)",
         "manim": "The animation should ... draw component ...",
     },
@@ -142,7 +142,7 @@ Now begin:""" # noqa
     
     * **Use smaller image sizes for generated images and larger image sizes for user doc images. DO NOT use circular frame to user doc images**
 
-2. The manim field is used as guidance for subsequent manim animation generation. Read the manim field content, **recreate the animation/manim**, and perfectly integrate the images into it
+2. The manim field is used as guidance for subsequent manim animation generation. Read the manim field content, **recreate/refine the animation/manim**, and perfectly integrate/add the images into it
     * No more than 2 images in a segment, 0 image in one segment is allowed
     * One image can only use once(one segment and one position)
     * DO NOT put images to the canvas corner

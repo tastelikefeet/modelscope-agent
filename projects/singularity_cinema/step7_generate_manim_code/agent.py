@@ -136,6 +136,8 @@ class GenerateManimCode(CodeAgent):
 - [IMPORTANT] If images files is not empty, **you must use them all at the appropriate time and position in your animation**. Here is the image files list:
 
 {images_info}
+chu
+DO NOT let the image and the manim element overlap. Reorganize them in your animation.
 
 * Canvas size ratio: 16:9
 * Ensure all content stays within safe bounds x∈(-6.0, 6.0), y∈(-3.4, 3.4) with minimum buff=0.5 from any edge to prevent cropping.

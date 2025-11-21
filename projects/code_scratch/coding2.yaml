@@ -30,12 +30,13 @@ prompt:
     3. 编写代码，并调用write_file(..., abbreviation=0)存储文件
     4. 在代码编写完成后，使用write_file(..., abbreviation=1)存储代码文件的缩略文件，缩略文件需要包含内容：
         ```markdown
-          # Imports: 依赖的其他文件
+          # Imports: 依赖的其他文件、内容和类型
           - 文件列表
           # Class1: 类名
           - function_name(arg1: type, arg2: type) -> type 标注方法名、入参类型、出参类型
           # Class2: 类名
           - ...
+          # Exports: 导出的内容和类型
         ```
         * 如果是json文件，列出其key结构
         * 缩略文件不超过1000个字
