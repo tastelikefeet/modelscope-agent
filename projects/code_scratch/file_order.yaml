@@ -43,6 +43,7 @@ prompt:
       ]
       ```
       * 确认在同一个index中的files列表文件之间无任何依赖关系
+      * README最后编写
     4. 你不需要编写任何其它代码
     
     Now Begin:
