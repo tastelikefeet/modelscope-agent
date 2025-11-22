@@ -2,6 +2,7 @@ import asyncio
 import dataclasses
 import json
 import os
+import re
 from collections import OrderedDict
 from copy import deepcopy
 from typing import Set
@@ -78,6 +79,59 @@ class CodingAgent(CodeAgent):
     _continue = """
 6. 如果你发现依赖的任一底层代码文件不存在，你应当创建这个代码文件和对应的缩略文件
 """
+
+    _find_deps = """你是一个优秀的软件编程工程师。你的职责是根据原始需求和模块划分进行具体模块的编写。你的工作流程如下：
+    
+1. 用户原始需求和用户故事已经放入上下文，你无需再读取。这些知识包括：
+  * topic.txt：原始需求
+  * user_story.txt：用户故事
+  * protocol.txt：通讯协议
+  * framework.txt：技术选型
+2. 读取`tasks.txt`确认整体项目文件完成情况
+3. 列出在本项目中需要依赖的其他文件，并和tasks.txt的内容进行比对，**确认依赖文件在文件列表内，不要使用未在文件列表内定义的代码文件**
+  你的输出例子：
+  为完成xxx代码，根据通讯协议和文件列表分析，我需要和 ... 进行http通讯，为完成user_story的设计，我需要使用 ... 的底层服务，综上所述我需要依赖：
+  <result>
+  xxx
+  yyy
+  ...
+  </result>
+  文件依赖放入<result></result>中，以列(\n)分隔
+"""
+
+    async def find_deps(self, topic, user_story, framework, protocol,
+                         name, description):
+        _config = deepcopy(self.config)
+        messages = [
+            Message(role='system', content=self._find_deps),
+            Message(role='user', content=f'原始需求(topic.txt): {topic}\n'
+                                         f'LLM规划的用户故事(user_story.txt): {user_story}\n'
+                                         f'技术栈(framework.txt): {framework}\n'
+                                         f'通讯协议(protocol.txt): {protocol}\n'
+                                         f'你负责查找依赖的文件: {name}\n文件描述: {description}\n'),
+        ]
+
+        _config = deepcopy(self.config)
+        _config.save_history = False
+        _config.load_cache = False
+        deps = LLMAgent(_config, tag=f'deps-{name}', trust_remote_code=True)
+        messages = await deps.run(messages)
+        all_deps = []
+        pattern = r'<result>(.*?)</result>'
+        for deps in re.findall(pattern, messages[-1].content, re.DOTALL):
+            all_deps.extend(deps.split('\n'))
+
+        all_file_deps = ''
+        for dep in all_deps:
+            abbr_dep = os.path.join('abbr', dep)
+            if os.path.exists(abbr_dep):
+                with open(abbr_dep, 'r') as f:
+                    all_file_deps += f'The abbreviation content of {dep}: {f.read()}\n'
+            else:
+                all_file_deps += f'A file named: {dep} you need may not exists.\n'
+        return all_file_deps
+
+
     async def write_code(self, topic, user_story, framework, protocol,
                          name, description, fast_fail):
         logger.info(f'Writing {name}')
@@ -87,12 +141,14 @@ class CodingAgent(CodeAgent):
         else:
             _config.tools.plugins.pop(-1)
             system = self.config.prompt.system + self._continue
+        all_files_deps = await self.find_deps(topic, user_story, framework, protocol,name,description)
         messages = [
             Message(role='system', content=system),
             Message(role='user', content=f'原始需求(topic.txt): {topic}\n'
                                          f'LLM规划的用户故事(user_story.txt): {user_story}\n'
                                          f'技术栈(framework.txt): {framework}\n'
                                          f'通讯协议(protocol.txt): {protocol}\n'
+                                         f'一些文件内容: {all_files_deps}\n'
                                          f'你需要编写的文件: {name}\n文件描述: {description}\n'),
         ]
 
