@@ -4,8 +4,11 @@ import json
 import os
 import re
 from collections import OrderedDict
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from copy import deepcopy
 from typing import Set
+
+from omegaconf import DictConfig
 
 from ms_agent import LLMAgent
 from ms_agent.agent import CodeAgent
@@ -18,6 +21,7 @@ logger = get_logger()
 class Programmer(LLMAgent):
 
     async def condense_memory(self, messages):
+        return messages
         if not getattr(self, '_memory_fetched', False):
             for memory_tool in self.memory_tools:
                 messages = await memory_tool.run(messages)
@@ -25,6 +29,7 @@ class Programmer(LLMAgent):
         return messages
 
     async def add_memory(self, messages, **kwargs):
+        return
         if not self.runtime.should_stop:
             return
         all_written_files = []
@@ -80,15 +85,17 @@ class CodingAgent(CodeAgent):
 6. 如果你发现依赖的任一底层代码文件不存在，你应当创建这个代码文件和对应的缩略文件
 """
 
-    _find_deps = """你是一个优秀的软件编程工程师。你的职责是根据原始需求和模块划分进行具体模块的编写。你的工作流程如下：
+    _find_deps = """你是一个优秀的软件项目架构师。你的职责是根据原始需求和模块划分以及具体的文件，找到其上游需要依赖的其他代码文件。你的工作流程如下：
     
 1. 用户原始需求和用户故事已经放入上下文，你无需再读取。这些知识包括：
   * topic.txt：原始需求
   * user_story.txt：用户故事
   * protocol.txt：通讯协议
   * framework.txt：技术选型
-2. 读取`tasks.txt`确认整体项目文件完成情况
-3. 列出在本项目中需要依赖的其他文件，并和tasks.txt的内容进行比对，**确认依赖文件在文件列表内，不要使用未在文件列表内定义的代码文件**
+  * tasks.txt: 项目文件列表
+2. 列出在本项目中需要依赖的其他文件，并和tasks.txt的内容进行比对，
+  * **确认依赖文件在文件列表内，不要使用未在文件列表内定义的代码文件**
+  * 你只能依赖file_order.txt中index小于你的文件，等于你的文件会和本文件一起编写，大于你的会在后续编写
   你的输出例子：
   为完成xxx代码，根据通讯协议和文件列表分析，我需要和 ... 进行http通讯，为完成user_story的设计，我需要使用 ... 的底层服务，综上所述我需要依赖：
   <result>
@@ -96,22 +103,28 @@ class CodingAgent(CodeAgent):
   yyy
   ...
   </result>
-  文件依赖放入<result></result>中，以列(\n)分隔
+  文件依赖放入<result></result>中，以列(\n)分隔。如果没有依赖文件，返回空的<result></result>
+  注意：你不需要编写任何具体的代码文件
 """
 
     async def find_deps(self, topic, user_story, framework, protocol,
                          name, description):
         _config = deepcopy(self.config)
+        _config.tools = DictConfig({})
+        _config.prompt = None
+        _config.memory = None
+        with open(os.path.join(self.output_dir, 'file_order.txt')) as f:
+            file_order = f.read()
         messages = [
             Message(role='system', content=self._find_deps),
             Message(role='user', content=f'原始需求(topic.txt): {topic}\n'
                                          f'LLM规划的用户故事(user_story.txt): {user_story}\n'
                                          f'技术栈(framework.txt): {framework}\n'
                                          f'通讯协议(protocol.txt): {protocol}\n'
+                                         f'文件编写列表(file_order.txt): {file_order}\n'
+                                         f'The file in one index will be written parallelly.\n'
                                          f'你负责查找依赖的文件: {name}\n文件描述: {description}\n'),
         ]
-
-        _config = deepcopy(self.config)
         _config.save_history = False
         _config.load_cache = False
         deps = LLMAgent(_config, tag=f'deps-{name}', trust_remote_code=True)
@@ -120,16 +133,23 @@ class CodingAgent(CodeAgent):
         pattern = r'<result>(.*?)</result>'
         for deps in re.findall(pattern, messages[-1].content, re.DOTALL):
             all_deps.extend(deps.split('\n'))
+        all_deps = [dep.strip() for dep in all_deps if dep.strip()]
 
         all_file_deps = ''
         for dep in all_deps:
-            abbr_dep = os.path.join('abbr', dep)
+            abbr_dep = os.path.join(self.output_dir, 'abbr', dep)
             if os.path.exists(abbr_dep):
                 with open(abbr_dep, 'r') as f:
                     all_file_deps += f'The abbreviation content of {dep}: {f.read()}\n'
+            if os.path.exists(os.path.join(self.output_dir, dep)):
+                with open(os.path.join(self.output_dir, dep), 'r') as f:
+                    all_file_deps += f'The content of {dep}: {f.read()}\n'
             else:
                 all_file_deps += f'A file named: {dep} you need may not exists.\n'
-        return all_file_deps
+        if all_file_deps:
+            return f'一些文件内容: {all_file_deps}\n'
+        else:
+            return ''
 
 
     async def write_code(self, topic, user_story, framework, protocol,
@@ -141,14 +161,14 @@ class CodingAgent(CodeAgent):
         else:
             _config.tools.plugins.pop(-1)
             system = self.config.prompt.system + self._continue
-        all_files_deps = await self.find_deps(topic, user_story, framework, protocol,name,description)
+        all_file_deps = await self.find_deps(topic, user_story, framework, protocol,name,description)
         messages = [
             Message(role='system', content=system),
             Message(role='user', content=f'原始需求(topic.txt): {topic}\n'
                                          f'LLM规划的用户故事(user_story.txt): {user_story}\n'
                                          f'技术栈(framework.txt): {framework}\n'
                                          f'通讯协议(protocol.txt): {protocol}\n'
-                                         f'一些文件内容: {all_files_deps}\n'
+                                         f'{all_file_deps}'
                                          f'你需要编写的文件: {name}\n文件描述: {description}\n'),
         ]
 
@@ -172,6 +192,9 @@ class CodingAgent(CodeAgent):
         file_relation = OrderedDict()
         self.refresh_file_status(file_relation)
 
+        # Use ThreadPoolExecutor for IO-intensive LLM API calls
+        max_workers = 4  # Optimal for IO-intensive tasks
+        
         for files in file_orders:
             while True:
                 files = self.filter_done_files(files)
@@ -180,11 +203,28 @@ class CodingAgent(CodeAgent):
                 if not files:
                     break
 
-                tasks = [
-                    self.write_code(topic, user_story, framework, protocol, name, description, fast_fail=False)
-                    for name, description in files.items()
-                ]
-                await asyncio.gather(*tasks)
+                # Convert async tasks to sync wrapper for thread pool
+                def write_code_sync(name, description):
+                    loop = asyncio.new_event_loop()
+                    asyncio.set_event_loop(loop)
+                    try:
+                        return loop.run_until_complete(
+                            self.write_code(topic, user_story, framework, protocol, name, description, fast_fail=False)
+                        )
+                    finally:
+                        loop.close()
+
+                with ThreadPoolExecutor(max_workers=max_workers) as executor:
+                    futures = [
+                        executor.submit(write_code_sync, name, description)
+                        for name, description in files.items()
+                    ]
+                    # Wait for all tasks to complete
+                    for future in as_completed(futures):
+                        try:
+                            future.result()
+                        except Exception as e:
+                            logger.error(f'Error writing code: {e}')
 
             self.refresh_file_status(file_relation)
 

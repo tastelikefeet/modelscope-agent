@@ -42,6 +42,9 @@ class AbbrFileSystemTool(FileSystemTool):
         if abbreviation and not path.startswith('abbr'):
             path = os.path.join('abbr', path)
 
+        if os.path.exists(path):
+            with open(path, 'r', encoding='utf-8') as f:
+                return f'The target file exists, cannot override. here is the file content, write other files according to the content: \n{f.read()}\n'
         return await super().write_file(path, content)
 
 
