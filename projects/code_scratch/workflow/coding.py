@@ -141,7 +141,7 @@ class CodingAgent(CodeAgent):
             if os.path.exists(abbr_dep):
                 with open(abbr_dep, 'r') as f:
                     all_file_deps += f'The abbreviation content of {dep}: {f.read()}\n'
-            if os.path.exists(os.path.join(self.output_dir, dep)):
+            elif os.path.exists(os.path.join(self.output_dir, dep)):
                 with open(os.path.join(self.output_dir, dep), 'r') as f:
                     all_file_deps += f'The content of {dep}: {f.read()}\n'
             else:

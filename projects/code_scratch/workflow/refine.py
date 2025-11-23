@@ -22,9 +22,10 @@ class RefineAgent(LLMAgent):
 """
 
     async def compress_memory(self, messages):
-        if len(str(messages)) > 32000 and messages[-1].role == 'user':
+        if len(str(messages)) > 32000 and messages[-1].role in ('user', 'tool'):
             keep_messages = messages[:2]
-            compress_messages = json.dumps(messages[2:], ensure_ascii=False, indent=2)
+            keep_messages_tail = messages[-2:]
+            compress_messages = json.dumps([message.to_dict_clean() for message in messages[2:-2]], ensure_ascii=False, indent=2)
             with open(os.path.join(self.output_dir, 'topic.txt')) as f:
                 topic = f.read()
             with open(os.path.join(self.output_dir, 'framework.txt')) as f:
@@ -43,7 +44,8 @@ class RefineAgent(LLMAgent):
             ]
             _response_message = self.llm.generate(_messages)
             content = _response_message.content
-            return keep_messages + [Message(role='user', content=content)]
+            keep_messages[1].content += f'Here is the compressed message:\n{content}\n'
+            return keep_messages + keep_messages_tail
         else:
             return messages
 

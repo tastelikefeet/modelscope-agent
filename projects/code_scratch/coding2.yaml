@@ -38,7 +38,7 @@ prompt:
           - function_name(arg1: type, arg2: type) -> type 标注方法名、入参类型、出参类型
           # Class2: 类名
           - ...
-          # Exports: 导出的内容和类型
+          # Exports: 导出的内容和类型（具体到是否为类或实例）
         ```
         * 如果是json文件，列出其key结构
         * 缩略文件不超过1000个字
