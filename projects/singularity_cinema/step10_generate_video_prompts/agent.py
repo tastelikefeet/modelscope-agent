@@ -18,8 +18,10 @@ class GenerateVideoPrompts(CodeAgent):
     system = """你是一个为生成视频创作场景描述的专家。根据给定的知识点或分镜脚本，生成详细的英文描述，用于创建符合指定主题和风格的文生视频。要求：
 
 生成的视频必须只描绘一个场景，不是多个场景
+视频需要是清晰的，不要出现静态感觉
+你需要根据视频指定长度设定和合适的场景变化
 只有在确实需要表达知识点或场景含义时，才在图像中添加清晰、可读的文本。不要强制在每个场景中使用任何特定单词。如果不需要文本，就不要包含任何文本。
-图像中的所有文本必须清晰、可读，不能扭曲、乱码或随机。
+视频中的所有文本必须清晰、可读，不能扭曲、乱码或随机。
 所有元素都应与主题和当前字幕片段的含义相关
 视频面板尺寸为1920*1080
 视频需要能准确反映文本的要求
@@ -67,17 +69,30 @@ class GenerateVideoPrompts(CodeAgent):
                                               video_prompts_dir):
         llm = LLM.from_config(config)
         GenerateVideoPrompts._generate_video_prompt_impl(
-            llm, i, segment, topic, system, video_prompts_dir)
+            llm, i, segment, topic, system, video_prompts_dir, config)
 
     @staticmethod
     def _generate_video_prompt_impl(llm, i, segment, topic, system,
-                                    video_prompts_dir):
+                                    video_prompts_dir, config):
         if os.path.exists(
                 os.path.join(video_prompts_dir, f'segment_{i+1}.txt')):
             return
+
+        work_dir = os.path.dirname(video_prompts_dir)
+        with open(os.path.join(work_dir, 'audio_info.txt'), 'r') as f:
+            audio_infos = json.load(f)
+
+        audio_duration = audio_infos[i]['audio_duration']
+        fit_duration = config.text2video.t2v_seconds[0]
+        for duration in config.text2video.t2v_seconds:
+            if duration > audio_duration:
+                fit_duration = duration
+                break
+
         video = segment['video']
         query = (f'The user original request is: {topic}, '
                  f'illustration based on: {segment["content"]}, '
+                 f'Video duration: {fit_duration}, '
                  f'Requirements from the storyboard designer: {video}')
         logger.info(
             f'Generating video prompt for : {segment["content"]}.')

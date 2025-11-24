@@ -342,7 +342,7 @@ class FileSystemTool(ToolBase):
             return f'Replace lines in file <{path}> failed, error: ' + str(e)
 
     def get_real_path(self, path):
-        if os.path.isabs(path) or os.path.exists(path):
+        if os.path.isabs(path) or os.path.basename(self.output_dir) in path:
             target_path = path
         else:
             target_path = os.path.join(self.output_dir, path)

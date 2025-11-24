@@ -42,6 +42,8 @@ class AbbrFileSystemTool(FileSystemTool):
         if abbreviation and not path.startswith('abbr'):
             path = os.path.join('abbr', path)
 
+        if '.abbr' in path:
+            return 'abbreviation file should be saved by `abbreviation=1`, do not create any file named .abbr'
         if os.path.exists(os.path.join(self.output_dir, path)):
             with open(os.path.join(self.output_dir, path), 'r', encoding='utf-8') as f:
                 return f'The target file exists, cannot override. here is the file content, write other files according to the content: \n{f.read()}\n'

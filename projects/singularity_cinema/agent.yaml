@@ -98,7 +98,7 @@ text2video:
   t2v_model: sora-2-2025-10-06
   t2v_api_key:
   t2v_size: 1280x720
-  t2v_seconds: 4
+  t2v_seconds: [4, 8, 12]
 
   dashscope:
     base_url: https://dashscope.aliyuncs.com

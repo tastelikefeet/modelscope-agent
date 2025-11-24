@@ -100,7 +100,16 @@ class GenerateVideo(CodeAgent):
         model = config.text2video.t2v_model
         provider = getattr(config.text2video, 't2v_provider', 'dashscope').lower()
         size = getattr(config.text2video, 't2v_size', '1280x720')
-        seconds = getattr(config.text2video, 't2v_seconds', 4)
+        work_dir = os.path.dirname(videos_dir)
+        with open(os.path.join(work_dir, 'audio_info.txt'), 'r') as f:
+            audio_infos = json.load(f)
+
+        audio_duration = audio_infos[i]['audio_duration']
+        fit_duration = config.text2video.t2v_seconds[0]
+        for duration in config.text2video.t2v_seconds:
+            fit_duration = duration
+            if duration > audio_duration:
+                break
         
         assert api_key is not None, "Video generation API key is required"
         logger.info(f'Using provider: {provider}')
@@ -112,7 +121,7 @@ class GenerateVideo(CodeAgent):
 
         # Generate video using unified method
         video_url = await GenerateVideo._generate_video(
-            provider_config, api_key, model, prompt, size, seconds)
+            provider_config, api_key, model, prompt, size, fit_duration)
 
         # Download the generated video
         logger.info(f'Downloading video from: {video_url}')
