@@ -80,7 +80,7 @@ class RefineAgent(LLMAgent):
                                          f'技术栈(framework.txt): {framework}\n'
                                          f'通讯协议(protocol.txt): {protocol}\n'
                                          f'文件列表:{file_info}\n'
-                                         f'你的shell工具的work_dir是{self.output_dir}\n'
+                                         f'你的shell工具的work_dir（项目输出文件）是{self.output_dir}\n'
                                          f'请针对项目进行refine:'),
         ]
         return await super().run(messages, **kwargs)
