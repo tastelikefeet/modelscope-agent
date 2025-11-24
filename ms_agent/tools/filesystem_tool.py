@@ -1,7 +1,9 @@
 # Copyright (c) Alibaba, Inc. and its affiliates.
+import fnmatch
 import json
 import os
 import shutil
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from typing import Optional
 
 from ms_agent.llm.utils import Tool
@@ -124,6 +126,34 @@ class FileSystemTool(ToolBase):
                             }
                         },
                         'required': ['path'],
+                        'additionalProperties': False
+                    }),
+                Tool(
+                    tool_name='search_file_content',
+                    server_name='file_system',
+                    description='Search for content in files using wildcard patterns. '
+                                'Returns matching files with line numbers and surrounding context.',
+                    parameters={
+                        'type': 'object',
+                        'properties': {
+                            'content': {
+                                'type': 'string',
+                                'description': 'The content/text to search for in files',
+                            },
+                            'parent_path': {
+                                'type': 'string',
+                                'description': 'The relative parent path to search in (optional, defaults to root)',
+                            },
+                            'file_pattern': {
+                                'type': 'string',
+                                'description': 'Wildcard pattern for file names, e.g., "*.py", "*.js", "test_*.py" (default: "*" for all files)',
+                            },
+                            'context_lines': {
+                                'type': 'integer',
+                                'description': 'Number of lines before and after the match to include (default: 2)',
+                            },
+                        },
+                        'required': ['content'],
                         'additionalProperties': False
                     }),
             ]
@@ -250,12 +280,94 @@ class FileSystemTool(ToolBase):
         all_found_files = "\n".join(all_found_files)
         return f'The filenames containing the file name<{file}>: {all_found_files}'
 
-    async def search_file_content(self, content: str = None, parent_path: str = None):
+    async def search_file_content(self, content: str = None, parent_path: str = None,
+                                   file_pattern: str = '*', context_lines: int = 2):
+        """Search for content in files using thread pool.
+        
+        Args:
+            content(str): The content to search for
+            parent_path(str): The relative parent path to search in
+            file_pattern(str): Wildcard pattern for file names (default: '*' for all files)
+            context_lines(int): Number of lines before and after the match to include (default: 2)
+            
+        Returns:
+            String containing all matches with file path, line number, and context
+        """
         _parent_path = parent_path or ''
         _parent_path = os.path.join(self.output_dir, _parent_path)
         assert os.path.isdir(_parent_path), f'Parent path <{parent_path}> does not exist, it should be a inner relative path of the project folder.'
-        all_found_files = []
+        
+        if not content:
+            return 'Error: content parameter is required for search'
+
+        # Collect all files matching the pattern
+        files_to_search = []
         for root, dirs, files in os.walk(_parent_path):
+            # Skip common directories
+            if 'node_modules' in root or 'dist' in root or '.git' in root:
+                continue
+            for filename in files:
+                # Skip hidden files
+                if filename.startswith('.'):
+                    continue
+                # Match file pattern
+                if fnmatch.fnmatch(filename, file_pattern):
+                    files_to_search.append(os.path.join(root, filename))
+        
+        if not files_to_search:
+            return f'No files matching pattern <{file_pattern}> found in <{parent_path or "root"}>'
+        
+        # Function to search in a single file
+        def search_in_file(file_path):
+            matches = []
+            try:
+                with open(file_path, 'r', encoding='utf-8', errors='ignore') as f:
+                    lines = f.readlines()
+                    for line_num, line in enumerate(lines, start=1):
+                        if content in line:
+                            # Calculate context range
+                            start_line = max(0, line_num - context_lines - 1)
+                            end_line = min(len(lines), line_num + context_lines)
+                            
+                            # Extract context lines
+                            context = []
+                            for i in range(start_line, end_line):
+                                prefix = '> ' if i == line_num - 1 else '  '
+                                context.append(f'{prefix}{i + 1:4d} | {lines[i].rstrip()}')
+                            
+                            relative_path = os.path.relpath(file_path, self.output_dir)
+                            matches.append({
+                                'file': relative_path,
+                                'line': line_num,
+                                'context': '\n'.join(context)
+                            })
+            except Exception as e:
+                logger.debug(f'Error reading file {file_path}: {e}')
+            return matches
+        
+        # Use thread pool to search files in parallel
+        all_matches = []
+        with ThreadPoolExecutor(max_workers=8) as executor:
+            future_to_file = {executor.submit(search_in_file, f): f for f in files_to_search}
+            for future in as_completed(future_to_file):
+                try:
+                    matches = future.result()
+                    all_matches.extend(matches)
+                except Exception as e:
+                    file_path = future_to_file[future]
+                    logger.debug(f'Error processing {file_path}: {e}')
+        
+        if not all_matches:
+            return f'No matches found for <{content}> in files matching <{file_pattern}>'
+        
+        # Format results
+        result_lines = [f'Found {len(all_matches)} match(es) for "{content}":\n']
+        for match in all_matches:
+            result_lines.append(f"File: {match['file']}, Line: {match['line']}")
+            result_lines.append(match['context'])
+            result_lines.append('')
+        
+        return '\n'.join(result_lines)
 
     async def list_files(self, path: str = None):
         """List all files in a directory.
