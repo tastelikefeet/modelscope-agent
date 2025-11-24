@@ -206,7 +206,7 @@ Now begin:"""  # noqa
                 f'\nScene {i}\n'
                 f'Content: {segment["content"]}\n'
                 f'Image requirement: {segment["background"]}\n'
-                f'Video requirement: {segment.get('video', 'Not a video segment')}\n'
+                f'Video requirement: {segment.get("video", "Not a video segment")}\n'
                 f'Manim requirement: {segment.get("manim", "No manim")}')
         with open(os.path.join(self.work_dir, 'segments.txt'), 'w') as f:
             f.write(json.dumps(segments, indent=4, ensure_ascii=False))
