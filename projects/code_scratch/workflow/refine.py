@@ -5,6 +5,9 @@ from typing import List, OrderedDict
 from ms_agent import LLMAgent
 from ms_agent.llm import Message
 from coding import CodingAgent
+from ms_agent.utils import get_logger
+
+logger = get_logger()
 
 
 class RefineAgent(LLMAgent):
@@ -18,6 +21,7 @@ class RefineAgent(LLMAgent):
     * 对于已经解决的问题，可以保留较少的token
     * 未解决问题可以保留较多的token
     * 多次未解决的死锁问题应增加多次未解决的额外标注
+    * 保留最后一个未解决问题的历史记录，并提示模型继续解决该问题
 3. 返回你总结好的消息历史，不要增加额外内容（例如“让我来总结...”或“下面是对...的总结...”）
 """
 
@@ -25,12 +29,13 @@ class RefineAgent(LLMAgent):
         if len(str(messages)) > 32000 and messages[-1].role in ('user', 'tool'):
             keep_messages = messages[:2]
             keep_messages_tail = []
-            for message in reversed(messages):
+            i = 0
+            for i, message in enumerate(reversed(messages)):
                 keep_messages_tail.append(message)
                 if message.role == 'assistant':
                     break
             keep_messages_tail = reversed(keep_messages_tail)
-            compress_messages = json.dumps([message.to_dict_clean() for message in messages[2:-2]], ensure_ascii=False, indent=2)
+            compress_messages = json.dumps([message.to_dict_clean() for message in messages[2:-i-1]], ensure_ascii=False, indent=2)
             with open(os.path.join(self.output_dir, 'topic.txt')) as f:
                 topic = f.read()
             with open(os.path.join(self.output_dir, 'framework.txt')) as f:
@@ -49,8 +54,10 @@ class RefineAgent(LLMAgent):
             ]
             _response_message = self.llm.generate(_messages)
             content = _response_message.content
-            keep_messages[1].content += f'Here is the compressed message:\n{content}\n'
-            return keep_messages + list(keep_messages_tail)
+            keep_messages.append(Message(role='user', content=f'Intermediate messages are compressed, here is the compressed message:\n{content}\n'))
+            messages = keep_messages + list(keep_messages_tail) + [Message(role='user', content='历史消息已经压缩，现在根据历史消息和最后的tool调用继续解决问题：')]
+            logger.info(f'Compressed messages length: {len(str(messages))}')
+            return messages
         else:
             return messages
 

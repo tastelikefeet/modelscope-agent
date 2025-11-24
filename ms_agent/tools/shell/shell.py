@@ -130,9 +130,9 @@ class Shell(ToolBase):
 
         # 4. Check dangerous redirections
         redirect_patterns = [
-            r'>+\s*/(?!tmp/|var/tmp/)',  # redirect to root directory (except /tmp/ or /var/tmp/)
+            r'>+\s*/(?!tmp/|var/tmp/|dev/null)',  # redirect to root directory (except /tmp/, /var/tmp/, /dev/null)
             r'<\s*/etc/',  # read from /etc
-            r'>+\s*/dev/',  # redirect to device files
+            r'>+\s*/dev/(?!null)',  # redirect to device files (except /dev/null)
         ]
 
         for pattern in redirect_patterns:

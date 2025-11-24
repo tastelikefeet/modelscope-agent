@@ -238,6 +238,25 @@ class FileSystemTool(ToolBase):
         else:
             return f'Path not found: {path}'
 
+    async def search_file_name(self, file: str = None, parent_path: str = None):
+        _parent_path = parent_path or ''
+        _parent_path = os.path.join(self.output_dir, _parent_path)
+        assert os.path.isdir(_parent_path), f'Parent path <{parent_path}> does not exist, it should be a inner relative path of the project folder.'
+        all_found_files = []
+        for root, dirs, files in os.walk(_parent_path):
+            for filename in files:
+                if file in filename:
+                    all_found_files.append(os.path.join(root, filename))
+        all_found_files = "\n".join(all_found_files)
+        return f'The filenames containing the file name<{file}>: {all_found_files}'
+
+    async def search_file_content(self, content: str = None, parent_path: str = None):
+        _parent_path = parent_path or ''
+        _parent_path = os.path.join(self.output_dir, _parent_path)
+        assert os.path.isdir(_parent_path), f'Parent path <{parent_path}> does not exist, it should be a inner relative path of the project folder.'
+        all_found_files = []
+        for root, dirs, files in os.walk(_parent_path):
+
     async def list_files(self, path: str = None):
         """List all files in a directory.
 
