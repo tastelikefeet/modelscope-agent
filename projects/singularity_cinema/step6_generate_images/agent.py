@@ -41,10 +41,10 @@ class GenerateImages(CodeAgent):
             segments = json.load(f)
         illustration_prompts = []
         for i in range(len(segments)):
-            if self.config.background == 'image':
-                with open(
-                        os.path.join(self.illustration_prompts_dir,
-                                     f'segment_{i+1}.txt'), 'r') as f:
+            ilustration_path = os.path.join(self.illustration_prompts_dir,
+                                     f'segment_{i+1}.txt')
+            if self.config.background == 'image' and os.path.exists(ilustration_path):
+                with open(ilustration_path, 'r') as f:
                     illustration_prompts.append(f.read())
             else:
                 illustration_prompts.append(None)
@@ -106,6 +106,8 @@ class GenerateImages(CodeAgent):
             output_path = os.path.join(images_dir, f'illustration_{i + 1}.png')
             if os.path.exists(output_path):
                 return
+            if prompt is None:
+                return
 
             await GenerateImages._generate_images_impl(prompt, img_path, config)
 
@@ -127,7 +129,7 @@ class GenerateImages(CodeAgent):
         if config.foreground != 'image':
             return
         logger.info(f'Generating foreground image for: segment {i}.')
-        foreground = segment['foreground']
+        foreground = segment.get('foreground', [])
         work_dir = getattr(config, 'output_dir', 'output')
         illustration_prompts_dir = os.path.join(work_dir,
                                                 'illustration_prompts')

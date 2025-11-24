@@ -40,7 +40,7 @@ class GenerateVideoPrompts(CodeAgent):
 
     async def execute_code(self, messages: Union[str, List[Message]],
                            **kwargs) -> List[Message]:
-        if self.config.use_text2video:
+        if not self.config.use_text2video:
             return messages
         with open(os.path.join(self.work_dir, 'segments.txt'), 'r') as f:
             segments = json.load(f)

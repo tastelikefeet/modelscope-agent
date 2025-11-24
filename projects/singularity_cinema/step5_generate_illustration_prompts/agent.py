@@ -92,7 +92,9 @@ Only return the prompt itself, do not add any other explainations or marks."""  
         if os.path.exists(
                 os.path.join(illustration_prompts_dir, f'segment_{i+1}.txt')):
             return
-        background = segment['background']
+        background = segment.get('background')
+        if not background:
+            return
         manim_query = ''
         if segment.get('manim'):
             manim_query = (
@@ -120,7 +122,7 @@ Only return the prompt itself, do not add any other explainations or marks."""  
     @staticmethod
     def _generate_foreground_impl(llm, i, segment, system,
                                   illustration_prompts_dir):
-        foreground = segment['foreground']
+        foreground = segment.get('foreground', [])
         for idx, _req in enumerate(foreground):
             if os.path.exists(
                     os.path.join(illustration_prompts_dir,
