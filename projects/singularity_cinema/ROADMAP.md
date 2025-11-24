@@ -20,6 +20,7 @@
 - [ ] 支持一个segment中多个字幕切换，防止文字超长 P0
 - [ ] 支持文生视频 P1
 - [ ] 支持更复杂的前景设计和背景特效 P0
+  - [ ] 上/下/左/右镜头移动 P0
 
 ### 稳定性
 
@@ -57,6 +58,7 @@ This ROADMAP is to be completed by the end of S4 2025, i.e., December 31st.
 - [ ] Support multiple subtitles in one segment P0
 - [ ] Support text-to-video generation P1
 - [ ] Support more complex foreground design and background effects P0
+    * [ ] Camera moves up/down/left/right P0
 
 ### Stability
 

@@ -76,6 +76,7 @@ text2image:
   t2i_style: Simple hand drawn style, with several clear object
 
 t2i_num_parallel: 1
+t2v_num_parallel: 5
 llm_num_parallel: 10
 
 code_fix_round: 5
@@ -89,6 +90,13 @@ video:
 use_doc_image: false
 
 use_subtitle: false
+
+use_text2video: false
+
+text2video:
+  t2v_model: sora-2-2025-10-06
+  t2v__api_key:
+  t2v__base_url: https://dashscope.aliyuncs.com/compatible-mode/v1
 
 subtitle_translate:
 
