@@ -96,6 +96,8 @@ class CodingAgent(CodeAgent):
 2. 列出在本项目中需要依赖的其他文件，并和tasks.txt的内容进行比对，
   * **确认依赖文件在文件列表内，不要使用未在文件列表内定义的代码文件**
   * 你只能依赖file_order.txt中index小于你的文件，等于你的文件会和本文件一起编写，大于你的会在后续编写
+  * 这里的依赖是指使文件编写正确所需要的文件，也包含了html对css的样式依赖
+
   你的输出例子：
   为完成xxx代码，根据通讯协议和文件列表分析，我需要和 ... 进行http通讯，为完成user_story的设计，我需要使用 ... 的底层服务，综上所述我需要依赖：
   <result>
@@ -135,10 +137,17 @@ class CodingAgent(CodeAgent):
             all_deps.extend(deps.split('\n'))
         all_deps = [dep.strip() for dep in all_deps if dep.strip()]
 
+        css_extensions = {
+            '.css', '.scss', '.sass', '.less',
+            '.styl', '.stylus', '.pcss', '.postcss',
+            '.module.css', '.module.scss', '.module.sass', '.module.less',
+            '.wxss', '.acss', '.qss', '.ttss'
+        }
+
         all_file_deps = ''
         for dep in all_deps:
             abbr_dep = os.path.join(self.output_dir, 'abbr', dep)
-            if os.path.exists(abbr_dep):
+            if os.path.exists(abbr_dep) and not any(dep.endswith(ext) for ext in css_extensions):
                 with open(abbr_dep, 'r') as f:
                     all_file_deps += f'The abbreviation content of {dep}: {f.read()}\n'
             elif os.path.exists(os.path.join(self.output_dir, dep)):
