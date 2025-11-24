@@ -199,13 +199,14 @@ Now begin:"""  # noqa
         for i, segment in enumerate(segments):
             assert 'content' in segment
             if self.config.background == 'image':
-                assert 'background' in segment
+                assert 'background' in segment or 'video' in segment
             else:
                 segment["background"] = self.config.background
             logger.info(
                 f'\nScene {i}\n'
                 f'Content: {segment["content"]}\n'
                 f'Image requirement: {segment["background"]}\n'
+                f'Video requirement: {segment.get('video', 'Not a video segment')}\n'
                 f'Manim requirement: {segment.get("manim", "No manim")}')
         with open(os.path.join(self.work_dir, 'segments.txt'), 'w') as f:
             f.write(json.dumps(segments, indent=4, ensure_ascii=False))
@@ -253,7 +254,7 @@ An example:
 
 ```json
 [
-    {
+    {{
         "index": 1, # index of the segment, start from 1
         "manim": "The animation should ..., use images to... ",
         "user_image": [
@@ -264,7 +265,7 @@ An example:
             "An image describe... color ... (your detailed requirements here)",
             ...
         ],
-    },
+    }},
     ...
 ]
 ```
@@ -272,11 +273,11 @@ An example:
 An example of image structures given to the manim LLM:
 ```json
 [
-    {
+    {{
         "file_path": "user_image1.jpg",
         "size": "2000*2000",
         "description": "The image contains ..."
-    },
+    }},
     ...
 ]
 

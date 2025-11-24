@@ -83,7 +83,7 @@ class FileSystemTool(ToolBase):
                 Tool(
                     tool_name='read_file',
                     server_name='file_system',
-                    description='Read the content of file(s)',
+                    description='Read the content of file(s). When reading a single file, optionally specify line range.',
                     parameters={
                         'type': 'object',
                         'properties': {
@@ -95,7 +95,15 @@ class FileSystemTool(ToolBase):
                                 },
                                 'description':
                                 'List of relative file path(s) to read',
-                            }
+                            },
+                            'start_line': {
+                                'type': 'integer',
+                                'description': 'Start line number (1-based, inclusive). Only effective when paths has exactly one element. 0 or omit to read from beginning.',
+                            },
+                            'end_line': {
+                                'type': 'integer',
+                                'description': 'End line number (1-based, inclusive). Only effective when paths has exactly one element. Omit to read to the end.',
+                            },
                         },
                         'required': ['paths'],
                         'additionalProperties': False
@@ -249,6 +257,9 @@ class FileSystemTool(ToolBase):
         try:
             if not os.path.exists(self.output_dir):
                 os.makedirs(self.output_dir, exist_ok=True)
+            path = self.get_real_path(path)
+            if path is None:
+                return f'<{path}> is out of the valid project path: {self.output_dir}'
             dirname = os.path.dirname(path)
             if dirname:
                 os.makedirs(
@@ -323,8 +334,9 @@ class FileSystemTool(ToolBase):
             # Write back to file
             with open(file_path, 'w', encoding='utf-8') as f:
                 f.writelines(new_lines)
-            
-            return f'{operation} in file <{path}> successfully. New file has {len(new_lines)} lines.'
+
+            new_content = '\n'.join(new_lines).split('\n')
+            return f'{operation} in file <{path}> successfully. New file has {len(new_content)} lines.'
             
         except Exception as e:
             return f'Replace lines in file <{path}> failed, error: ' + str(e)
@@ -353,11 +365,16 @@ class FileSystemTool(ToolBase):
 
         Args:
             paths(`list[str]`): List of relative file path(s) to read, a prefix dir will be automatically concatenated.
+            start_line(int): Start line number (1-based, inclusive). Only effective when paths has exactly one element. 0 means from beginning.
+            end_line(int): End line number (1-based, inclusive). Only effective when paths has exactly one element. None means to the end.
 
         Returns:
             Dictionary mapping file path(s) to their content or error messages.
         """
         results = {}
+        # Line range is only effective when reading a single file
+        use_line_range = len(paths) == 1 and (start_line > 0 or end_line is not None)
+        
         for path in paths:
             try:
                 target_path_real = self.get_real_path(path)
@@ -368,7 +385,26 @@ class FileSystemTool(ToolBase):
                     continue
 
                 with open(target_path_real, 'r') as f:
-                    results[path] = f.read()
+                    if use_line_range:
+                        # Read specific line range
+                        lines = f.readlines()
+                        total_lines = len(lines)
+                        
+                        # Validate and adjust line numbers (1-based)
+                        actual_start = max(1, start_line) if start_line > 0 else 1
+                        actual_end = min(end_line, total_lines) if end_line is not None else total_lines
+                        
+                        if actual_start > total_lines:
+                            results[path] = f'Error: start_line {start_line} exceeds file length ({total_lines} lines)'
+                        elif actual_start > actual_end:
+                            results[path] = f'Error: start_line {actual_start} > end_line {actual_end}'
+                        else:
+                            # Convert to 0-based index, end_line is inclusive
+                            selected_lines = lines[actual_start - 1:actual_end]
+                            results[path] = ''.join(selected_lines)
+                    else:
+                        # Read entire file
+                        results[path] = f.read()
             except FileNotFoundError:
                 results[path] = f'Read file <{path}> failed: FileNotFound'
             except Exception as e:
