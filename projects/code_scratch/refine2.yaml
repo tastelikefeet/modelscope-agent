@@ -41,7 +41,9 @@ prompt:
         * 访问前端重要页面，看返回是否正常
         * 【可选】编写必要的测试用例并运行
         * 你可以在work_dir中增加tmp文件夹来编写临时代码文件
-    4. 在更新代码时，你可以使用shell的sed命令来对部分代码进行更新，不需要更新全部代码
+        * 你可以使用search_file_name来根据某个文件名称的一部分找到匹配的文件名列表
+        * 你可以使用search_file_content来对某个文件列表内进行文件内容匹配搜索
+    4. 在更新代码时，你可以使用file_system提供的工具进行write_file（全量更新替换）或者replace_file_lines(对某些行进行替换)
     5. 一切都没问题后，你可以退出
       * 你可以忽略变量未使用等warning，如果它们不影响使用
     6. 你可以读取、更新代码，或安装npm、pip等依赖，或者使用curl发送请求，但不要执行修改系统的命令
@@ -50,6 +52,12 @@ prompt:
 tools:
   shell:
     mcp: false
+  file_system:
+    mcp: false
+    exclude:
+      - delete_file_or_dir
+      - list_files
+
 
 max_chat_round: 200
 

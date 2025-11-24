@@ -161,6 +161,53 @@ class FileSystemTool(ToolBase):
                         'required': ['content'],
                         'additionalProperties': False
                     }),
+                Tool(
+                    tool_name='search_file_name',
+                    server_name='file_system',
+                    description='Search for files by name. Returns all file paths that contain the search string in their filename.',
+                    parameters={
+                        'type': 'object',
+                        'properties': {
+                            'file': {
+                                'type': 'string',
+                                'description': 'The filename or partial filename to search for',
+                            },
+                            'parent_path': {
+                                'type': 'string',
+                                'description': 'The relative parent path to search in (optional, defaults to root)',
+                            },
+                        },
+                        'required': ['file'],
+                        'additionalProperties': False
+                    }),
+                Tool(
+                    tool_name='replace_file_lines',
+                    server_name='file_system',
+                    description='Replace specific line ranges in a file. Supports inserting at beginning (start_line=0) or end (start_line=-1). '
+                                'Line numbers are 1-based and inclusive on both ends.',
+                    parameters={
+                        'type': 'object',
+                        'properties': {
+                            'path': {
+                                'type': 'string',
+                                'description': 'The relative path of the file to modify',
+                            },
+                            'content': {
+                                'type': 'string',
+                                'description': 'The new content to insert/replace',
+                            },
+                            'start_line': {
+                                'type': 'integer',
+                                'description': 'Start line number (1-based, inclusive). Use 0 to insert at beginning, -1 to append at end',
+                            },
+                            'end_line': {
+                                'type': 'integer',
+                                'description': 'End line number (1-based, inclusive). Required unless start_line is 0 or -1',
+                            },
+                        },
+                        'required': ['path', 'content', 'start_line'],
+                        'additionalProperties': False
+                    }),
             ]
         }
         return tools
@@ -212,7 +259,96 @@ class FileSystemTool(ToolBase):
         except Exception as e:
             return f'Write file <{path}> failed, error: ' + str(e)
 
-    async def read_file(self, paths: list[str]):
+    async def replace_file_lines(self, path: str, content: str, start_line: int, end_line: int = None):
+        """Replace specific line ranges in a file.
+
+        Args:
+            path(str): The relative file path to modify, a prefix dir will be automatically concatenated.
+            content(str): The new content to insert/replace
+            start_line(int): Start line number (1-based, inclusive). Use 0 to insert at beginning, -1 to append at end
+            end_line(int): End line number (1-based, inclusive). Optional for start_line=0 or -1
+
+        Returns:
+            Success or error message.
+        """
+        try:
+            target_path_real = self.get_real_path(path)
+            if target_path_real is None:
+                return f'<{path}> is out of the valid project path: {self.output_dir}'
+            file_path = target_path_real
+            # Read existing file content
+            if os.path.exists(file_path):
+                with open(file_path, 'r', encoding='utf-8') as f:
+                    lines = f.readlines()
+            else:
+                # If file doesn't exist, create it
+                dirname = os.path.dirname(file_path)
+                if dirname:
+                    os.makedirs(dirname, exist_ok=True)
+                lines = []
+            
+            total_lines = len(lines)
+            
+            # Ensure content ends with newline if it doesn't already
+            if content and not content.endswith('\n'):
+                content += '\n'
+            
+            # Handle special cases
+            if start_line == 0:
+                # Insert at beginning
+                new_lines = [content] + lines
+                operation = 'Inserted at beginning'
+            elif start_line == -1:
+                # Append at end
+                new_lines = lines + [content]
+                operation = 'Appended at end'
+            else:
+                # Replace range (1-based, inclusive)
+                if end_line is None:
+                    return f'Error: end_line is required when start_line is not 0 or -1'
+                
+                if start_line < 1 or start_line > total_lines + 1:
+                    return f'Error: start_line {start_line} is out of range (file has {total_lines} lines)'
+                
+                if end_line < start_line:
+                    return f'Error: end_line {end_line} must be >= start_line {start_line}'
+                
+                # Convert to 0-based indices
+                start_idx = start_line - 1
+                end_idx = min(end_line, total_lines)  # end_line is inclusive
+                
+                new_lines = lines[:start_idx] + [content] + lines[end_idx:]
+                operation = f'Replaced lines {start_line}-{end_line}'
+            
+            # Write back to file
+            with open(file_path, 'w', encoding='utf-8') as f:
+                f.writelines(new_lines)
+            
+            return f'{operation} in file <{path}> successfully. New file has {len(new_lines)} lines.'
+            
+        except Exception as e:
+            return f'Replace lines in file <{path}> failed, error: ' + str(e)
+
+    def get_real_path(self, path):
+        if os.path.isabs(path) or os.path.exists(path):
+            target_path = path
+        else:
+            target_path = os.path.join(self.output_dir, path)
+        target_path_real = os.path.realpath(target_path)
+        output_dir_real = os.path.realpath(self.output_dir)
+        is_in_output_dir = target_path_real.startswith(
+            output_dir_real
+            + os.sep) or target_path_real == output_dir_real
+
+        if not is_in_output_dir and not self.allow_read_all_files:
+            logger.warning(
+                f'Attempt to read file outside output directory blocked: {path} -> {target_path_real}'
+            )
+            return None
+        else:
+            return target_path_real
+
+    async def read_file(self, paths: list[str], start_line: int = 0, end_line: int = None):
         """Read the content of file(s).
 
         Args:
@@ -224,23 +360,11 @@ class FileSystemTool(ToolBase):
         results = {}
         for path in paths:
             try:
-                if os.path.isabs(path):
-                    target_path = path
-                else:
-                    target_path = os.path.join(self.output_dir, path)
-                target_path_real = os.path.realpath(target_path)
-                output_dir_real = os.path.realpath(self.output_dir)
-                is_in_output_dir = target_path_real.startswith(
-                    output_dir_real
-                    + os.sep) or target_path_real == output_dir_real
-
-                if not is_in_output_dir and not self.allow_read_all_files:
+                target_path_real = self.get_real_path(path)
+                if target_path_real is None:
                     results[path] = (
                         f'Access denied: Reading file <{path}> outside output directory is not allowed. '
                         f'Set allow_read_all_files=true in config to enable.')
-                    logger.warning(
-                        f'Attempt to read file outside output directory blocked: {path} -> {target_path_real}'
-                    )
                     continue
 
                 with open(target_path_real, 'r') as f:
@@ -274,8 +398,10 @@ class FileSystemTool(ToolBase):
             return f'Path not found: {path}'
 
     async def search_file_name(self, file: str = None, parent_path: str = None):
-        _parent_path = parent_path or ''
-        _parent_path = os.path.join(self.output_dir, _parent_path)
+        target_path_real = self.get_real_path(parent_path)
+        if target_path_real is None:
+            return f'<{parent_path}> is out of the valid project path: {self.output_dir}'
+        _parent_path = target_path_real
         assert os.path.isdir(_parent_path), f'Parent path <{parent_path}> does not exist, it should be a inner relative path of the project folder.'
         all_found_files = []
         for root, dirs, files in os.walk(_parent_path):
@@ -298,8 +424,10 @@ class FileSystemTool(ToolBase):
         Returns:
             String containing all matches with file path, line number, and context
         """
-        _parent_path = parent_path or ''
-        _parent_path = os.path.join(self.output_dir, _parent_path)
+        target_path_real = self.get_real_path(parent_path)
+        if target_path_real is None:
+            return f'<{parent_path}> is out of the valid project path: {self.output_dir}'
+        _parent_path = target_path_real
         assert os.path.isdir(_parent_path), f'Parent path <{parent_path}> does not exist, it should be a inner relative path of the project folder.'
         
         if not content:
