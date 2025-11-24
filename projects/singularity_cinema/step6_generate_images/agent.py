@@ -56,25 +56,26 @@ class GenerateImages(CodeAgent):
                     prompt) in enumerate(zip(segments, illustration_prompts))
         ]
 
-        # Use ThreadPoolExecutor with asyncio event loop
-        loop = asyncio.get_event_loop()
+        # Use ThreadPoolExecutor for parallel execution
         with ThreadPoolExecutor(max_workers=self.num_parallel) as executor:
             futures = [
-                loop.run_in_executor(executor,
-                                     self._process_single_illustration_static,
-                                     i, segment, prompt, self.config,
-                                     self.images_dir, self.fusion.__name__)
+                executor.submit(self._process_single_illustration_static,
+                               i, segment, prompt, self.config,
+                               self.images_dir, self.fusion.__name__)
                 for i, segment, prompt in tasks
             ]
-            await asyncio.gather(*futures)
+            # Wait for all tasks to complete
+            for future in futures:
+                future.result()
 
         return messages
 
     @staticmethod
     def _process_single_illustration_static(i, segment, prompt, config,
                                             images_dir, fusion_name):
-        """Static method for multiprocessing"""
+        """Static method for thread pool execution"""
         import asyncio
+        # Create new event loop for this thread
         loop = asyncio.new_event_loop()
         asyncio.set_event_loop(loop)
         try:
