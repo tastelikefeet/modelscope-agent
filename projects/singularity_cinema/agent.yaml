@@ -95,8 +95,8 @@ use_text2video: false
 
 text2video:
   t2v_model: sora-2-2025-10-06
-  t2v__api_key:
-  t2v__base_url: https://dashscope.aliyuncs.com/compatible-mode/v1
+  t2v_api_key:
+  t2v_base_url: https://dashscope.aliyuncs.com/compatible-mode/v1
 
 subtitle_translate:
 
