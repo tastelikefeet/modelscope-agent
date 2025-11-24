@@ -27,6 +27,7 @@ class ComposeVideo(CodeAgent):
         self.render_dir = os.path.join(self.work_dir, 'manim_render')
         self.tts_dir = os.path.join(self.work_dir, 'audio')
         self.images_dir = os.path.join(self.work_dir, 'images')
+        self.videos_dir = os.path.join(self.work_dir, 'videos')
         self.subtitle_dir = os.path.join(self.work_dir, 'subtitles')
         self.bitrate = getattr(self.config.video, 'bitrate', '5000k')
         self.preset = getattr(self.config.video, 'preset', 'ultrafast')
@@ -34,7 +35,7 @@ class ComposeVideo(CodeAgent):
 
     def compose_final_video(self, background_path, foreground_paths,
                             audio_paths, subtitle_paths, illustration_paths,
-                            segments, output_path):
+                            video_paths, segments, output_path):
         segment_durations = []
         total_duration = 0
         logger.info('Composing the final video.')
@@ -78,8 +79,60 @@ class ComposeVideo(CodeAgent):
 
             current_video_clips = []
 
-            # Add illustration first (as base layer)
-            if i < len(illustration_paths
+            # Check if this segment uses generated video instead of illustration
+            use_generated_video = 'video' in segment and video_paths[i] and os.path.exists(video_paths[i])
+
+            if use_generated_video:
+                # Use generated video as base layer
+                logger.info(f'Using generated video for segment {i + 1}')
+                try:
+                    video_clip = mp.VideoFileClip(video_paths[i])
+                    video_original_w, video_original_h = video_clip.size
+                    
+                    # Validate video dimensions
+                    if video_original_w <= 0 or video_original_h <= 0:
+                        logger.error(
+                            f'Invalid video dimensions: {video_original_w}x{video_original_h} for {video_paths[i]}'
+                        )
+                        video_clip.close()
+                        use_generated_video = False
+                    else:
+                        # Resize video to fill 1920x1080 screen
+                        video_available_w, video_available_h = 1920, 1080
+                        video_scale_w = video_available_w / video_original_w
+                        video_scale_h = video_available_h / video_original_h
+                        video_scale = max(video_scale_w, video_scale_h)  # Cover mode
+                        
+                        video_new_w = int(video_original_w * video_scale)
+                        video_new_h = int(video_original_h * video_scale)
+                        if video_new_w % 2 != 0:
+                            video_new_w += 1
+                        if video_new_h % 2 != 0:
+                            video_new_h += 1
+                        
+                        if video_new_w > 0 and video_new_h > 0:
+                            video_clip = video_clip.resized((video_new_w, video_new_h))
+                            video_clip = video_clip.with_position('center')
+                            
+                            # Adjust video duration to match segment duration
+                            if video_clip.duration < duration:
+                                logger.info(f'Video {i + 1} is shorter than segment, extending to {duration:.1f}s')
+                                video_clip = video_clip.with_duration(duration)
+                            elif video_clip.duration > duration:
+                                logger.info(f'Video {i + 1} is longer than segment, trimming to {duration:.1f}s')
+                                video_clip = video_clip.subclipped(0, duration)
+                            
+                            current_video_clips.append(video_clip)
+                        else:
+                            logger.error(f'Invalid scaled video dimensions: {video_new_w}x{video_new_h}')
+                            video_clip.close()
+                            use_generated_video = False
+                except Exception as e:
+                    logger.error(f'Failed to process video for segment {i + 1}: {e}')
+                    use_generated_video = False
+
+            # Add illustration as base layer (if not using generated video)
+            if not use_generated_video and i < len(illustration_paths
                        ) and illustration_paths[i] and os.path.exists(
                            illustration_paths[i]):
                 illustration_clip = mp.ImageClip(
@@ -367,6 +420,7 @@ class ComposeVideo(CodeAgent):
         audio_paths = []
         subtitle_paths = []
         illustration_paths = []
+        video_paths = []
         for i, segment in enumerate(segments):
             illustration_paths.append(
                 os.path.join(self.images_dir, f'illustration_{i + 1}.png'))
@@ -378,6 +432,8 @@ class ComposeVideo(CodeAgent):
             subtitle_paths.append(
                 os.path.join(self.subtitle_dir,
                              f'bilingual_subtitle_{i + 1}.png'))
+            video_paths.append(
+                os.path.join(self.videos_dir, f'video_{i + 1}.mp4'))
 
         self.compose_final_video(
             background_path=self.bg_path,
@@ -385,6 +441,7 @@ class ComposeVideo(CodeAgent):
             audio_paths=audio_paths,
             subtitle_paths=subtitle_paths,
             illustration_paths=illustration_paths,
+            video_paths=video_paths,
             segments=segments,
             output_path=final_video_path)
         return messages
