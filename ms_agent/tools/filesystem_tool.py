@@ -20,6 +20,11 @@ class FileSystemTool(ToolBase):
     TODO: This tool now is a simple implementation, sandbox or mcp TBD.
     """
 
+    # Directories to exclude from file operations
+    EXCLUDED_DIRS = {'node_modules', 'dist', '.git', '__pycache__', '.venv', 'venv'}
+    # File prefixes to exclude
+    EXCLUDED_FILE_PREFIXES = ('.', '..')
+
     def __init__(self, config, **kwargs):
         super(FileSystemTool, self).__init__(config)
         self.exclude_func(getattr(config.tools, 'file_system', None))
@@ -303,12 +308,12 @@ class FileSystemTool(ToolBase):
         # Collect all files matching the pattern
         files_to_search = []
         for root, dirs, files in os.walk(_parent_path):
-            # Skip common directories
-            if 'node_modules' in root or 'dist' in root or '.git' in root:
+            # Skip excluded directories
+            if any(excluded_dir in root for excluded_dir in self.EXCLUDED_DIRS):
                 continue
             for filename in files:
-                # Skip hidden files
-                if filename.startswith('.'):
+                # Skip excluded files
+                if filename.startswith(self.EXCLUDED_FILE_PREFIXES):
                     continue
                 # Match file pattern
                 if fnmatch.fnmatch(filename, file_pattern):
@@ -386,8 +391,8 @@ class FileSystemTool(ToolBase):
         try:
             for root, dirs, files in os.walk(path):
                 for file in files:
-                    if 'node_modules' in root or 'dist' in root or file.startswith(
-                            '.'):
+                    # Skip excluded directories and files
+                    if any(excluded_dir in root for excluded_dir in self.EXCLUDED_DIRS) or file.startswith(self.EXCLUDED_FILE_PREFIXES):
                         continue
                     absolute_path = os.path.join(root, file)
                     relative_path = os.path.relpath(absolute_path, path)
