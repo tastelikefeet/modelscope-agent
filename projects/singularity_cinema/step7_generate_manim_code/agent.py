@@ -130,8 +130,10 @@ class GenerateManimCode(CodeAgent):
 
 DO NOT let the image and the manim element overlap. Reorganize them in your animation.
 
-* Scale the images
+* Scale the images: The original image sizes are not fit with the canvas, carefully rescale the images to match the requirements below:
     a. The image size on the canvas depend on its importance, important image occupies more spaces
+        * Consider the image placement in the manim requirements, resize the image until it will not be cut off by the edge(within x∈(-6.0, 6.0), y∈(-3.4, 3.4) with minimum buff=0.5)
+        * resize generated images by scale(<0.4), if 2 images, resize by scale(<0.3)
     b. Recommended size is **from 1/8 to 1/4** on the canvas""" # noqa
         else:
             image_usage = ''

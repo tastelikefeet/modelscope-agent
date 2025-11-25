@@ -49,6 +49,7 @@ class Segment(LLMAgent):
         5. Less text boxes in the animation, only titles/definitions/formulas
         6. Use black fonts, **no gray fonts**
         7. CRITICAL: **NEVER put an element to a corner, do use horizonal/vertical grid**
+        8. No pie charts should be used, the LLM costs many bugs
 
 - You will be given a script. Your storyboard design needs to be based on the script. You can also add some additional information you think is useful
 
@@ -111,7 +112,7 @@ Now begin:""" # noqa
         5. Less text boxes in the animation, only titles/definitions/formulars
         6. Use black fonts, **no gray fonts**
         7. CRITICAL: **NEVER put an element to a corner, do use horizonal/vertical grid**
-        8. DO NOT use pie charts, the LLM cost many bugs
+        8. No pie charts should be used, the LLM costs many bugs
 
 - You will be given a script. Your storyboard design needs to be based on the script. You can also add some additional information you think is useful
 
@@ -234,6 +235,7 @@ Now begin:"""  # noqa
 
 2. The manim field is used as guidance for subsequent manim animation generation. Read the manim field content, **recreate/refine the animation/manim**, and perfectly integrate/add the images into it
     * No more than 2 images in a segment, 0 image in one segment is allowed
+    * When 2 images, each image should be smaller
     * One image can only use once(one segment and one position)
     * DO NOT put images to the canvas corner
     * Generated images must be decorated with frames
@@ -247,7 +249,7 @@ Now begin:"""  # noqa
             5. Less text boxes in the animation, only titles/definitions/formulars
             6. Use black fonts, **no gray fonts**
             7. CRITICAL: **NEVER put an element to a corner, do use horizonal/vertical grid**
-            8. DO NOT use pie charts, the LLM cost many bugs
+            8. NO pie charts should be used, the LLM cost many bugs
 
 3. The number of images used for each storyboard doesn't need to be the same, and images may not be used at all.
 

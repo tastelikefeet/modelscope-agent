@@ -3,6 +3,36 @@ import re
 from typing import List
 
 
+stop_words = [
+    "\nclass ",
+    "\ndef ",
+    "\nfunc ",
+    "\nfunction ",
+    "\npub fn ",
+    "\nfn ",
+    "\nstruct ",
+    "\nenum ",
+    "\nexport ",
+    "\ninterface ",
+    "\ntrait ",
+    "\nimpl ",
+    "\nmodule ",
+    "\ntype ",
+    "\npublic class ",
+    "\nprivate class ",
+    "\nprotected class ",
+    "\npublic interface ",
+    "\npublic enum ",
+    "\npublic struct ",
+    "\nabstract class ",
+    "\nconst ",
+    "\nlet ",
+    "\nvar ",
+    "\nasync def ",
+    "\n@",
+]
+
+
 def parse_imports(current_file: str, code_content: str) -> List[str]:
     imports = []
     current_dir = os.path.dirname(current_file) if current_file else '.'

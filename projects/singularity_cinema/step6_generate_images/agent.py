@@ -153,6 +153,10 @@ class GenerateImages(CodeAgent):
                                     img_path,
                                     config,
                                     negative_prompt=None):
+        #img = Image.new('RGB', (1664, 1664), 'white')
+        #img.save(img_path)
+        #logger.info(f'Generated 1664x1664 white image saved to: {img_path}')
+        #return img_path
         """Implementation of image generation"""
         base_url = config.text2image.t2i_base_url.strip('/')
         api_key = config.text2image.t2i_api_key
