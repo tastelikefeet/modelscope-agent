@@ -14,7 +14,7 @@ from ms_agent.agent import CodeAgent, Agent
 from ms_agent.llm import Message
 from ms_agent.utils import get_logger, async_retry
 from ms_agent.utils.constants import DEFAULT_TAG
-from .utils import stop_words, parse_imports
+from utils import stop_words, parse_imports
 
 logger = get_logger()
 
@@ -105,8 +105,15 @@ class Programmer(LLMAgent):
         self.llm.args.pop('stop')
         try:
             response_message = self.llm.generate(messages)
+            content = response_message.content.split('\n')
+            if '```' in content[0]:
+                content = content[1:]
+            if '```' in content[-1]:
+                content = content[:-1]
+            os.makedirs(os.path.dirname(abbr_file), exist_ok=True)
             with open(abbr_file, 'w') as f:
-                return f.write(response_message.content)
+                f.write('\n'.join(content))
+            return '\n'.join(content)
         finally:
             self.llm.args['stop'] = stop
 
@@ -120,6 +127,7 @@ class Programmer(LLMAgent):
     async def after_tool_call(self, messages: List[Message]):
         deps_not_exist = False
         coding_finish = messages[-1].content.endswith('```')
+        has_tool_call = len(messages[-1].tool_calls or []) > 0
         if '```' in messages[-1].content and not coding_finish:
             code_file = messages[-1].content.split('```')[1].split(':')[1].split('\n')[0].strip()
             all_files = parse_imports(code_file, messages[-1].content) or []
@@ -150,19 +158,19 @@ class Programmer(LLMAgent):
                     code = r['code']
                     path = os.path.join(self.output_dir, path)
                     if os.path.exists(path):
-                        saving_result += f'The target file exists, cannot override. here is the file abbreviate content: \n{self.generate_abbr_file(path)}\n'
+                        saving_result += f'The target file exists, cannot override. here is the file abbreviate content: \n{self.generate_abbr_file(r["filename"])}\n'
                     else:
                         os.makedirs(os.path.dirname(path), exist_ok=True)
                         with open(path, 'w') as f:
                             f.write(code)
-                        saving_result += f'Save file <{r["filename"]}> successfully\n. here is the file abbreviate content: \n{self.generate_abbr_file(path)}\n'
-                messages[-1].content = remaining_text or 'Code content removed.'
+                        saving_result += f'Save file <{r["filename"]}> successfully\n. here is the file abbreviate content: \n{self.generate_abbr_file(r["filename"])}\n'
+                messages[-1].content = remaining_text + 'Code content removed.'
                 messages.append(Message(role='user', content=saving_result))
             self.filter_code_files()
             if not self.code_files:
                 self.runtime.should_stop = True
 
-        if deps_not_exist or (coding_finish and self.code_files):
+        if not has_tool_call and (deps_not_exist or (coding_finish and self.code_files)):
             last_file = self.code_files[-1]
             messages[-1].content += f'\nCode file not found, write it now: {last_file}'
             self.llm.args['stop'] = stop_words
@@ -170,7 +178,7 @@ class Programmer(LLMAgent):
     @async_retry(max_attempts=Agent.retry_count, delay=1.0)
     async def step(
             self, messages: List[Message]
-    ) -> AsyncGenerator[List[Message], Any]:  # type: ignore
+    ):  # type: ignore
         messages = deepcopy(messages)
         if messages[-1].role != 'assistant':
             messages = await self.condense_memory(messages)
@@ -261,7 +269,7 @@ class CodingAgent(CodeAgent):
         logger.info(f'Writing {name}')
         _config = deepcopy(self.config)
         messages = [
-            Message(role='system', content=self.config.system),
+            Message(role='system', content=self.config.prompt.system),
             Message(role='user', content=f'原始需求(topic.txt): {topic}\n'
                                          f'LLM规划的用户故事(user_story.txt): {user_story}\n'
                                          f'技术栈(framework.txt): {framework}\n'
@@ -290,7 +298,7 @@ class CodingAgent(CodeAgent):
         self.refresh_file_status(file_relation)
 
         # Use ThreadPoolExecutor for IO-intensive LLM API calls
-        max_workers = 4  # Optimal for IO-intensive tasks
+        max_workers = 1  # Optimal for IO-intensive tasks
         
         for files in file_orders:
             while True:

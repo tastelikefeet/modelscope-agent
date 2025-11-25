@@ -32,13 +32,21 @@ prompt:
       * 任何你用到的数据结构都需要在文件顶引用来源对应文件
       * 注意你引用方法的数据结构，不要有字段对不上
       * 注意命名导出或默认导出方式
-      * 你不需要使用工具存储文件。你的输出格式如下：
-      ```javascript: frontend/index.js
-      ... code here ...
-      ```
-      代码会从messages中读取出来并存储
-    6. 如果你发现依赖的任一底层代码文件不存在，你应当创建这个代码文件和对应的缩略文件
-    7. 在编写文件完成后，为节省token不要做任何总结文字
+    6. Output your code with this format:
+    
+    ```type: filename
+    text
+    ```
+    
+    for example:
+    ```javascript: frontend/index.js
+    your code here
+    ```
+    
+    The `frontend/index.js` will be used to saving. Therefore, you must generate it strictly in this format.
+
+    7. 如果你发现依赖的任一底层代码文件不存在，你应当创建这个代码文件和对应的缩略文件
+    8. 在编写文件完成后，为节省token不要做任何总结文字
 
 tools:
   file_system:
