@@ -91,7 +91,7 @@ use_doc_image: true
 
 use_subtitle: false
 
-use_text2video: true
+use_text2video: false
 
 text2video:
   t2v_provider: dashscope

@@ -10,7 +10,7 @@ class AbbrFileSystemTool(FileSystemTool):
     async def _get_tools_inner(self):
         tools = await super()._get_tools_inner()
         tool_list = tools['file_system']
-        tool_list = [tool for tool in tool_list if tool['tool_name'] in ('write_file', 'read_file', 'create_directory')]
+        tool_list = [tool for tool in tool_list if tool['tool_name'] in ('write_file', 'read_file', 'create_directory', 'search_file_content')]
         for tool in tool_list:
             if tool['tool_name'] in ('write_file', 'read_file'):
                 tool['parameters']['properties']['abbreviation'] = {
