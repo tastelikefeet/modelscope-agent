@@ -119,10 +119,10 @@ class GenerateManimCode(CodeAgent):
 - Pay attention to the size field, write Manim code that respects the image's aspect ratio, size it if it's too big
 - Consider the image integration with the background and overall animation. Use blending/glow effects, frames, movements, borders etc. to make it more beautiful and gorgeous
     * You can more freely consider the integration of images to achieve a better presentation
-    * Images size should be medium or small to prevent them from occupying the entire screen or most of the screen, big image is not cool
+    * Images size should be **medium OR small** to prevent them from occupying the entire screen or most of the screen, **huge image is forbidden**
     * Ensure aspect ratios of non-square images remain correct
     * When using circular frames around images in Manim, you MUST crop the image to a circle using PIL before loading it. A square image inside a circular frame looks unprofessional. Create a helper function that uses PIL's ImageDraw to create a circular mask, applies it to the image, saves it temporarily, then loads it with ImageMobject - simply creating a Circle object does NOT crop the image.
-    * If using any image, decorate it with a gorgeous frame
+    * Generated images must be decorated with frames
     * **Use smaller image sizes for generated images and larger image sizes for user doc images. DO NOT use circular frame to user doc images**
 - [IMPORTANT] If images files is not empty, **you must use them all at the appropriate time and position in your animation**. Here is the image files list:
 
@@ -132,7 +132,7 @@ DO NOT let the image and the manim element overlap. Reorganize them in your anim
 
 * Scale the images
     a. The image size on the canvas depend on its importance, important image occupies more spaces
-    b. Recommended size is from 1/8 to 1/4 on the canvas. If the image if the one unique element, the size can reach 1/2 or more""" # noqa
+    b. Recommended size is **from 1/8 to 1/4** on the canvas""" # noqa
         else:
             image_usage = ''
 
@@ -159,12 +159,13 @@ DO NOT let the image and the manim element overlap. Reorganize them in your anim
 * Use a cohesive color palette of 2-4 colors for the entire video. Avoid cluttered colors, bright blue, and bright yellow. Prefer deep, dark tones
 * Low-quality animations such as stick figures are forbidden
 * Do not use any matchstick-style or pixel-style animations. Use charts, images, industrial/academic-style animations
+* DO NOT draw pie charts
 * Do not create multi-track manim animations. One object per segment, or two to three(NO MORE THAN 3) object arranged in a simple manner, manim layout rules:
     1. One object in the middle
     2. Two objects, left-right structure, same y axis, same size
     3. Three objects, left-middle-right structure, same y axis, same size. No more than 3 elements in one segment
-    4. Split complex animation into sevaral segments
-    5. Less text boxes in the animation, only titles/definitions/formulars
+    4. Split complex animation into several segments
+    5. Less text boxes in the animation, only titles/definitions/formulas
     6. Use black fonts, **no gray fonts**
     7. CRITICAL: **NEVER put an element to a corner, do use horizonal/vertical grid**
 

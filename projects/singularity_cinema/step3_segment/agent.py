@@ -111,6 +111,7 @@ Now begin:""" # noqa
         5. Less text boxes in the animation, only titles/definitions/formulars
         6. Use black fonts, **no gray fonts**
         7. CRITICAL: **NEVER put an element to a corner, do use horizonal/vertical grid**
+        8. DO NOT draw pie charts
 
 - You will be given a script. Your storyboard design needs to be based on the script. You can also add some additional information you think is useful
 
@@ -235,6 +236,7 @@ Now begin:"""  # noqa
     * No more than 2 images in a segment, 0 image in one segment is allowed
     * One image can only use once(one segment and one position)
     * DO NOT put images to the canvas corner
+    * Generated images must be decorated with frames
 
 3. The number of images used for each storyboard doesn't need to be the same, and images may not be used at all.
 
@@ -242,7 +244,7 @@ Now begin:"""  # noqa
 
 5. Scale the images
     * The image size on the canvas depend on its importance, important image occupies more spaces
-    * Recommended size is from 1/8 to 1/4 on the canvas. If the image if the one unique element, the size can reach 1/2 or more
+    * Recommended size is from 1/8 to 1/4 on the canvas
 
 6. Your return length should be the same as the source storyboard length. If images are not needed, return empty user_image and foreground lists.
 

@@ -449,7 +449,7 @@ These images must be used.
 * **Use smaller image sizes for generated images and larger image sizes for user doc images. DO NOT use circular frame to user doc images**
 * Scale the images
     a. The image size on the canvas depend on its importance, important image occupies more spaces
-    b. Recommended size is from 1/8 to 1/4 on the canvas. If the image if the one unique element, the size can reach 1/2 or more
+    b. Recommended size is **from 1/8 to 1/4** on the canvas
 """
         else:
             image_prompt = ''
@@ -490,8 +490,8 @@ Manim instructions:
     1. One object in the middle
     2. Two objects, left-right structure, same y axis, same size
     3. Three objects, left-middle-right structure, same y axis, same size. No more than 3 elements in one segment
-    4. Split complex animation into sevaral segments
-    5. Less text boxes in the animation, only titles/definitions/formulars
+    4. Split complex animation into several segments
+    5. Less text boxes in the animation, only titles/definitions/formulas
     6. Use black fonts, **no gray fonts**
     7. CRITICAL: **NEVER put an element to a corner, do use horizonal/vertical grid**
 

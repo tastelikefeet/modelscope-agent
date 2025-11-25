@@ -149,15 +149,11 @@ class CodingAgent(CodeAgent):
 
         all_file_deps = ''
         for dep in all_deps:
-            abbr_dep = os.path.join(self.output_dir, 'abbr', dep)
-            if os.path.exists(abbr_dep) and not any(dep.endswith(ext) for ext in css_extensions):
-                with open(abbr_dep, 'r') as f:
-                    all_file_deps += f'The abbreviation content of {dep}: {f.read()}\n'
-            elif os.path.exists(os.path.join(self.output_dir, dep)):
+            if os.path.exists(os.path.join(self.output_dir, dep)):
                 with open(os.path.join(self.output_dir, dep), 'r') as f:
                     all_file_deps += f'The content of {dep}: {f.read()}\n'
             else:
-                all_file_deps += f'A file named: {dep} you need may not exists.\n'
+                all_file_deps += f'A file named: {dep} you need does not exist.\n'
         if all_file_deps:
             return f'一些文件内容: {all_file_deps}\n'
         else:
