@@ -111,7 +111,7 @@ Now begin:""" # noqa
         5. Less text boxes in the animation, only titles/definitions/formulars
         6. Use black fonts, **no gray fonts**
         7. CRITICAL: **NEVER put an element to a corner, do use horizonal/vertical grid**
-        8. DO NOT draw pie charts
+        8. DO NOT use pie charts, the LLM cost many bugs
 
 - You will be given a script. Your storyboard design needs to be based on the script. You can also add some additional information you think is useful
 
@@ -237,6 +237,17 @@ Now begin:"""  # noqa
     * One image can only use once(one segment and one position)
     * DO NOT put images to the canvas corner
     * Generated images must be decorated with frames
+    
+    Manim layouts:
+        * Do not create multi-track manim animations. One object per segment, or two to three(NO MORE THAN 3 elements in one segment) object arranged in a simple manner, manim layout rules:
+            1. One object in the middle
+            2. Two objects, left-right structure, same y axis, same size
+            3. Three objects, left-middle-right structure, same y axis, same size. No more than 3 elements in one segment
+            4. Split complex animation into sevaral segments
+            5. Less text boxes in the animation, only titles/definitions/formulars
+            6. Use black fonts, **no gray fonts**
+            7. CRITICAL: **NEVER put an element to a corner, do use horizonal/vertical grid**
+            8. DO NOT use pie charts, the LLM cost many bugs
 
 3. The number of images used for each storyboard doesn't need to be the same, and images may not be used at all.
 
