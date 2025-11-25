@@ -2,23 +2,109 @@ import asyncio
 import dataclasses
 import json
 import os
-import re
 from collections import OrderedDict
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from copy import deepcopy
-from typing import Set
+from typing import Set, List
 
 from omegaconf import DictConfig
 
 from ms_agent import LLMAgent
-from ms_agent.agent import CodeAgent
+from ms_agent.agent import CodeAgent, Agent
 from ms_agent.llm import Message
-from ms_agent.utils import get_logger
+from ms_agent.llm.openai_llm import OpenAI
+from ms_agent.utils import get_logger, async_retry
+from ms_agent.utils.constants import DEFAULT_TAG
+from .utils import stop_words, parse_imports
 
 logger = get_logger()
 
 
 class Programmer(LLMAgent):
+
+    def __init__(self,
+                 config: DictConfig = DictConfig({}),
+                 tag: str = DEFAULT_TAG,
+                 trust_remote_code: bool = False,
+                 **kwargs):
+        super().__init__(config, tag, trust_remote_code, **kwargs)
+        self.stop = stop_words
+
+    async def on_generate_response(self, messages: List[Message]):
+        if self.llm.args.get('stop', None) != self.stop:
+            self.llm.args['stop'] = self.stop
+        else:
+            self.llm.args['stop'] = '```'
+
+    def generate_abbr_file(self, file):
+        system = """你是一个帮我简化代码并返回缩略的机器人。你缩略的文件会给与另一个LLM用来编写代码，因此你缩略的代码文件需要具有充足的其他文件依赖的信息。
+
+需要保留的信息：
+1. 类名、方法名、方法参数类型，返回值类型
+2. imports依赖
+3. exports导出及导出类型
+4. 如果是结构定义代码，保留结构和字段等充分信息
+5. 如果是css样式代码，保留样式名称
+6. 如果是json，保留结构即可
+7. 
+"""
+
+    async def on_tool_call(self, messages: List[Message]):
+        await super().on_tool_call(messages)
+        if '```' not in messages[-1].content:
+            return
+
+        code_file = messages[-1].content.split('```')[1].split(':')[1].split('\n')[0].strip()
+        all_files = parse_imports(code_file, messages[-1].content) or []
+        deps_not_exist = False
+        missing_deps = []
+        deps = []
+        for file in all_files:
+            if not os.path.exists(file):
+                deps_not_exist = True
+                missing_deps.append(file)
+            else:
+                deps.append(file)
+
+        if deps_not_exist:
+            messages = messages[:-1]
+            messages.append(Message(role='user', content=f'Some dependencies are missing: {missing_deps}, create them first:'))
+        else:
+
+
+
+    @async_retry(max_attempts=Agent.retry_count, delay=1.0)
+    async def step(
+            self, messages: List[Message]
+    ) -> AsyncGenerator[List[Message], Any]:  # type: ignore
+        messages = deepcopy(messages)
+        if messages[-1].role != 'assistant':
+            messages = await self.condense_memory(messages)
+            await self.on_generate_response(messages)
+            tools = await self.tool_manager.get_tools()
+
+            _response_message = self.llm.generate(messages, tools=tools)
+            if _response_message.content:
+                self.log_output('[assistant]:')
+                self.log_output(_response_message.content)
+
+            # Response generated
+            self.handle_new_response(messages, _response_message)
+            await self.on_tool_call(messages)
+        else:
+            _response_message = messages[-1]
+        self.save_history(messages)
+
+        if _response_message.tool_calls:
+            messages = await self.parallel_tool_call(messages)
+        else:
+            self.runtime.should_stop = True
+
+        await self.after_tool_call(messages)
+        self.log_output(
+            f'[usage] prompt_tokens: {_response_message.prompt_tokens}, '
+            f'completion_tokens: {_response_message.completion_tokens}')
+        yield messages
 
     async def condense_memory(self, messages):
         return messages
@@ -47,7 +133,7 @@ class Programmer(LLMAgent):
                 chunk_size = 2048
                 overlap = 256
                 chunks = []
-                
+
                 if file_len <= chunk_size:
                     chunks.append(file_content)
                 else:
@@ -58,14 +144,12 @@ class Programmer(LLMAgent):
                         if end >= file_len:
                             break
                         start += (chunk_size - overlap)
-                
+
                 # Add each chunk to memory
                 for chunk in chunks:
                     _messages = [Message(role='assistant', content=chunk)]
                     await super().add_memory(_messages, **kwargs)
         
-        
-
 
 @dataclasses.dataclass
 class FileRelation:
@@ -78,105 +162,16 @@ class FileRelation:
 
 class CodingAgent(CodeAgent):
 
-    _fast_fail = """
-6. 如果你发现依赖的任一底层代码文件不存在，你不应当继续编写代码文件，而应当调用**missing_dependency工具**汇报缺失文件
-"""
-    _continue = """
-6. 如果你发现依赖的任一底层代码文件不存在，你应当创建这个代码文件和对应的缩略文件
-"""
-
-    _find_deps = """你是一个优秀的软件项目架构师。你的职责是根据原始需求和模块划分以及具体的文件，找到其上游需要依赖的其他代码文件。你的工作流程如下：
-    
-1. 用户原始需求和用户故事已经放入上下文，你无需再读取。这些知识包括：
-  * topic.txt：原始需求
-  * user_story.txt：用户故事
-  * protocol.txt：通讯协议
-  * framework.txt：技术选型
-  * tasks.txt: 项目文件列表
-2. 列出在本项目中需要依赖的其他文件，并和tasks.txt的内容进行比对，
-  * **确认依赖文件在文件列表内，不要使用未在文件列表内定义的代码文件**
-  * 你只能依赖file_order.txt中index小于你的文件，等于你的文件会和本文件一起编写，大于你的会在后续编写
-  * 这里的依赖是指使文件编写正确所需要的文件
-    a. 包含html对css的样式依赖
-    b. 包含文件引用
-    c. 包含数据结构引用，或依赖文件的数据结构引用
-
-  你的输出例子：
-  为完成xxx代码，根据通讯协议和文件列表分析，我需要和 ... 进行http通讯，为完成user_story的设计，我需要使用 ... 的底层服务，综上所述我需要依赖：
-  <result>
-  xxx
-  yyy
-  ...
-  </result>
-  文件依赖放入<result></result>中，以列(\n)分隔。如果没有依赖文件，返回空的<result></result>
-  注意：你不需要编写任何具体的代码文件
-"""
-
-    async def find_deps(self, topic, user_story, framework, protocol,
-                         name, description):
-        _config = deepcopy(self.config)
-        _config.tools = DictConfig({})
-        _config.prompt = None
-        _config.memory = None
-        with open(os.path.join(self.output_dir, 'file_order.txt')) as f:
-            file_order = f.read()
-        messages = [
-            Message(role='system', content=self._find_deps),
-            Message(role='user', content=f'原始需求(topic.txt): {topic}\n'
-                                         f'LLM规划的用户故事(user_story.txt): {user_story}\n'
-                                         f'技术栈(framework.txt): {framework}\n'
-                                         f'通讯协议(protocol.txt): {protocol}\n'
-                                         f'文件编写列表(file_order.txt): {file_order}\n'
-                                         f'The file in one index will be written parallelly.\n'
-                                         f'你负责查找依赖的文件: {name}\n文件描述: {description}\n'),
-        ]
-        _config.save_history = False
-        _config.load_cache = False
-        deps = LLMAgent(_config, tag=f'deps-{name}', trust_remote_code=True)
-        messages = await deps.run(messages)
-        all_deps = []
-        pattern = r'<result>(.*?)</result>'
-        for deps in re.findall(pattern, messages[-1].content, re.DOTALL):
-            all_deps.extend(deps.split('\n'))
-        all_deps = [dep.strip() for dep in all_deps if dep.strip()]
-
-        css_extensions = {
-            '.css', '.scss', '.sass', '.less',
-            '.styl', '.stylus', '.pcss', '.postcss',
-            '.module.css', '.module.scss', '.module.sass', '.module.less',
-            '.wxss', '.acss', '.qss', '.ttss'
-        }
-
-        all_file_deps = ''
-        for dep in all_deps:
-            if os.path.exists(os.path.join(self.output_dir, dep)):
-                with open(os.path.join(self.output_dir, dep), 'r') as f:
-                    all_file_deps += f'The content of {dep}: {f.read()}\n'
-            else:
-                all_file_deps += f'A file named: {dep} you need does not exist.\n'
-        if all_file_deps:
-            return f'一些文件内容: {all_file_deps}\n'
-        else:
-            return ''
-
-
     async def write_code(self, topic, user_story, framework, protocol,
                          name, description, fast_fail):
         logger.info(f'Writing {name}')
         _config = deepcopy(self.config)
-        if fast_fail:
-            system = self.config.prompt.system + self._fast_fail
-        else:
-            _config.tools.plugins.pop(-1)
-            system = self.config.prompt.system + self._continue
-        all_file_deps = await self.find_deps(topic, user_story, framework, protocol,name,description)
         messages = [
-            Message(role='system', content=system),
+            Message(role='system', content=self.config.system),
             Message(role='user', content=f'原始需求(topic.txt): {topic}\n'
                                          f'LLM规划的用户故事(user_story.txt): {user_story}\n'
                                          f'技术栈(framework.txt): {framework}\n'
                                          f'通讯协议(protocol.txt): {protocol}\n'
-                                         f'{all_file_deps}'
                                          f'你需要编写的文件: {name}\n文件描述: {description}\n'),
         ]
 

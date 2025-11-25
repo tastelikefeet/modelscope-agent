@@ -26,17 +26,26 @@ prompt:
     2. 读取`file_order.txt`确认文件列表和编写分组情况。和你一组的文件会和你并行编写。你只能依赖index小于你的文件，不要依赖你的siblings和index晚于你的文件
     3. 你会被给与一些可能用得到的代码的内容或缩略内容
     4. 读取你需要的依赖文件
-    5. 编写代码，并调用write_file(...)存储文件
+    5. 编写代码
       * 如果你需要编写的组件或功能在文件列表中不存在，你应当在你负责的文件中冗余编写，而不要指定引用一个不存在的其他文件
       * 始终使用绝对导入或明确的相对导入规则，并始终使用类型提示
       * 注意你引用方法的数据结构，不要有字段对不上
       * 注意命名导出或默认导出方式
-    6. 在编写文件完成后，为节省token不要做任何总结文字
+      * 你不需要使用工具存储文件。你的输出格式如下：
+      ```javascript: frontend/index.js
+      ... code here ...
+      ```
+      代码会从messages中读取出来并存储
+    6. 如果你发现依赖的任一底层代码文件不存在，你应当创建这个代码文件和对应的缩略文件
+    7. 在编写文件完成后，为节省token不要做任何总结文字
 
 tools:
-  plugins:
-    - workflow/abbr_file_system
-    - workflow/missing_dependency
+  file_system:
+    mcp: false
+    include:
+      - read_file
+      - search_file_content
+      - search_file_name
 
 memory:
   - user_id: "code_scratch"
