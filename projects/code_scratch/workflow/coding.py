@@ -12,12 +12,51 @@ from omegaconf import DictConfig
 from ms_agent import LLMAgent
 from ms_agent.agent import CodeAgent, Agent
 from ms_agent.llm import Message
-from ms_agent.llm.openai_llm import OpenAI
 from ms_agent.utils import get_logger, async_retry
 from ms_agent.utils.constants import DEFAULT_TAG
 from .utils import stop_words, parse_imports
 
 logger = get_logger()
+
+import re
+from typing import List, Optional, Tuple
+
+
+def extract_code_blocks(text: str,
+                        target_filename: Optional[str] = None
+                        ) -> Tuple[List, str]:
+    """Extract code blocks from the given text.
+
+    ```py:a.py
+
+    Args:
+        text: The text to extract code blocks from.
+        target_filename: The filename target to extract.
+
+    Returns:
+        Tuple:
+            0: The extracted code blocks.
+            1: The left content of the input text.
+    """
+    pattern = r'```[a-zA-Z]*:([^\n\r`]+)\n(.*?)```'
+    matches = re.findall(pattern, text, re.DOTALL)
+    result = []
+
+    for filename, code in matches:
+        filename = filename.strip()
+        if target_filename is None or filename == target_filename:
+            result.append({'filename': filename, 'code': code.strip()})
+
+    if target_filename is not None:
+        remove_pattern = rf'```[a-zA-Z]*:{re.escape(target_filename)}\n.*?```'
+    else:
+        remove_pattern = pattern
+
+    remaining_text = re.sub(remove_pattern, '', text, flags=re.DOTALL)
+    remaining_text = re.sub(r'\n\s*\n\s*\n', '\n\n', remaining_text)
+    remaining_text = remaining_text.strip()
+
+    return result, remaining_text
 
 
 class Programmer(LLMAgent):
@@ -26,17 +65,22 @@ class Programmer(LLMAgent):
                  config: DictConfig = DictConfig({}),
                  tag: str = DEFAULT_TAG,
                  trust_remote_code: bool = False,
+                 code_file: str = None,
                  **kwargs):
         super().__init__(config, tag, trust_remote_code, **kwargs)
-        self.stop = stop_words
+        self.code_files = [code_file]
 
-    async def on_generate_response(self, messages: List[Message]):
-        if self.llm.args.get('stop', None) != self.stop:
-            self.llm.args['stop'] = self.stop
-        else:
-            self.llm.args['stop'] = '```'
+    async def on_task_begin(self, messages: List[Message]):
+        self.llm.args['stop'] = stop_words
 
     def generate_abbr_file(self, file):
+        abbr_dir = os.path.join(self.output_dir, 'abbr')
+        os.makedirs(abbr_dir, exist_ok=True)
+        abbr_file = os.path.join(abbr_dir, file)
+        if os.path.exists(abbr_file):
+            with open(abbr_file, 'r') as f:
+                return f.read()
+
         system = """你是一个帮我简化代码并返回缩略的机器人。你缩略的文件会给与另一个LLM用来编写代码，因此你缩略的代码文件需要具有充足的其他文件依赖的信息。
 
 需要保留的信息：
@@ -46,32 +90,82 @@ class Programmer(LLMAgent):
 4. 如果是结构定义代码，保留结构和字段等充分信息
 5. 如果是css样式代码，保留样式名称
 6. 如果是json，保留结构即可
-7. 
+7. 仅返回缩略信息，不要返回其他无关信息
+
+你的优化目标：
+1. 保留最少的token数量
+2. 保留充足的信息供其它代码使用
 """
+        query = f'代码：{file}'
+        messages = [
+            Message(role='system', content=system),
+            Message(role='user', content=query),
+        ]
+        stop = self.llm.args['stop']
+        self.llm.args.pop('stop')
+        try:
+            response_message = self.llm.generate(messages)
+            with open(abbr_file, 'w') as f:
+                return f.write(response_message.content)
+        finally:
+            self.llm.args['stop'] = stop
 
-    async def on_tool_call(self, messages: List[Message]):
-        await super().on_tool_call(messages)
-        if '```' not in messages[-1].content:
-            return
+    def filter_code_files(self):
+        code_files = []
+        for code_file in self.code_files:
+            if not os.path.exists(os.path.join(self.output_dir, code_file)):
+                code_files.append(code_file)
+        self.code_files = code_files
 
-        code_file = messages[-1].content.split('```')[1].split(':')[1].split('\n')[0].strip()
-        all_files = parse_imports(code_file, messages[-1].content) or []
+    async def after_tool_call(self, messages: List[Message]):
         deps_not_exist = False
-        missing_deps = []
-        deps = []
-        for file in all_files:
-            if not os.path.exists(file):
-                deps_not_exist = True
-                missing_deps.append(file)
-            else:
-                deps.append(file)
+        coding_finish = messages[-1].content.endswith('```')
+        if '```' in messages[-1].content and not coding_finish:
+            code_file = messages[-1].content.split('```')[1].split(':')[1].split('\n')[0].strip()
+            all_files = parse_imports(code_file, messages[-1].content) or []
+            deps = []
+            for file in all_files:
+                if not os.path.exists(file):
+                    deps_not_exist = True
+                    self.code_files.append(file)
+                else:
+                    deps.append(file)
 
-        if deps_not_exist:
-            messages = messages[:-1]
-            messages.append(Message(role='user', content=f'Some dependencies are missing: {missing_deps}, create them first:'))
-        else:
+            if not deps_not_exist:
+                dep_content = ''
+                for dep in deps:
+                    abbr_content = self.generate_abbr_file(dep)
+                    dep_content += f'File content {dep}:\n{abbr_content}\n\n'
+                messages.append(
+                    Message(role='user', content=f'According to your imports, extra contents given here:\n'
+                                                 f'{dep_content}\n'
+                                                 f'Now rewrite your full code:\n'))
+                self.llm.args['stop'] = '```'
+        elif coding_finish:
+            result, remaining_text = extract_code_blocks(messages[-1].content)
+            if result:
+                saving_result = ''
+                for r in result:
+                    path = r['filename']
+                    code = r['code']
+                    path = os.path.join(self.output_dir, path)
+                    if os.path.exists(path):
+                        saving_result += f'The target file exists, cannot override. here is the file abbreviate content: \n{self.generate_abbr_file(path)}\n'
+                    else:
+                        os.makedirs(os.path.dirname(path), exist_ok=True)
+                        with open(path, 'w') as f:
+                            f.write(code)
+                        saving_result += f'Save file <{r["filename"]}> successfully\n. here is the file abbreviate content: \n{self.generate_abbr_file(path)}\n'
+                messages[-1].content = remaining_text or 'Code content removed.'
+                messages.append(Message(role='user', content=saving_result))
+            self.filter_code_files()
+            if not self.code_files:
+                self.runtime.should_stop = True
 
-
+        if deps_not_exist or (coding_finish and self.code_files):
+            last_file = self.code_files[-1]
+            messages[-1].content += f'\nCode file not found, write it now: {last_file}'
+            self.llm.args['stop'] = stop_words
 
     @async_retry(max_attempts=Agent.retry_count, delay=1.0)
     async def step(
@@ -178,7 +272,7 @@ class CodingAgent(CodeAgent):
         _config = deepcopy(self.config)
         _config.save_history = True
         _config.load_cache = False
-        programmer = Programmer(_config, tag=f'programmer-{name.replace(os.sep, "-")}', trust_remote_code=True)
+        programmer = Programmer(_config, tag=f'programmer-{name.replace(os.sep, "-")}', trust_remote_code=True, code_file=name)
         await programmer.run(messages)
 
     async def execute_code(self, inputs, **kwargs):
