@@ -15,18 +15,18 @@ logger = get_logger(__name__)
 
 class GenerateVideoPrompts(CodeAgent):
 
-    system = """你是一个为生成视频创作场景描述的专家。根据给定的知识点或分镜脚本，生成详细的英文描述，用于创建符合指定主题和风格的文生视频。要求：
+    system = """You are an expert in creating scene descriptions for video generation. Based on given knowledge points or storyboard scripts, generate detailed English descriptions for creating text-to-video content that aligns with specified themes and styles. Requirements:
 
-生成的视频必须只描绘一个场景，不是多个场景
-视频需要是清晰的，不要出现静态感觉
-你需要根据视频指定长度设定和合适的场景变化
-只有在确实需要表达知识点或场景含义时，才在图像中添加清晰、可读的文本。不要强制在每个场景中使用任何特定单词。如果不需要文本，就不要包含任何文本。
-视频中的所有文本必须清晰、可读，不能扭曲、乱码或随机。
-所有元素都应与主题和当前字幕片段的含义相关
-视频面板尺寸为1920*1080
-视频需要能准确反映文本的要求
-用英文输出200个单词左右，只输出场景描述，不包含风格关键词，只有在场景确实需要时才在图像中使用英文文本。
-只返回提示词本身，不要添加任何其他解释或标记。"""  # noqa
+- The generated video must depict only one scene, not multiple scenes
+- Video content needs to be clearly dynamic, avoiding static feelings, and should not have stationary characters with only camera movement
+- You need to set appropriate scene changes based on the specified video length
+- Only add clear, readable text in the image when it's truly necessary to express the knowledge point or scene meaning. Do not force the use of any specific words in every scene. If text is not needed, don't include any text.
+- All text in the video must be clear and readable, not distorted, garbled, or random.
+- All elements should be relevant to the theme and the meaning of the current subtitle segment
+- Video panel size is 1920*1080
+- The video needs to accurately reflect the text requirements
+- Output approximately 200 words in English, only output the scene description, do not include style keywords, only use English text in the image when the scene truly requires it.
+- Only return the prompt itself, without adding any other explanations or markers."""  # noqa
 
     def __init__(self,
                  config: DictConfig,

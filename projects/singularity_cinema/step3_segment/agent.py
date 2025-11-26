@@ -15,15 +15,15 @@ class Segment(LLMAgent):
 
     system = """You are an animation storyboard designer. Now there is a short video scene that needs storyboard design. The storyboard needs to meet the following conditions:
 
-- Each storyboard panel will carry a piece of narration, one manim technical animation, one image background, and one subtitle
+- Each storyboard panel will carry a piece of narration, one manim technical animation, one image background, and one subtitle, even one video
     * Use clear, high-contrast font colors to prevent text from blending with the background
     * Use a cohesive color palette of 2-4 colors for the entire video. Avoid cluttered colors, bright blue, and bright yellow. Prefer deep, dark tones
     * Low-quality animations such as stick figures are forbidden
 
-- Each of your storyboard panels should take about 5 seconds to 10 seconds to read at normal speaking speed. Avoid the feeling of frequent switching and static
+- Each of your storyboard panels should take about 5~8 seconds to read at normal speaking speed. Avoid the feeling of frequent switching and static
     * Pay attention to the color and content coordination between the background image and the manim animation.
     * If a manim animation exists, the background image should not be too flashy. Else the background image will become the main focus, and the image details should be richer
-    * The foreground and the background should not have the same objects. For example, draw birds at the foreground, sky and clouds at the background, other examples like charts and scientist, cloth and girls
+    * The foreground and the background should not describe the same thing. For example, draw birds at the foreground, sky and clouds at the background, other examples like charts and scientist, cloth and girls
     * If a storyboard panel has manim animation, the image should be more concise, with a stronger supporting role
 
 {video_prompt}
@@ -33,7 +33,7 @@ class Segment(LLMAgent):
     * Estimate the reading duration of this storyboard panel to estimate the duration of the manim animation. The actual duration will be completely determined in the next step of voice generation
     * The video resolution is around 1920*1080, **the ratio of the manim size is 16:9**.
     * Use thicker lines to emphasis elements
-    * Use small and medium font/elements in Manim animations to prevent from going beyond the canvas
+    * Use small/medium size of font/elements in manim animations to prevent from cutting off by the edge
     * LLMs excel at animation complexity, not layout complexity.
         - Use multiple storyboard scenes rather than adding more elements to one animation to avoid layout problems
         - For animations with many elements, consider layout carefully. For instance, arrange elements horizontally given the canvas's wider width
@@ -41,9 +41,9 @@ class Segment(LLMAgent):
     * Consider the synchronization between animations and content. When read at a normal speaking pace, the content should align with the animation's progression.
     * Specify the language of the manim texts, it should be the same with the script and the storyboard content(Chinese/English for example)
     * Do not use any matchstick-style or pixel-style animations. Use charts, images, industrial/academic-style animations
-    * Do not create multi-track manim animations. One object per segment, or two to three(NO MORE THAN 3 elements in one segment) object arranged in a simple manner, manim layout rules:
+    * Do not create multi-track complex manim animations. One object per segment, or two to three(NO MORE THAN three!) object arranged in a simple manner, manim layout rules:
         1. One object in the middle
-        2. Two objects, left-right structure, same y axis, same size
+        2. Two objects, left-right structure, same y axis, same size, for example, text left, chart right
         3. Three objects, left-middle-right structure, same y axis, same size. No more than 3 elements in one segment
         4. Split complex animation into several segments
         5. Less text boxes in the animation, only titles/definitions/formulas
@@ -56,7 +56,7 @@ class Segment(LLMAgent):
 - Review the requirements and any provided documents. Integrate their content, formulas, charts, and visuals into the script to refine the video's screenplay and animations.
     [CRITICAL]: The manim and image generation steps will not receive the original requirements and files. Supply very detail information for them, especially any data/points/formulas to prevent any mismatch with the original query and/or documentation
 
-- DO NOT print the `content` in the animation; subtitles of the `content` will be added separately to the video
+- DO NOT print the `content` information in the animation; `content` will be added separately as subtitle to the video
 
 - Your return format is JSON format, no need to save file, later the json will be parsed out of the response body
 
@@ -80,12 +80,12 @@ Now begin:""" # noqa
 
     pure_color_system = """You are an animation storyboard designer. Now there is a short video scene that needs storyboard design. The storyboard needs to meet the following conditions:
 
-- Each storyboard panel will carry a piece of narration, one manim technical animation, and one subtitle
+- Each storyboard panel will carry a piece of narration, one manim technical animation, and one subtitle, even one video
     * Use clear, high-contrast font colors to prevent text from blending with the background
     * Use a cohesive color palette of 2-4 colors for the entire video. Avoid cluttered colors, bright blue, and bright yellow. Prefer deep, dark tones
     * Low-quality animations such as stick figures are forbidden
 
-- Each of your storyboard panels should take about 5 seconds to 10 seconds to read at normal speaking speed. Avoid the feeling of frequent switching and static
+- Each of your storyboard panels should take about 5~8 seconds to read at normal speaking speed. Avoid the feeling of frequent switching and static
     * Pay attention to the color and content coordination between the background image and the manim animation.
     * Based on the background image color, select manim color scheme to make the foreground as clear as possible.
 
@@ -96,7 +96,7 @@ Now begin:""" # noqa
     * Estimate the reading duration of this storyboard panel to estimate the duration of the manim animation. The actual duration will be completely determined in the next step of voice generation
     * The video resolution is around 1920*1080, **the ratio of the manim size is 16:9**.
     * Use thicker lines to emphasis elements
-    * Use small and medium font/elements in Manim animations to prevent from going beyond the canvas
+    * Use small/medium size of font/elements in manim animations to prevent from cutting off by the edge
     * LLMs excel at animation complexity, not layout complexity.
         - Use multiple storyboard scenes rather than adding more elements to one animation to avoid layout problems
         - For animations with many elements, consider layout carefully. For instance, arrange elements horizontally given the canvas's wider width
@@ -104,12 +104,12 @@ Now begin:""" # noqa
     * Consider the synchronization between animations and content. When read at a normal speaking pace, the content should align with the animation's progression.
     * Specify the language of the manim texts, it should be the same with the script and the storyboard content(Chinese/English for example)
     * Do not use any matchstick-style or pixel-style animations. Use charts, images, industrial/academic-style animations
-    * Do not create multi-track manim animations. One object per segment, or two to three(NO MORE THAN 3 elements in one segment) object arranged in a simple manner, manim layout rules:
+    * Do not create multi-track complex manim animations. One object per segment, or two to three(NO MORE THAN three!) object arranged in a simple manner, manim layout rules:
         1. One object in the middle
-        2. Two objects, left-right structure, same y axis, same size
+        2. Two objects, left-right structure, same y axis, same size, for example, text left, chart right
         3. Three objects, left-middle-right structure, same y axis, same size. No more than 3 elements in one segment
-        4. Split complex animation into sevaral segments
-        5. Less text boxes in the animation, only titles/definitions/formulars
+        4. Split complex animation into several segments
+        5. Less text boxes in the animation, only titles/definitions/formulas
         6. Use black fonts, **no gray fonts**
         7. CRITICAL: **NEVER put an element to a corner, do use horizonal/vertical grid**
         8. No pie charts should be used, the LLM costs many bugs
@@ -119,7 +119,7 @@ Now begin:""" # noqa
 - Review the requirements and any provided documents. Integrate their content, formulas, charts, and visuals into the script to refine the video's screenplay and animations.
     [CRITICAL]: The manim steps will not receive the original requirements and files. Supply very detail information for them, especially any data/points/formulas to prevent any mismatch with the original query and/or documentation
 
-- DO NOT print the `content` in the animation; subtitles of the `content` will be added separately to the video
+- DO NOT print the `content` information in the animation; `content` will be added separately as subtitle to the video
 
 - Your return format is JSON format, no need to save file, later the json will be parsed out of the response body
 
@@ -139,15 +139,14 @@ An example:
 
 Now begin:"""  # noqa
 
-    video_prompt = """
-- 你可以使用文生视频功能来渲染某些分镜，文生视频可以增强整体短视频的趣味性和可读性
-    * 使用文生视频渲染某些分镜时，返回结构仅包含index, content, video三个字段，不包含manim、background等其他字段，也就是说，文生视频分镜不包含manim动画或者背景图片
-    * 视频长度固定为5秒钟，因此你的视频分镜content不应超过五秒，即不应该超过30个中文字或25个英文单词
-    * 不同类型的短视频中，文生视频比例不同。科教类视频中文生视频比例应当低一些，短剧类视频文生视频比例应当更高甚至全部
-    * video字段是你对文生视频的要求，注意生成的视频和前后分镜的配合
-    * 如果你使用了多个文生视频，注意人物、建筑、动物等id保持问题
-    * 视频分镜的content不要出现镜头、摄像机等语言元素，而应该作为讲述画面故事、推进剧情、深化主题使用
-"""
+    video_prompt = """- You can use text-to-video functionality to render certain shots, which can enhance the overall interest and readability of the short video
+    * When using text-to-video to render certain shots, the returned structure should only include three fields: index, content, and video. Do not include other fields such as manim, background, etc. In other words, text-to-video shots should not include manim animations or background images
+    * Video length is fixed at **5 seconds**, therefore you are additionally required to ensure that the content narration for video shots should not exceed five seconds, meaning it should not exceed 30 Chinese characters or 25 English words
+    * Different types of short videos have different text-to-video ratios. Educational/scientific videos should have a lower text-to-video ratio, while short drama videos should have a higher ratio or even be entirely text-to-video
+    * **Generate videos with strong dynamics, rather than static scenes with only camera movement. You need to tell your story well within the video**
+    * The video field contains your requirements for text-to-video generation. Pay attention to how the generated video coordinates with the preceding and following shots
+    * If you use multiple text-to-video shots, pay attention to maintaining consistent IDs for characters, buildings, animals, etc.
+    * The content for video shots should not include cinematic language elements like "camera" or "lens," but should instead be used to narrate the visual story, advance the plot, and deepen the theme""" # noqa
 
     def __init__(self,
                  config: DictConfig,
@@ -217,7 +216,9 @@ Now begin:"""  # noqa
 
     async def add_images(self, segments, topic, script, **kwargs):
 
-        video_prompt = '注意：不需要改动带有video字段的分镜。该分镜为文生视频分镜，不需要background、manim动画或foreground图片，返回值中保持该分镜的index返回即可'
+        video_prompt = ('Note: No need to modify shots that contain a video field. These shots are text-to-video shots '
+                        'and do not require background, manim animations, or foreground images. '
+                        'Simply keep and return the index of these shots in the return value.')
         if not self.config.use_text2video:
             video_prompt = ''
 
@@ -232,37 +233,37 @@ Now begin:"""  # noqa
         a. Output image generation requirements and the generated filenames(with .png format) in `foreground` field
         b. The shape of generated images are square
     
-    * **Use smaller image sizes for generated images and larger image sizes for user doc images. DO NOT use circular frame to user doc images**
+    * Important: Use smaller image sizes for generated images and larger image sizes for user doc images. DO NOT use circular frame to user doc images**
 
 2. The manim field is used as guidance for subsequent manim animation generation. Read the manim field content, **recreate/refine the animation/manim**, and perfectly integrate/add the images into it
     * No more than 2 images in a segment, 0 image in one segment is allowed
     * When 2 images, each image should be smaller
     * One image can only use once(one segment and one position)
-    * DO NOT put images to the canvas corner
-    * Generated images must be decorated with frames
+    * DO NOT put images to the corner, left or right is Ok
+    * Images must be decorated with frames
     
     Manim layouts:
-        * Do not create multi-track manim animations. One object per segment, or two to three(NO MORE THAN 3 elements in one segment) object arranged in a simple manner, manim layout rules:
-            1. One object in the middle
-            2. Two objects, left-right structure, same y axis, same size
-            3. Three objects, left-middle-right structure, same y axis, same size. No more than 3 elements in one segment
-            4. Split complex animation into sevaral segments
-            5. Less text boxes in the animation, only titles/definitions/formulars
-            6. Use black fonts, **no gray fonts**
-            7. CRITICAL: **NEVER put an element to a corner, do use horizonal/vertical grid**
-            8. NO pie charts should be used, the LLM cost many bugs
+    * Do not create multi-track complex manim animations. One object per segment, or two to three(NO MORE THAN three!) object arranged in a simple manner, manim layout rules:
+        1. One object in the middle
+        2. Two objects, left-right structure, same y axis, same size, for example, text left, chart right
+        3. Three objects, left-middle-right structure, same y axis, same size. No more than 3 elements in one segment
+        4. Split complex animation into several segments
+        5. Less text boxes in the animation, only titles/definitions/formulas
+        6. Use black fonts, **no gray fonts**
+        7. CRITICAL: **NEVER put an element to a corner, do use horizonal/vertical grid**
+        8. No pie charts should be used, the LLM costs many bugs
 
 3. The number of images used for each storyboard doesn't need to be the same, and images may not be used at all.
 
 4. To reduce attention dispersion, you only need to focus on the image information and manim fields, and generate three fields: manim, user_image, and foreground. Your return value doesn't need to include content and background.
 
-5. Scale the images
+5. Scale the images. Do not use the original size, carefully rescale the images to match the requirements below:
     * The image size on the canvas depend on its importance, important image occupies more spaces
-    * Recommended size is from 1/8 to 1/4 on the canvas
+    * Use 1/8 to 1/4 space of the canvas for your images
 
 6. Your return length should be the same as the source storyboard length. If images are not needed, return empty user_image and foreground lists.
 
-7. DO NOT print the `content` in the animation; subtitles of the `content` will be added separately to the video
+7. DO NOT print the `content` information in the animation; `content` will be added separately as subtitle to the video
 
 {video_prompt}
 

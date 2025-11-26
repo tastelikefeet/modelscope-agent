@@ -6,7 +6,7 @@ llm:
 
 mllm:
   mllm_service: openai
-  mllm_model: gemini-2.5-flash-thinking
+  mllm_model: claude-sonnet-4-5-20250929
   mllm_openai_api_key:
   mllm_openai_base_url: https://dashscope.aliyuncs.com/compatible-mode/v1
 

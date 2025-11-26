@@ -216,7 +216,7 @@ class GenerateImages(CodeAgent):
                 poll_interval = min(poll_interval * 1.5, max_poll_interval)
 
     @staticmethod
-    def fade(input_image, output_image, segment):
+    def fade(input_image, output_image, segment, fade_factor=0.5, brightness_boost=60, opacity=0.7):
         manim = segment.get('manim')
         img = Image.open(input_image).convert('RGBA')
         if manim:
@@ -224,11 +224,9 @@ class GenerateImages(CodeAgent):
                 'Applying fade effect to background image (Manim animation present)'
             )
             arr = np.array(img, dtype=np.float32)
-            fade_factor = 0.5  # Reduce color intensity to 50%
-            brightness_boost = 60  # Add brightness to lighten the image
             arr[..., :3] = arr[..., :3] * fade_factor + brightness_boost
             arr[..., :3] = np.clip(arr[..., :3], 0, 255)
-            arr[..., 3] = arr[..., 3] * 0.7  # Reduce opacity to 70%
+            arr[..., 3] = arr[..., 3] * opacity
             result = Image.fromarray(arr.astype(np.uint8), mode='RGBA')
             result.save(output_image, 'PNG')
             logger.info(f'Faded background saved to: {output_image}')
