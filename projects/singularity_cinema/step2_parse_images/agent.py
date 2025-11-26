@@ -15,7 +15,7 @@ from ms_agent.utils import get_logger
 from omegaconf import DictConfig
 from PIL import Image
 
-logger = get_logger(__name__)
+logger = get_logger()
 
 
 class ParseImages(CodeAgent):

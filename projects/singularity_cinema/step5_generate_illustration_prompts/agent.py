@@ -10,7 +10,7 @@ from ms_agent.llm import LLM, Message
 from ms_agent.utils import get_logger
 from omegaconf import DictConfig
 
-logger = get_logger(__name__)
+logger = get_logger()
 
 
 @dataclass

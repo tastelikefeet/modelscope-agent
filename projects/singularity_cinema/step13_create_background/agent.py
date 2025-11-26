@@ -9,7 +9,7 @@ from ms_agent.utils import get_logger
 from omegaconf import DictConfig
 from PIL import Image, ImageDraw, ImageFont
 
-logger = get_logger(__name__)
+logger = get_logger()
 
 
 class CreateBackground(CodeAgent):
