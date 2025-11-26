@@ -37,66 +37,65 @@ def parse_imports(current_file: str, code_content: str) -> List[str]:
     imports = []
     current_dir = os.path.dirname(current_file) if current_file else '.'
 
-    # Import patterns for different languages
-    patterns = [
-        # Python: import/from ... import
-        (r'^\s*(?:from\s+([\w.]+)\s+import|import\s+([\w.,\s]+))', ['py'], _resolve_python_import),
-
-        # JavaScript/TypeScript: import/require
-        (r'^\s*import\s+.*?from\s+[\'"]([^\'"]+)[\'"]', ['js', 'ts', 'jsx', 'tsx', 'mjs', 'cjs'],
-         _resolve_js_import),
-        (r'^\s*import\s+[\'"]([^\'"]+)[\'"]', ['js', 'ts', 'jsx', 'tsx', 'mjs', 'cjs'], _resolve_js_import),
-        (r'require\s*\(\s*[\'"]([^\'"]+)[\'"]\s*\)', ['js', 'ts', 'jsx', 'tsx', 'mjs', 'cjs'], _resolve_js_import),
-        (r'^\s*export\s+.*?from\s+[\'"]([^\'"]+)[\'"]', ['js', 'ts', 'jsx', 'tsx', 'mjs', 'cjs'],
-         _resolve_js_import),
-
-        # HTML: script src, link href, img src
-        (r'<script[^>]+src=[\'"]([^\'"]+)[\'"]', ['html', 'htm'], _resolve_html_resource),
-        (r'<link[^>]+href=[\'"]([^\'"]+)[\'"]', ['html', 'htm'], _resolve_html_resource),
-        (r'<img[^>]+src=[\'"]([^\'"]+)[\'"]', ['html', 'htm'], _resolve_html_resource),
-        (r'<iframe[^>]+src=[\'"]([^\'"]+)[\'"]', ['html', 'htm'], _resolve_html_resource),
-        (r'<video[^>]+src=[\'"]([^\'"]+)[\'"]', ['html', 'htm'], _resolve_html_resource),
-        (r'<audio[^>]+src=[\'"]([^\'"]+)[\'"]', ['html', 'htm'], _resolve_html_resource),
-        (r'<source[^>]+src=[\'"]([^\'"]+)[\'"]', ['html', 'htm'], _resolve_html_resource),
-
-        # C/C++: #include
-        (r'^\s*#include\s+"([^"]+)"', ['c', 'cpp', 'cc', 'cxx', 'h', 'hpp'], _resolve_c_include),
-
-        # Rust: use/mod
-        (r'^\s*use\s+(?:crate::)?([\w:]+)', ['rs'], _resolve_rust_import),
-        (r'^\s*mod\s+(\w+)', ['rs'], _resolve_rust_mod),
-
-        # Java/Kotlin: import
-        (r'^\s*import\s+([\w.]+)', ['java', 'kt', 'kts'], _resolve_java_import),
-
-        # Go: import
-        (r'^\s*import\s+"([^"]+)"', ['go'], _resolve_go_import),
-        (r'^\s*import\s+\w+\s+"([^"]+)"', ['go'], _resolve_go_import),
-    ]
-
     # Detect file extension
     file_ext = os.path.splitext(current_file)[1].lstrip('.').lower() if current_file else ''
 
-    for line in code_content.split('\n'):
-        for pattern, extensions, resolver in patterns:
-            # Skip if file extension doesn't match
-            if file_ext and file_ext not in extensions:
-                continue
+    # Import patterns for different languages
+    # For multi-line support, use re.MULTILINE and re.DOTALL flags
+    patterns = [
+        # Python: import/from ... import
+        (r'^\s*(?:from\s+([\w.]+)\s+import|import\s+([\w.,\s]+))', ['py'], _resolve_python_import, re.MULTILINE),
 
-            # Use re.search for HTML patterns to match anywhere in the line
-            # Use re.match for other patterns to match from line start
-            if extensions in [['html', 'htm']]:
-                match = re.search(pattern, line)
-            else:
-                match = re.match(pattern, line)
-                
-            if match:
-                resolved = resolver(match, current_dir, current_file)
-                if resolved:
-                    if isinstance(resolved, list):
-                        imports.extend(resolved)
-                    else:
-                        imports.append(resolved)
+        # JavaScript/TypeScript: import/require (with multi-line support)
+        # Match: import ... from 'path'
+        (r'import\s+(?:(?:\{[^}]*\}|\*\s+as\s+\w+|\w+)\s*,?\s*)*from\s+[\'"]([^\'"]+)[\'"]',
+         ['js', 'ts', 'jsx', 'tsx', 'mjs', 'cjs'], _resolve_js_import, re.MULTILINE | re.DOTALL),
+        # Match: import 'path'
+        (r'^\s*import\s+[\'"]([^\'"]+)[\'"]', ['js', 'ts', 'jsx', 'tsx', 'mjs', 'cjs'], _resolve_js_import, re.MULTILINE),
+        # Match: require('path')
+        (r'require\s*\(\s*[\'"]([^\'"]+)[\'"]\s*\)', ['js', 'ts', 'jsx', 'tsx', 'mjs', 'cjs'], _resolve_js_import, 0),
+        # Match: export ... from 'path'
+        (r'export\s+(?:(?:\{[^}]*\}|\*(?:\s+as\s+\w+)?)\s+)?from\s+[\'"]([^\'"]+)[\'"]',
+         ['js', 'ts', 'jsx', 'tsx', 'mjs', 'cjs'], _resolve_js_import, re.MULTILINE | re.DOTALL),
+
+        # HTML: script src, link href, img src
+        (r'<script[^>]+src=[\'"]([^\'"]+)[\'"]', ['html', 'htm'], _resolve_html_resource, 0),
+        (r'<link[^>]+href=[\'"]([^\'"]+)[\'"]', ['html', 'htm'], _resolve_html_resource, 0),
+        (r'<img[^>]+src=[\'"]([^\'"]+)[\'"]', ['html', 'htm'], _resolve_html_resource, 0),
+        (r'<iframe[^>]+src=[\'"]([^\'"]+)[\'"]', ['html', 'htm'], _resolve_html_resource, 0),
+        (r'<video[^>]+src=[\'"]([^\'"]+)[\'"]', ['html', 'htm'], _resolve_html_resource, 0),
+        (r'<audio[^>]+src=[\'"]([^\'"]+)[\'"]', ['html', 'htm'], _resolve_html_resource, 0),
+        (r'<source[^>]+src=[\'"]([^\'"]+)[\'"]', ['html', 'htm'], _resolve_html_resource, 0),
+
+        # C/C++: #include
+        (r'^\s*#include\s+"([^"]+)"', ['c', 'cpp', 'cc', 'cxx', 'h', 'hpp'], _resolve_c_include, re.MULTILINE),
+
+        # Rust: use/mod
+        (r'^\s*use\s+(?:crate::)?([\w:]+)', ['rs'], _resolve_rust_import, re.MULTILINE),
+        (r'^\s*mod\s+(\w+)', ['rs'], _resolve_rust_mod, re.MULTILINE),
+
+        # Java/Kotlin: import
+        (r'^\s*import\s+([\w.]+)', ['java', 'kt', 'kts'], _resolve_java_import, re.MULTILINE),
+
+        # Go: import
+        (r'^\s*import\s+"([^"]+)"', ['go'], _resolve_go_import, re.MULTILINE),
+        (r'^\s*import\s+\w+\s+"([^"]+)"', ['go'], _resolve_go_import, re.MULTILINE),
+    ]
+
+    # Process each pattern on the entire content (not line by line)
+    for pattern, extensions, resolver, flags in patterns:
+        # Skip if file extension doesn't match
+        if file_ext and file_ext not in extensions:
+            continue
+
+        # Find all matches in the entire content
+        for match in re.finditer(pattern, code_content, flags):
+            resolved = resolver(match, current_dir, current_file)
+            if resolved:
+                if isinstance(resolved, list):
+                    imports.extend(resolved)
+                else:
+                    imports.append(resolved)
 
     # Remove duplicates while preserving order
     seen = set()
@@ -154,23 +153,32 @@ def _resolve_js_import(match, current_dir, current_file):
     if not import_path.startswith('.') and not import_path.startswith('/'):
         return None
 
-    # Resolve relative path
-    resolved = os.path.normpath(os.path.join(current_dir, import_path))
+    # Resolve relative path - keep it relative
+    if import_path.startswith('/'):
+        # Absolute path from root
+        resolved = import_path.lstrip('/')
+    else:
+        # Relative path - join and normalize but keep relative
+        resolved = os.path.join(current_dir, import_path)
+        # Normalize to clean up ../ and ./ but ensure it stays relative
+        resolved = os.path.normpath(resolved)
 
-    # Try different extensions
-    extensions = ['', '.js', '.ts', '.jsx', '.tsx', '.mjs', '.cjs', '.json']
+    # Try different extensions and return the first one found
+    # If file doesn't exist, still return with .ts extension as default for TypeScript
+    extensions = ['.ts', '.tsx', '.js', '.jsx', '.mjs', '.cjs', '.json', '']
     for ext in extensions:
         path_with_ext = resolved + ext
-        if _is_local_path(path_with_ext):
+        if os.path.exists(path_with_ext):
             return path_with_ext
 
     # Try as directory with index file
-    for index_file in ['index.js', 'index.ts', 'index.jsx', 'index.tsx']:
+    for index_file in ['index.ts', 'index.tsx', 'index.js', 'index.jsx']:
         index_path = os.path.join(resolved, index_file)
-        if _is_local_path(index_path):
+        if os.path.exists(index_path):
             return index_path
 
-    return resolved if _is_local_path(resolved) else None
+    # If nothing exists, return with .ts extension as default
+    return resolved + '.ts'
 
 
 def _resolve_c_include(match, current_dir, current_file):

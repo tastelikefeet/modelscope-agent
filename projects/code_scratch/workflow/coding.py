@@ -272,7 +272,7 @@ class CodingAgent(CodeAgent):
         self.refresh_file_status(file_relation)
 
         # Use ThreadPoolExecutor for IO-intensive LLM API calls
-        max_workers = 1  # Optimal for IO-intensive tasks
+        max_workers = 10  # Optimal for IO-intensive tasks
         
         for files in file_orders:
             while True:
