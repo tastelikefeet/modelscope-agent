@@ -157,6 +157,7 @@ class Programmer(LLMAgent):
             all_files = parse_imports(code_file, messages[-1].content) or []
             all_read_files = self.find_all_read_files(messages)
             deps = []
+            definitions = []
             folders = []
             wrong_imports = []
             for file in all_files:
@@ -170,14 +171,24 @@ class Programmer(LLMAgent):
                 elif os.path.isfile(filename):
                     if file.source_file not in all_read_files:
                         deps.append(file.source_file)
+                        definitions.extend(file.imported_items)
                 else:
                     folders.append(f'You are importing {file.imported_items} from {file.source_file} folder')
 
             if not deps_not_exist:
                 dep_content = ''
                 for dep in deps:
-                    abbr_content = self.generate_abbr_file(dep)
-                    dep_content += f'File content {dep}:\n{abbr_content}\n\n'
+                    content = self.generate_abbr_file(dep)
+                    need_detail = False
+                    for definition in definitions:
+                        if definition not in content:
+                            need_detail = True
+                            break
+                    if need_detail:
+                        detail_file = os.path.join(self.output_dir, dep)
+                        with open(detail_file, 'r') as f:
+                            content = f.read()
+                    dep_content += f'File content {dep}:\n{content}\n\n'
                 if folders:
                     folders = '\n'.join(folders)
                     dep_content += f'Some definitions come from folders:\n{folders}\nYou need to check the definition file with `read_file` tool if they are not in your context.\n'
@@ -216,7 +227,7 @@ class Programmer(LLMAgent):
 
         if not has_tool_call and (deps_not_exist or (coding_finish and self.code_files)):
             last_file = self.code_files[-1]
-            messages[-1].content += f'\nCode file not found, write it now: {last_file}'
+            messages.append(Message(role='user', content=f'\nA code file in your imports not found, you should write it first: {last_file}\n'))
             self.llm.args['stop'] = stop_words
 
     async def condense_memory(self, messages):

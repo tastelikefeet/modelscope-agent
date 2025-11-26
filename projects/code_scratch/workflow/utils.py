@@ -312,7 +312,7 @@ def _resolve_js_path(import_path, current_dir):
         if os.path.exists(index_path):
             return index_path
 
-    if '.' not in resolved:
+    if '.' not in resolved[1:]:
         return resolved + '.ts'
     else:
         return resolved
