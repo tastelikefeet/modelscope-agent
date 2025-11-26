@@ -170,17 +170,9 @@ def parse_imports_detailed(current_file: str, code_content: str) -> List[ImportI
     return imports
 
 
-def parse_imports(current_file: str, code_content: str) -> List[str]:
+def parse_imports(current_file: str, code_content: str) -> List[ImportInfo]:
     """Parse imports and return list of file paths (for backward compatibility)"""
-    detailed_imports = parse_imports_detailed(current_file, code_content)
-    # Remove duplicates while preserving order
-    seen = set()
-    unique_imports = []
-    for imp in detailed_imports:
-        if imp.source_file not in seen:
-            seen.add(imp.source_file)
-            unique_imports.append(imp.source_file)
-    return unique_imports
+    return parse_imports_detailed(current_file, code_content)
 
 
 # ============================================================================

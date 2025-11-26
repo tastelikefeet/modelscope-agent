@@ -8,6 +8,7 @@ generation_config:
   temperature: 0.2
   top_k: 20
   max_tokens: 64000
+  stream: true
   extra_body:
     dashscope_extend_params:
       provider: d
@@ -29,7 +30,7 @@ prompt:
       * 如果你需要编写的组件或功能在文件列表中不存在，你应当在你负责的文件中冗余编写，而不要指定引用一个不存在的其他文件
       * 始终使用绝对导入或明确的相对导入规则，并始终使用类型提示
       * 任何你用到的数据结构都需要在文件顶引用来源对应文件
-      * 注意你引用方法的数据结构，不要有字段对不上
+      * 你的import/#include不要截止到文件夹，而应该指定到具体文件来源
       * 注意命名导出或默认导出方式
     6. Output your code with this format:
     

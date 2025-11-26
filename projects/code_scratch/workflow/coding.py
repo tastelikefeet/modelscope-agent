@@ -87,16 +87,14 @@ class Programmer(LLMAgent):
 1. 类名、方法名、方法参数类型，返回值类型
 2. imports依赖
 3. exports导出及导出类型
-4. 如果是结构定义代码，保留结构和字段信息
-    * 结构定义文件：定义了各类输入输出的代码文件
-    * 这类文件不需要考虑压缩
+4. 不要缩略任何类或数据结构的名称、字段，如果一个文件包含很多数据结构定义，全部保留
 5. 如果是css样式代码，保留每个样式名称
 6. 如果是json，保留结构即可
 7. 仅返回缩略信息，不要返回其他无关信息
 
 你的优化目标：
-1. 保留最少的token数量
-2. 保留充足的信息供其它代码使用
+1. 【优先】保留充足的信息供其它代码使用
+2. 【其次】保留尽量少的token数量
 """
         query = f'代码：{file}'
         messages = [
@@ -106,7 +104,7 @@ class Programmer(LLMAgent):
         stop = self.llm.args['stop']
         self.llm.args.pop('stop')
         try:
-            response_message = self.llm.generate(messages)
+            response_message = self.llm.generate(messages, stream=False)
             content = response_message.content.split('\n')
             if '```' in content[0]:
                 content = content[1:]
@@ -126,6 +124,18 @@ class Programmer(LLMAgent):
                 code_files.append(code_file)
         self.code_files = code_files
 
+    def find_all_read_files(self, messages):
+        files = []
+        for message in messages:
+            if message.tool_calls:
+                for tool_call in message.tool_calls:
+                    if 'read_file' in tool_call['tool_name']:
+                        arguments = tool_call['arguments']
+                        if isinstance(arguments, str):
+                            arguments = json.loads(arguments)
+                        files.extend(arguments['paths'])
+        return set(files)
+
     async def after_tool_call(self, messages: List[Message]):
         deps_not_exist = False
         coding_finish = '```' in messages[-1].content and self.llm.args['stop'] == ['```\n']
@@ -138,25 +148,35 @@ class Programmer(LLMAgent):
             content = [c for c in contents if '```' in c and ':' in c][0]
             code_file = content.split('```')[1].split(':')[1].split('\n')[0].strip()
             all_files = parse_imports(code_file, messages[-1].content) or []
+            all_read_files = self.find_all_read_files(messages)
             deps = []
+            folders = []
             for file in all_files:
-                if not os.path.exists(file):
+                filename = os.path.join(self.output_dir, file.source_file)
+                if not os.path.exists(filename):
                     deps_not_exist = True
-                    self.code_files.append(file)
+                    self.code_files.append(file.source_file)
+                elif os.path.isfile(filename):
+                    if file.source_file not in all_read_files:
+                        deps.append(file.source_file)
                 else:
-                    deps.append(file)
+                    folders.append(f'You are importing {file.imported_items} from {file.source_file} folder')
 
             if not deps_not_exist:
                 dep_content = ''
                 for dep in deps:
                     abbr_content = self.generate_abbr_file(dep)
                     dep_content += f'File content {dep}:\n{abbr_content}\n\n'
+                if folders:
+                    folders = '\n'.join(folders)
+                    dep_content += f'Some definitions come from folders:\n{folders}\nYou need to check the definition file with `read_file` tool if they are not in your context.\n'
                 content = messages.pop(-1).content.split('```')[1]
                 messages.append(
-                    Message(role='user', content=f'According to your imports, extra contents given here:\n'
+                    Message(role='user', content=f'We break your generation to import more relative information. '
+                                                 f'According to your imports, some extra contents manually given here:\n'
                                                  f'\n{dep_content or "No extra dependencies needed"}\n'
                                                  f'Here is the few start lines of your code: {content}\n\n'
-                                                 f'Now rewrite the code of {code_file} based on the start lines:\n'))
+                                                 f'Now rewrite the full code of {code_file} based on the start lines:\n'))
                 self.llm.args['stop'] = ['```\n']
         elif (not has_tool_call) and coding_finish:
             result, remaining_text = extract_code_blocks(messages[-1].content)
@@ -167,12 +187,12 @@ class Programmer(LLMAgent):
                     code = r['code']
                     path = os.path.join(self.output_dir, path)
                     if os.path.exists(path):
-                        saving_result += f'The target file exists, cannot override. here is the file abbreviate content: \n{self.generate_abbr_file(r["filename"])}\n'
+                        saving_result += f'The target file exists, cannot override. here is the file abbreviation content: \n{self.generate_abbr_file(r["filename"])}\n'
                     else:
                         os.makedirs(os.path.dirname(path), exist_ok=True)
                         with open(path, 'w') as f:
                             f.write(code)
-                        saving_result += f'Save file <{r["filename"]}> successfully\n. here is the file abbreviate content: \n{self.generate_abbr_file(r["filename"])}\n'
+                        saving_result += f'Save file <{r["filename"]}> successfully\n. here is the file abbreviation content: \n{self.generate_abbr_file(r["filename"])}\n'
                 messages[-1].content = remaining_text + 'Code content removed.'
                 messages.append(Message(role='user', content=saving_result))
             self.filter_code_files()
@@ -274,7 +294,7 @@ class CodingAgent(CodeAgent):
         self.refresh_file_status(file_relation)
 
         # Use ThreadPoolExecutor for IO-intensive LLM API calls
-        max_workers = 1  # Optimal for IO-intensive tasks
+        max_workers = 10  # Optimal for IO-intensive tasks
         
         for files in file_orders:
             while True:
