@@ -4,14 +4,13 @@ llm:
   openai_api_key:
   openai_base_url: https://dashscope.aliyuncs.com/compatible-mode/v1
 
-
 generation_config:
   temperature: 0.2
   top_k: 20
   max_tokens: 64000
   extra_body:
     dashscope_extend_params:
-      provider: b
+      provider: d
 
 
 prompt:
@@ -53,8 +52,6 @@ tools:
     mcp: false
     include:
       - read_file
-      - search_file_content
-      - search_file_name
 
 memory:
   - user_id: "code_scratch"

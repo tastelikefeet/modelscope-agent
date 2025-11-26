@@ -5,14 +5,14 @@ import os
 from collections import OrderedDict
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from copy import deepcopy
-from typing import Set, List
+from typing import Set
 
 from omegaconf import DictConfig
 
 from ms_agent import LLMAgent
-from ms_agent.agent import CodeAgent, Agent
+from ms_agent.agent import CodeAgent
 from ms_agent.llm import Message
-from ms_agent.utils import get_logger, async_retry
+from ms_agent.utils import get_logger
 from ms_agent.utils.constants import DEFAULT_TAG
 from utils import stop_words, parse_imports
 
@@ -87,8 +87,10 @@ class Programmer(LLMAgent):
 1. 类名、方法名、方法参数类型，返回值类型
 2. imports依赖
 3. exports导出及导出类型
-4. 如果是结构定义代码，保留结构和字段等充分信息
-5. 如果是css样式代码，保留样式名称
+4. 如果是结构定义代码，保留结构和字段信息
+    * 结构定义文件：定义了各类输入输出的代码文件
+    * 这类文件不需要考虑压缩
+5. 如果是css样式代码，保留每个样式名称
 6. 如果是json，保留结构即可
 7. 仅返回缩略信息，不要返回其他无关信息
 
@@ -126,9 +128,12 @@ class Programmer(LLMAgent):
 
     async def after_tool_call(self, messages: List[Message]):
         deps_not_exist = False
-        coding_finish = messages[-1].content.endswith('```')
+        coding_finish = '```' in messages[-1].content and self.llm.args['stop'] == ['```\n']
+        import_finish = '```' in messages[-1].content and self.llm.args['stop'] == stop_words
+        if coding_finish:
+            messages[-1].content += '\n```\n'
         has_tool_call = len(messages[-1].tool_calls or []) > 0
-        if '```' in messages[-1].content and not coding_finish:
+        if (not has_tool_call) and import_finish:
             code_file = messages[-1].content.split('```')[1].split(':')[1].split('\n')[0].strip()
             all_files = parse_imports(code_file, messages[-1].content) or []
             deps = []
@@ -144,12 +149,14 @@ class Programmer(LLMAgent):
                 for dep in deps:
                     abbr_content = self.generate_abbr_file(dep)
                     dep_content += f'File content {dep}:\n{abbr_content}\n\n'
+                content = messages.pop(-1).content.split('```')[1]
                 messages.append(
                     Message(role='user', content=f'According to your imports, extra contents given here:\n'
-                                                 f'{dep_content}\n'
-                                                 f'Now rewrite your full code:\n'))
-                self.llm.args['stop'] = '```'
-        elif coding_finish:
+                                                 f'\n{dep_content or "No extra dependencies needed"}\n'
+                                                 f'Here is the few start lines of your code: {content}\n\n'
+                                                 f'Now rewrite the code of {code_file} based on the start lines:\n'))
+                self.llm.args['stop'] = ['```\n']
+        elif (not has_tool_call) and coding_finish:
             result, remaining_text = extract_code_blocks(messages[-1].content)
             if result:
                 saving_result = ''
@@ -174,39 +181,6 @@ class Programmer(LLMAgent):
             last_file = self.code_files[-1]
             messages[-1].content += f'\nCode file not found, write it now: {last_file}'
             self.llm.args['stop'] = stop_words
-
-    @async_retry(max_attempts=Agent.retry_count, delay=1.0)
-    async def step(
-            self, messages: List[Message]
-    ):  # type: ignore
-        messages = deepcopy(messages)
-        if messages[-1].role != 'assistant':
-            messages = await self.condense_memory(messages)
-            await self.on_generate_response(messages)
-            tools = await self.tool_manager.get_tools()
-
-            _response_message = self.llm.generate(messages, tools=tools)
-            if _response_message.content:
-                self.log_output('[assistant]:')
-                self.log_output(_response_message.content)
-
-            # Response generated
-            self.handle_new_response(messages, _response_message)
-            await self.on_tool_call(messages)
-        else:
-            _response_message = messages[-1]
-        self.save_history(messages)
-
-        if _response_message.tool_calls:
-            messages = await self.parallel_tool_call(messages)
-        else:
-            self.runtime.should_stop = True
-
-        await self.after_tool_call(messages)
-        self.log_output(
-            f'[usage] prompt_tokens: {_response_message.prompt_tokens}, '
-            f'completion_tokens: {_response_message.completion_tokens}')
-        yield messages
 
     async def condense_memory(self, messages):
         return messages
@@ -303,6 +277,7 @@ class CodingAgent(CodeAgent):
         for files in file_orders:
             while True:
                 files = self.filter_done_files(files)
+                files = files[:1]
                 files = self.find_description(files)
                 self.construct_file_information(file_relation)
                 if not files:

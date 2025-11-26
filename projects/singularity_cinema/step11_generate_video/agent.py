@@ -258,7 +258,7 @@ class GenerateVideo(CodeAgent):
                     return video_url
 
                 elif status in failed_statuses:
-                    error_msg = data.get('message') or data.get('error', {}).get('message') or 'Unknown error'
+                    error_msg = data['output'].get('message') or 'Unknown error'
                     raise RuntimeError(f'Video generation failed: {error_msg}')
 
             # Exponential backoff for polling interval
