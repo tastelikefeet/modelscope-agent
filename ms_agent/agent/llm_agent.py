@@ -213,7 +213,7 @@ class LLMAgent(Agent):
         await self.loop_callback('on_tool_call', messages)
 
     async def after_tool_call(self, messages: List[Message]):
-        if not messages[-1].tool_calls:
+        if messages[-1].role == 'assistant' and not messages[-1].tool_calls:
             self.runtime.should_stop = True
         await self.loop_callback('after_tool_call', messages)
 
@@ -478,9 +478,7 @@ class LLMAgent(Agent):
                     yield messages
                 sys.stdout.write('\n')
             else:
-                logger.info(f'before generating response')
                 _response_message = self.llm.generate(messages, tools=tools)
-                logger.info(f'after generating response')
                 if _response_message.content:
                     self.log_output('[assistant]:')
                     self.log_output(_response_message.content)
