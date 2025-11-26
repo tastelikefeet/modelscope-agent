@@ -1,5 +1,7 @@
 # Copyright (c) Alibaba, Inc. and its affiliates.
 import json
+import os
+
 from ms_agent.agent import LLMAgent
 from ms_agent.llm import Message
 from ms_agent.tools import SplitTask
@@ -184,6 +186,7 @@ return format:
                 continue
             else:
                 self.need_fix = True
+                os.remove(os.path.join(self.work_dir, 'final_video.mp4'))
                 messages = await super().run(self._query, **kwargs)
                 response = messages[-1].content
                 if '```json' in response:

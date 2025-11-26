@@ -83,7 +83,6 @@ class GenerateVideo(CodeAgent):
     @staticmethod
     async def _process_single_video_impl(i, segment, prompt, config,
                                           videos_dir):
-        """Implementation of single video processing supporting both OpenAI and DashScope APIs"""
         if prompt is None:
             logger.info(f'Skipping video generation for segment {i + 1} (no video prompt).')
             return
@@ -98,7 +97,6 @@ class GenerateVideo(CodeAgent):
         # Extract configuration
         api_key = config.text2video.t2v_api_key
         model = config.text2video.t2v_model
-        provider = getattr(config.text2video, 't2v_provider', 'dashscope').lower()
         size = getattr(config.text2video, 't2v_size', '1280x720')
         work_dir = os.path.dirname(videos_dir)
         with open(os.path.join(work_dir, 'audio_info.txt'), 'r') as f:
@@ -112,30 +110,37 @@ class GenerateVideo(CodeAgent):
                 break
         
         assert api_key is not None, "Video generation API key is required"
-        logger.info(f'Using provider: {provider}')
-
-        # Get provider-specific configuration
-        provider_config = getattr(config.text2video, provider, None)
-        if provider_config is None:
-            raise ValueError(f'No configuration found for provider: {provider}')
-
-        # Generate video using unified method
+        provider_config = config.text2video.t2v_provider
         video_url = await GenerateVideo._generate_video(
             provider_config, api_key, model, prompt, size, fit_duration)
 
-        # Download the generated video
         logger.info(f'Downloading video from: {video_url}')
+        max_retries = 3
+        retry_count = 0
+        
         async with aiohttp.ClientSession() as session:
             # Add auth header for OpenAI content endpoint
             headers = {}
             if video_url.startswith(provider_config.base_url) and hasattr(provider_config, 'content_endpoint'):
                 headers['Authorization'] = f'Bearer {api_key}'
-            async with session.get(video_url, headers=headers) as video_resp:
-                video_resp.raise_for_status()
-                video_content = await video_resp.read()
-                with open(output_path, 'wb') as f:
-                    f.write(video_content)
-                logger.info(f'Video saved to: {output_path}')
+            
+            while retry_count < max_retries:
+                try:
+                    async with session.get(video_url, headers=headers) as video_resp:
+                        video_resp.raise_for_status()
+                        video_content = await video_resp.read()
+                        with open(output_path, 'wb') as f:
+                            f.write(video_content)
+                        logger.info(f'Video saved to: {output_path}')
+                        break  # Success, exit retry loop
+                except Exception as e:
+                    retry_count += 1
+                    if retry_count >= max_retries:
+                        logger.error(f'Failed to download video after {max_retries} attempts: {str(e)}')
+                        raise
+                    else:
+                        logger.warning(f'Download attempt {retry_count} failed: {str(e)}. Retrying...')
+                        await asyncio.sleep(2 ** retry_count)
 
     @staticmethod
     def _get_nested_value(data, path):
@@ -152,26 +157,15 @@ class GenerateVideo(CodeAgent):
 
     @staticmethod
     def _build_request_payload(provider_config, model, prompt, size, seconds):
-        """Build request payload based on provider format"""
-        request_format = getattr(provider_config, 'request_format', 'openai')
-        
-        if request_format == 'dashscope':
-            return {
-                'model': model,
-                'input': {
-                    'prompt': prompt,
-                    'size': size,
-                    'seconds': seconds,
-                },
-                'parameters': {}
-            }
-        else:  # openai format
-            return {
-                'model': model,
+        return {
+            'model': model,
+            'input': {
                 'prompt': prompt,
                 'size': size,
-                'seconds': str(seconds),
-            }
+                'seconds': seconds,
+            },
+            'parameters': {}
+        }
 
     @staticmethod
     async def _generate_video(provider_config, api_key, model, prompt, size, seconds):

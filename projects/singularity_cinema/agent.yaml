@@ -72,8 +72,8 @@ text2image:
   t2i_model: MusePublic/Qwen-image
   t2i_api_key:
   t2i_base_url: https://api-inference.modelscope.cn
-  t2i_transition: ken-burns-effect
-  t2i_style: Simple hand drawn style, with several clear object
+  t2i_transition:
+  t2i_style:
 
 t2i_num_parallel: 1
 t2v_num_parallel: 1
@@ -94,14 +94,12 @@ use_subtitle: false
 use_text2video: true
 
 text2video:
-  t2v_provider: dashscope
   t2v_model: sora-2-2025-10-06
   t2v_api_key:
   # '720x1280', '1280x720', '1024x1792', '1792x1024'
   t2v_size: 1280x720
   t2v_seconds: [4, 8, 12]
-
-  dashscope:
+  t2v_provider:
     base_url: https://dashscope.aliyuncs.com
     create_endpoint: /api/v1/services/aigc/model-evaluation/async-inference/
     poll_endpoint: /api/v1/tasks/{task_id}
@@ -111,21 +109,6 @@ text2video:
     video_url_path: [output, video_url]  # JSON path to extract video URL
     success_status: [SUCCEEDED, SUCCEED]
     failed_status: [FAILED, failed]
-    request_format: dashscope  # Request payload format
-  
-  # OpenAI provider configuration  
-  openai:
-    base_url: https://api.openai.com
-    create_endpoint: /v1/videos
-    poll_endpoint: /v1/videos/{video_id}
-    content_endpoint: /v1/videos/{video_id}/content
-    async_header: null
-    task_id_path: [id]  # JSON path to extract video_id
-    status_path: [status]  # JSON path to extract status
-    video_url_path: null  # OpenAI uses content endpoint instead
-    success_status: [completed]
-    failed_status: [failed]
-    request_format: openai  # Request payload format
 
 subtitle_translate:
 

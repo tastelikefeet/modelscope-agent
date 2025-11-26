@@ -28,7 +28,6 @@ class GenerateImages(CodeAgent):
         super().__init__(config, tag, trust_remote_code, **kwargs)
         self.work_dir = getattr(self.config, 'output_dir', 'output')
         self.num_parallel = getattr(self.config, 't2i_num_parallel', 1)
-        self.style = getattr(self.config.text2image, 't2i_style', 'realistic')
         self.fusion = self.fade
         self.illustration_prompts_dir = os.path.join(self.work_dir,
                                                      'illustration_prompts')
