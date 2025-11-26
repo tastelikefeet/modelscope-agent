@@ -69,6 +69,7 @@ class Programmer(LLMAgent):
                  **kwargs):
         super().__init__(config, tag, trust_remote_code, **kwargs)
         self.code_files = [code_file]
+        self.find_all_files()
 
     async def on_task_begin(self, messages: List[Message]):
         self.llm.args['stop'] = stop_words
@@ -124,6 +125,12 @@ class Programmer(LLMAgent):
                 code_files.append(code_file)
         self.code_files = code_files
 
+    def find_all_files(self):
+        self.all_code_files = []
+        with open(os.path.join(self.output_dir, 'file_order.txt'), 'r') as f:
+            for group in json.load(f):
+                self.all_code_files.extend(group['files'])
+
     def find_all_read_files(self, messages):
         files = []
         for message in messages:
@@ -151,11 +158,15 @@ class Programmer(LLMAgent):
             all_read_files = self.find_all_read_files(messages)
             deps = []
             folders = []
+            wrong_imports = []
             for file in all_files:
                 filename = os.path.join(self.output_dir, file.source_file)
                 if not os.path.exists(filename):
-                    deps_not_exist = True
-                    self.code_files.append(file.source_file)
+                    if file.source_file in self.all_code_files:
+                        deps_not_exist = True
+                        self.code_files.append(file.source_file)
+                    else:
+                        wrong_imports.append(file.source_file)
                 elif os.path.isfile(filename):
                     if file.source_file not in all_read_files:
                         deps.append(file.source_file)
@@ -170,6 +181,9 @@ class Programmer(LLMAgent):
                 if folders:
                     folders = '\n'.join(folders)
                     dep_content += f'Some definitions come from folders:\n{folders}\nYou need to check the definition file with `read_file` tool if they are not in your context.\n'
+                if wrong_imports:
+                    wrong_imports = '\n'.join(wrong_imports)
+                    dep_content += f'Some import files are not in the project plans: {wrong_imports}, check the error now.\n'
                 content = messages.pop(-1).content.split('```')[1]
                 messages.append(
                     Message(role='user', content=f'We break your generation to import more relative information. '
@@ -177,7 +191,8 @@ class Programmer(LLMAgent):
                                                  f'\n{dep_content or "No extra dependencies needed"}\n'
                                                  f'Here is the few start lines of your code: {content}\n\n'
                                                  f'Now rewrite the full code of {code_file} based on the start lines:\n'))
-                self.llm.args['stop'] = ['```\n']
+                if not wrong_imports:
+                    self.llm.args['stop'] = ['```\n']
         elif (not has_tool_call) and coding_finish:
             result, remaining_text = extract_code_blocks(messages[-1].content)
             if result:

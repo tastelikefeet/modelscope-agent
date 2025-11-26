@@ -311,8 +311,11 @@ def _resolve_js_path(import_path, current_dir):
         index_path = os.path.join(resolved, index_file)
         if os.path.exists(index_path):
             return index_path
-    
-    return resolved + '.ts'
+
+    if '.' not in resolved:
+        return resolved + '.ts'
+    else:
+        return resolved
 
 
 def _extract_python_import(match, current_dir, current_file, code_content):
