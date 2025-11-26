@@ -277,6 +277,8 @@ You are a Manim animation layout inspection expert, responsible for checking lay
 3. Pay extra attention to components at canvas edges, especially whether title components are being cut off
 4. Parent-child component inconsistency (child elements exceeding parent container boundaries)
 5. Chart element misalignment (pie chart center offset, incorrect bar chart/line chart positioning)
+6. Text out of text-box
+7. The chart has positioning errors in its axes, gridlines, line segments, etc
 
 **Secondary issues that should be reported:**
 1. Components with the same function not aligned
