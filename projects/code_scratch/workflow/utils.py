@@ -1,6 +1,83 @@
+"""Multi-language Import Parser
+
+This module provides utilities to parse import/include statements from various
+programming languages and extract detailed information about dependencies.
+
+Supported Languages:
+- JavaScript/TypeScript (.js, .ts, .jsx, .tsx, .mjs, .cjs)
+- Python (.py)
+- C/C++ (.c, .cpp, .cc, .cxx, .h, .hpp)
+- Rust (.rs)
+- Java/Kotlin (.java, .kt, .kts)
+- Go (.go)
+
+Main Functions:
+
+1. parse_imports_detailed(file_path, code_content) -> List[ImportInfo]
+   Returns detailed information including:
+   - source_file: Resolved file path
+   - imported_items: List of imported symbols/classes/functions
+   - import_type: 'named', 'default', 'namespace', or 'side-effect'
+   - alias: Import alias if any
+   - is_type_only: Whether it's a type-only import (TypeScript)
+   - raw_statement: Original import statement
+
+2. parse_imports(file_path, code_content) -> List[str]
+   Backward compatible function that returns only file paths
+
+Example Usage:
+
+    from utils import parse_imports_detailed
+    
+    code = '''
+    import { User, UserRole } from '../models/User';
+    import * as utils from './utils';
+    import type { Config } from './config';
+    '''
+    
+    imports = parse_imports_detailed('src/index.ts', code)
+    
+    for imp in imports:
+        print(f"File: {imp.source_file}")
+        print(f"Items: {imp.imported_items}")
+        print(f"Type: {imp.import_type}")
+        if imp.is_type_only:
+            print("  (Type-only import)")
+
+Key Features:
+- Handles multi-line import statements
+- Extracts specific imported items (classes, functions, variables)
+- Resolves relative file paths
+- Distinguishes between different import types
+- Filters out external packages (npm, pip, etc.)
+"""
+
 import os
 import re
-from typing import List
+from typing import List, Dict, Optional, Set
+from dataclasses import dataclass, field
+
+
+@dataclass
+class ImportInfo:
+    """Detailed information about an import statement"""
+    # Source file path (resolved path)
+    source_file: str
+    # Original import statement
+    raw_statement: str
+    # What's being imported (e.g., ['User', 'UserRole'] or ['*'] or ['default'])
+    imported_items: List[str] = field(default_factory=list)
+    # Import type: 'named', 'default', 'namespace', 'side-effect'
+    import_type: str = 'named'
+    # Alias if any (e.g., 'import * as utils' -> 'utils')
+    alias: Optional[str] = None
+    # Whether this is a type-only import (TypeScript)
+    is_type_only: bool = False
+
+    def __repr__(self):
+        items_str = ', '.join(self.imported_items) if self.imported_items else 'all'
+        alias_str = f' as {self.alias}' if self.alias else ''
+        return f"ImportInfo(file='{self.source_file}', items=[{items_str}]{alias_str})"
 
 
 stop_words = [
@@ -33,424 +110,441 @@ stop_words = [
 ]
 
 
-def parse_imports(current_file: str, code_content: str) -> List[str]:
+def parse_imports_detailed(current_file: str, code_content: str) -> List[ImportInfo]:
+    """Parse imports and return detailed information about what's imported from each file"""
     imports = []
     current_dir = os.path.dirname(current_file) if current_file else '.'
 
     # Detect file extension
     file_ext = os.path.splitext(current_file)[1].lstrip('.').lower() if current_file else ''
 
-    # Import patterns for different languages
-    # For multi-line support, use re.MULTILINE and re.DOTALL flags
+    # Import patterns for different languages with detailed extraction
+    # Pattern structure: (regex_pattern, file_extensions, resolver_function, regex_flags)
     patterns = [
-        # Python: import/from ... import
-        (r'^\s*(?:from\s+([\w.]+)\s+import|import\s+([\w.,\s]+))', ['py'], _resolve_python_import, re.MULTILINE),
+        # Python: from ... import ...
+        (r'^\s*from\s+([\w.]+)\s+import\s+([^\n]+)', ['py'], _extract_python_import, re.MULTILINE),
+        # Python: import ...
+        (r'^\s*import\s+([\w.,\s]+)', ['py'], _extract_python_import_simple, re.MULTILINE),
 
-        # JavaScript/TypeScript: import/require (with multi-line support)
-        # Match: import ... from 'path'
-        (r'import\s+(?:(?:\{[^}]*\}|\*\s+as\s+\w+|\w+)\s*,?\s*)*from\s+[\'"]([^\'"]+)[\'"]',
-         ['js', 'ts', 'jsx', 'tsx', 'mjs', 'cjs'], _resolve_js_import, re.MULTILINE | re.DOTALL),
-        # Match: import 'path'
-        (r'^\s*import\s+[\'"]([^\'"]+)[\'"]', ['js', 'ts', 'jsx', 'tsx', 'mjs', 'cjs'], _resolve_js_import, re.MULTILINE),
-        # Match: require('path')
-        (r'require\s*\(\s*[\'"]([^\'"]+)[\'"]\s*\)', ['js', 'ts', 'jsx', 'tsx', 'mjs', 'cjs'], _resolve_js_import, 0),
+        # JavaScript/TypeScript: import ... from '...'
+        # Match: import { A, B } from 'path' or import A from 'path' or import * as A from 'path'
+        (r"import\s+(type\s+)?(?:(\{[^}]*\}|\*\s+as\s+\w+|\w+)\s*,?\s*)*from\s+['\"]([^'\"]+)['\"]",
+         ['js', 'ts', 'jsx', 'tsx', 'mjs', 'cjs'], _extract_js_import, re.MULTILINE | re.DOTALL),
+        # Match: import 'path' (side-effect)
+        (r"^\s*import\s+['\"]([^'\"]+)['\"]", ['js', 'ts', 'jsx', 'tsx', 'mjs', 'cjs'],
+         _extract_js_side_effect, re.MULTILINE),
         # Match: export ... from 'path'
-        (r'export\s+(?:(?:\{[^}]*\}|\*(?:\s+as\s+\w+)?)\s+)?from\s+[\'"]([^\'"]+)[\'"]',
-         ['js', 'ts', 'jsx', 'tsx', 'mjs', 'cjs'], _resolve_js_import, re.MULTILINE | re.DOTALL),
-
-        # HTML: script src, link href, img src
-        (r'<script[^>]+src=[\'"]([^\'"]+)[\'"]', ['html', 'htm'], _resolve_html_resource, 0),
-        (r'<link[^>]+href=[\'"]([^\'"]+)[\'"]', ['html', 'htm'], _resolve_html_resource, 0),
-        (r'<img[^>]+src=[\'"]([^\'"]+)[\'"]', ['html', 'htm'], _resolve_html_resource, 0),
-        (r'<iframe[^>]+src=[\'"]([^\'"]+)[\'"]', ['html', 'htm'], _resolve_html_resource, 0),
-        (r'<video[^>]+src=[\'"]([^\'"]+)[\'"]', ['html', 'htm'], _resolve_html_resource, 0),
-        (r'<audio[^>]+src=[\'"]([^\'"]+)[\'"]', ['html', 'htm'], _resolve_html_resource, 0),
-        (r'<source[^>]+src=[\'"]([^\'"]+)[\'"]', ['html', 'htm'], _resolve_html_resource, 0),
+        (r"export\s+(type\s+)?(?:(\{[^}]*\}|\*(?:\s+as\s+\w+)?)\s+)?from\s+['\"]([^'\"]+)['\"]",
+         ['js', 'ts', 'jsx', 'tsx', 'mjs', 'cjs'], _extract_js_export, re.MULTILINE | re.DOTALL),
 
         # C/C++: #include
-        (r'^\s*#include\s+"([^"]+)"', ['c', 'cpp', 'cc', 'cxx', 'h', 'hpp'], _resolve_c_include, re.MULTILINE),
+        (r'^\s*#include\s+"([^"]+)"', ['c', 'cpp', 'cc', 'cxx', 'h', 'hpp'],
+         _extract_c_include, re.MULTILINE),
 
-        # Rust: use/mod
-        (r'^\s*use\s+(?:crate::)?([\w:]+)', ['rs'], _resolve_rust_import, re.MULTILINE),
-        (r'^\s*mod\s+(\w+)', ['rs'], _resolve_rust_mod, re.MULTILINE),
+        # Rust: use
+        (r'^\s*use\s+(?:crate::)?([\w:]+)(?:::\{([^}]+)\})?', ['rs'], _extract_rust_use, re.MULTILINE),
 
         # Java/Kotlin: import
-        (r'^\s*import\s+([\w.]+)', ['java', 'kt', 'kts'], _resolve_java_import, re.MULTILINE),
+        (r'^\s*import\s+(static\s+)?([\w.]+(?:\.\*)?)', ['java', 'kt', 'kts'],
+         _extract_java_import, re.MULTILINE),
 
         # Go: import
-        (r'^\s*import\s+"([^"]+)"', ['go'], _resolve_go_import, re.MULTILINE),
-        (r'^\s*import\s+\w+\s+"([^"]+)"', ['go'], _resolve_go_import, re.MULTILINE),
+        (r'^\s*import\s+(?:(\w+)\s+)?"([^"]+)"', ['go'], _extract_go_import, re.MULTILINE),
     ]
 
-    # Process each pattern on the entire content (not line by line)
-    for pattern, extensions, resolver, flags in patterns:
+    # Process each pattern on the entire content
+    for pattern, extensions, extractor, flags in patterns:
         # Skip if file extension doesn't match
         if file_ext and file_ext not in extensions:
             continue
 
         # Find all matches in the entire content
         for match in re.finditer(pattern, code_content, flags):
-            resolved = resolver(match, current_dir, current_file)
-            if resolved:
-                if isinstance(resolved, list):
-                    imports.extend(resolved)
+            import_info = extractor(match, current_dir, current_file, code_content)
+            if import_info:
+                if isinstance(import_info, list):
+                    imports.extend(import_info)
                 else:
-                    imports.append(resolved)
-
-    # Remove duplicates while preserving order
-    seen = set()
-    unique_imports = []
-    for imp in imports:
-        if imp not in seen:
-            seen.add(imp)
-            unique_imports.append(imp)
-
-    return unique_imports
-
-
-def _resolve_python_import(match, current_dir, current_file):
-    """Resolve Python import to file path"""
-    imports = []
-    from_module = match.group(1)
-    import_modules = match.group(2)
-
-    if from_module:
-        # from xxx import yyy
-        module_path = from_module.replace('.', os.sep)
-        # Try as package
-        package_init = os.path.normpath(os.path.join(current_dir, module_path, '__init__.py'))
-        if _is_local_path(package_init):
-            imports.append(package_init)
-        # Try as module
-        module_file = os.path.normpath(os.path.join(current_dir, module_path + '.py'))
-        if _is_local_path(module_file):
-            imports.append(module_file)
-
-    if import_modules:
-        # import xxx, yyy, zzz
-        for module in import_modules.split(','):
-            module = module.strip()
-            if not module:
-                continue
-            module_path = module.replace('.', os.sep)
-            # Try as package
-            package_init = os.path.normpath(os.path.join(current_dir, module_path, '__init__.py'))
-            if _is_local_path(package_init):
-                imports.append(package_init)
-            # Try as module
-            module_file = os.path.normpath(os.path.join(current_dir, module_path + '.py'))
-            if _is_local_path(module_file):
-                imports.append(module_file)
+                    imports.append(import_info)
 
     return imports
 
 
-def _resolve_js_import(match, current_dir, current_file):
-    """Resolve JavaScript/TypeScript import to file path"""
-    import_path = match.group(1)
+def parse_imports(current_file: str, code_content: str) -> List[str]:
+    """Parse imports and return list of file paths (for backward compatibility)"""
+    detailed_imports = parse_imports_detailed(current_file, code_content)
+    # Remove duplicates while preserving order
+    seen = set()
+    unique_imports = []
+    for imp in detailed_imports:
+        if imp.source_file not in seen:
+            seen.add(imp.source_file)
+            unique_imports.append(imp.source_file)
+    return unique_imports
 
-    # Skip external packages (don't start with ./ or ../)
+
+# ============================================================================
+# Detailed Import Extractors (return ImportInfo objects)
+# ============================================================================
+
+def _extract_js_import(match, current_dir, current_file, code_content):
+    """Extract JavaScript/TypeScript import details"""
+    full_match = match.group(0)
+    is_type_only = match.group(1) is not None  # 'type' keyword
+    import_path = match.group(3)
+    
+    # Skip external packages
     if not import_path.startswith('.') and not import_path.startswith('/'):
         return None
+    
+    # Resolve file path
+    source_file = _resolve_js_path(import_path, current_dir)
+    
+    # Extract imported items
+    imported_items = []
+    import_type = 'named'
+    alias = None
+    
+    # Parse the import clause (everything before 'from')
+    import_clause = full_match.split('from')[0].replace('import', '').strip()
+    if is_type_only:
+        import_clause = import_clause.replace('type', '').strip()
+    
+    if import_clause.startswith('{') and import_clause.endswith('}'):
+        # Named imports: import { A, B as C } from '...'
+        import_type = 'named'
+        items_str = import_clause[1:-1]  # Remove { }
+        for item in items_str.split(','):
+            item = item.strip()
+            if ' as ' in item:
+                original, alias_name = item.split(' as ')
+                imported_items.append(original.strip())
+            elif item:
+                imported_items.append(item)
+    elif import_clause.startswith('*'):
+        # Namespace import: import * as name from '...'
+        import_type = 'namespace'
+        imported_items = ['*']
+        if ' as ' in import_clause:
+            alias = import_clause.split(' as ')[1].strip()
+    elif import_clause:
+        # Default import: import Name from '...'
+        import_type = 'default'
+        imported_items = [import_clause.split(',')[0].strip()]
+    
+    return ImportInfo(
+        source_file=source_file,
+        raw_statement=full_match,
+        imported_items=imported_items,
+        import_type=import_type,
+        alias=alias,
+        is_type_only=is_type_only
+    )
 
-    # Resolve relative path - keep it relative
+
+def _extract_js_side_effect(match, current_dir, current_file, code_content):
+    """Extract side-effect import: import './file'"""
+    import_path = match.group(1)
+    
+    if not import_path.startswith('.') and not import_path.startswith('/'):
+        return None
+    
+    source_file = _resolve_js_path(import_path, current_dir)
+    
+    return ImportInfo(
+        source_file=source_file,
+        raw_statement=match.group(0),
+        imported_items=[],
+        import_type='side-effect'
+    )
+
+
+def _extract_js_export(match, current_dir, current_file, code_content):
+    """Extract re-export: export { A } from './file'"""
+    is_type_only = match.group(1) is not None
+    export_clause = match.group(2)
+    import_path = match.group(3)
+    
+    if not import_path.startswith('.') and not import_path.startswith('/'):
+        return None
+    
+    source_file = _resolve_js_path(import_path, current_dir)
+    
+    imported_items = []
+    import_type = 'named'
+    alias = None
+    
+    if export_clause:
+        if export_clause.startswith('{'):
+            items_str = export_clause[1:-1] if export_clause.endswith('}') else export_clause[1:]
+            for item in items_str.split(','):
+                item = item.strip()
+                if ' as ' in item:
+                    imported_items.append(item.split(' as ')[0].strip())
+                elif item:
+                    imported_items.append(item)
+        elif '*' in export_clause:
+            import_type = 'namespace'
+            imported_items = ['*']
+            if ' as ' in export_clause:
+                alias = export_clause.split(' as ')[1].strip()
+    
+    return ImportInfo(
+        source_file=source_file,
+        raw_statement=match.group(0),
+        imported_items=imported_items,
+        import_type=import_type,
+        alias=alias,
+        is_type_only=is_type_only
+    )
+
+
+def _resolve_js_path(import_path, current_dir):
+    """Resolve JavaScript/TypeScript import path to file"""
     if import_path.startswith('/'):
-        # Absolute path from root
         resolved = import_path.lstrip('/')
     else:
-        # Relative path - join and normalize but keep relative
         resolved = os.path.join(current_dir, import_path)
-        # Normalize to clean up ../ and ./ but ensure it stays relative
         resolved = os.path.normpath(resolved)
-
-    # Try different extensions and return the first one found
-    # If file doesn't exist, still return with .ts extension as default for TypeScript
+    
+    # Try different extensions
     extensions = ['.ts', '.tsx', '.js', '.jsx', '.mjs', '.cjs', '.json', '']
     for ext in extensions:
         path_with_ext = resolved + ext
         if os.path.exists(path_with_ext):
             return path_with_ext
-
+    
     # Try as directory with index file
     for index_file in ['index.ts', 'index.tsx', 'index.js', 'index.jsx']:
         index_path = os.path.join(resolved, index_file)
         if os.path.exists(index_path):
             return index_path
-
-    # If nothing exists, return with .ts extension as default
+    
     return resolved + '.ts'
 
 
-def _resolve_c_include(match, current_dir, current_file):
-    """Resolve C/C++ include to file path"""
+def _extract_python_import(match, current_dir, current_file, code_content):
+    """Extract Python 'from ... import ...' statement"""
+    module_path = match.group(1)
+    imports_str = match.group(2).strip()
+    
+    # Parse imported items
+    imported_items = []
+    for item in imports_str.split(','):
+        item = item.strip()
+        if ' as ' in item:
+            imported_items.append(item.split(' as ')[0].strip())
+        elif item and item != '*':
+            imported_items.append(item)
+        elif item == '*':
+            imported_items = ['*']
+            break
+    
+    # Resolve file path
+    file_path = _resolve_python_path(module_path, current_dir)
+    if not file_path:
+        return None
+    
+    return ImportInfo(
+        source_file=file_path,
+        raw_statement=match.group(0),
+        imported_items=imported_items,
+        import_type='namespace' if '*' in imported_items else 'named'
+    )
+
+
+def _extract_python_import_simple(match, current_dir, current_file, code_content):
+    """Extract Python 'import ...' statement"""
+    imports_str = match.group(1)
+    results = []
+    
+    for module in imports_str.split(','):
+        module = module.strip()
+        if not module:
+            continue
+        
+        alias = None
+        if ' as ' in module:
+            module, alias = module.split(' as ')
+            module = module.strip()
+            alias = alias.strip()
+        
+        file_path = _resolve_python_path(module, current_dir)
+        if file_path:
+            results.append(ImportInfo(
+                source_file=file_path,
+                raw_statement=f"import {module}",
+                imported_items=[module.split('.')[-1]],
+                import_type='default',
+                alias=alias
+            ))
+    
+    return results if results else None
+
+
+def _resolve_python_path(module_path, current_dir):
+    """Resolve Python module to file path"""
+    module_file_path = module_path.replace('.', os.sep)
+    
+    # Try as package
+    package_init = os.path.normpath(os.path.join(current_dir, module_file_path, '__init__.py'))
+    if os.path.exists(package_init):
+        return package_init
+    
+    # Try as module
+    module_file = os.path.normpath(os.path.join(current_dir, module_file_path + '.py'))
+    if os.path.exists(module_file):
+        return module_file
+    
+    return None
+
+
+def _extract_c_include(match, current_dir, current_file, code_content):
+    """Extract C/C++ #include statement"""
     include_path = match.group(1)
     resolved = os.path.normpath(os.path.join(current_dir, include_path))
-    return resolved if _is_local_path(resolved) else None
+    
+    if not os.path.exists(resolved):
+        return None
+    
+    return ImportInfo(
+        source_file=resolved,
+        raw_statement=match.group(0),
+        imported_items=['*'],
+        import_type='namespace'
+    )
 
 
-def _resolve_rust_import(match, current_dir, current_file):
-    """Resolve Rust use statement to file path"""
+def _extract_rust_use(match, current_dir, current_file, code_content):
+    """Extract Rust 'use' statement"""
     use_path = match.group(1)
-    # Convert :: to /
+    items_group = match.group(2)
+    
+    # Resolve file path
     module_path = use_path.replace('::', os.sep)
     resolved = os.path.normpath(os.path.join(current_dir, module_path + '.rs'))
-    return resolved if _is_local_path(resolved) else None
-
-
-def _resolve_rust_mod(match, current_dir, current_file):
-    """Resolve Rust mod statement to file path"""
-    mod_name = match.group(1)
-    # Try mod_name.rs first
-    resolved = os.path.normpath(os.path.join(current_dir, mod_name + '.rs'))
-    if _is_local_path(resolved):
-        return resolved
-    # Try mod_name/mod.rs
-    resolved = os.path.normpath(os.path.join(current_dir, mod_name, 'mod.rs'))
-    return resolved if _is_local_path(resolved) else None
-
-
-def _resolve_java_import(match, current_dir, current_file):
-    """Resolve Java/Kotlin import to file path"""
-    import_path = match.group(1)
-    # Convert package.Class to package/Class
-    parts = import_path.split('.')
-    if not parts:
+    
+    if not os.path.exists(resolved):
         return None
+    
+    # Parse imported items
+    imported_items = []
+    if items_group:
+        # use module::{A, B, C}
+        for item in items_group.split(','):
+            imported_items.append(item.strip())
+    else:
+        # use module or use module::item
+        imported_items = [use_path.split('::')[-1]]
+    
+    return ImportInfo(
+        source_file=resolved,
+        raw_statement=match.group(0),
+        imported_items=imported_items,
+        import_type='named'
+    )
 
-    # The last part is the class name
+
+def _extract_java_import(match, current_dir, current_file, code_content):
+    """Extract Java/Kotlin import statement"""
+    is_static = match.group(1) is not None
+    import_path = match.group(2)
+    
+    # Check if it's a wildcard import
+    is_wildcard = import_path.endswith('.*')
+    if is_wildcard:
+        import_path = import_path[:-2]
+    
+    # Convert to file path
+    parts = import_path.split('.')
     class_name = parts[-1]
     package_path = os.sep.join(parts[:-1]) if len(parts) > 1 else ''
-
-    # Try .java and .kt extensions
+    
+    # Try .java and .kt
     for ext in ['.java', '.kt', '.kts']:
         if package_path:
             resolved = os.path.normpath(os.path.join(current_dir, package_path, class_name + ext))
         else:
             resolved = os.path.normpath(os.path.join(current_dir, class_name + ext))
-        if _is_local_path(resolved):
-            return resolved
-
+        
+        if os.path.exists(resolved):
+            return ImportInfo(
+                source_file=resolved,
+                raw_statement=match.group(0),
+                imported_items=['*'] if is_wildcard else [class_name],
+                import_type='namespace' if is_wildcard else 'named'
+            )
+    
     return None
 
 
-def _resolve_go_import(match, current_dir, current_file):
-    """Resolve Go import to file path"""
-    import_path = match.group(1)
-    # Skip external packages (contain domain names)
+def _extract_go_import(match, current_dir, current_file, code_content):
+    """Extract Go import statement"""
+    alias = match.group(1)  # May be None
+    import_path = match.group(2)
+    
+    # Skip external packages
     if '.' in import_path.split('/')[0]:
         return None
-    # For local packages, resolve relative to project root
-    resolved = os.path.normpath(import_path)
-    return resolved if _is_local_path(resolved) else None
+    
+    package_name = import_path.split('/')[-1]
+    
+    return ImportInfo(
+        source_file=import_path,
+        raw_statement=match.group(0),
+        imported_items=[package_name],
+        import_type='default',
+        alias=alias
+    )
 
 
-def _resolve_html_resource(match, current_dir, current_file):
-    """Resolve HTML resource (script, link, img, etc.) to file path"""
-    resource_path = match.group(1)
-
-    # Skip external URLs (http://, https://, //)
-    if resource_path.startswith('http://') or resource_path.startswith('https://') or resource_path.startswith('//'):
-        return None
-
-    # Skip data URIs
-    if resource_path.startswith('data:'):
-        return None
-
-    # Skip absolute URLs or CDN links
-    if resource_path.startswith('/'):
-        # Absolute path from root - normalize it
-        resolved = os.path.normpath(resource_path.lstrip('/'))
-    else:
-        # Relative path
-        resolved = os.path.normpath(os.path.join(current_dir, resource_path))
-
-    return resolved if _is_local_path(resolved) else None
-
-
-def _is_local_path(path):
-    """Check if path looks like a local file (basic heuristic)"""
-    # Don't validate existence, just check if it's a reasonable local path
-    # Exclude absolute paths outside the project
-    if os.path.isabs(path):
-        return False
-    # Exclude paths with URL-like patterns
-    if '://' in path or path.startswith('http'):
-        return False
-    return True
-
+# ============================================================================
+# Legacy Path Resolvers (for backward compatibility)
+# ============================================================================
 
 def main():
-    """Test cases for parse_imports function"""
+    """Test cases for parse_imports_detailed function"""
     print("=" * 80)
-    print("Testing parse_imports function")
+    print("Testing parse_imports_detailed function")
     print("=" * 80)
     
-    # Test 1: Python imports
-    print("\n[Test 1] Python imports")
-    python_code = """import os
-import sys
-from utils import helper
-from package.module import function
-import numpy, pandas
-"""
-    result = parse_imports('src/main.py', python_code)
-    print(f"Current file: src/main.py")
-    print(f"Code:\n{python_code}")
-    print(f"Detected imports: {result}")
-    
-    # Test 2: JavaScript imports
-    print("\n[Test 2] JavaScript imports")
-    js_code = """import React from 'react';
-import { useState } from 'react';
-import App from './App';
-import utils from '../utils/helper';
-const config = require('./config.json');
-export { default } from './components/Button';
-"""
-    result = parse_imports('src/components/Header.js', js_code)
-    print(f"Current file: src/components/Header.js")
-    print(f"Code:\n{js_code}")
-    print(f"Detected imports: {result}")
-    
-    # Test 3: TypeScript imports
-    print("\n[Test 3] TypeScript imports")
-    ts_code = """import type { User } from './types';
-import * as utils from '../utils';
+    # Test TypeScript imports with detailed information
+    print("\n[Test 1] TypeScript Multi-line Imports")
+    ts_code = '''import { v4 as uuidv4 } from 'uuid';
+import * as bcrypt from 'bcryptjs';
+import {
+  User,
+  UserRole,
+  OAuthProvider,
+  DEFAULT_USER_PREFERENCES
+} from '../models/User';
+import {
+  Model,
+  ModelCategory,
+  Framework
+} from '../models/Model';
+import type { Dataset } from '../models/Dataset';
 import './styles.css';
-import api from '@/api/client';
-"""
-    result = parse_imports('src/pages/home.ts', ts_code)
-    print(f"Current file: src/pages/home.ts")
-    print(f"Code:\n{ts_code}")
-    print(f"Detected imports: {result}")
+export { Button } from './components/Button';
+'''
+    result = parse_imports_detailed('backend/scripts/initData.ts', ts_code)
+    print(f"Current file: backend/scripts/initData.ts")
+    print(f"\nDetected {len(result)} imports:")
+    for imp in result:
+        print(f"\n  File: {imp.source_file}")
+        print(f"    Type: {imp.import_type}")
+        print(f"    Items: {imp.imported_items}")
+        print(f"    Alias: {imp.alias}")
+        print(f"    Type-only: {imp.is_type_only}")
+        print(f"    Statement: {imp.raw_statement[:60]}...")
     
-    # Test 4: HTML resources
-    print("\n[Test 4] HTML resources")
-    html_code = """<!DOCTYPE html>
-<html>
-<head>
-    <link rel="stylesheet" href="./styles/main.css">
-    <script src="../js/app.js"></script>
-    <script src="https://cdn.example.com/lib.js"></script>
-</head>
-<body>
-    <img src="/images/logo.png" alt="Logo">
-    <img src="https://example.com/image.jpg" alt="External">
-    <video src="./media/video.mp4"></video>
-    <iframe src="./embed.html"></iframe>
-</body>
-</html>
-"""
-    result = parse_imports('public/index.html', html_code)
-    print(f"Current file: public/index.html")
-    print(f"Code:\n{html_code}")
-    print(f"Detected imports: {result}")
-    
-    # Test 5: C++ includes
-    print("\n[Test 5] C++ includes")
-    cpp_code = """#include <iostream>
-#include <vector>
-#include "utils.h"
-#include "../common/types.h"
-#include "lib/helpers.hpp"
-"""
-    result = parse_imports('src/main.cpp', cpp_code)
-    print(f"Current file: src/main.cpp")
-    print(f"Code:\n{cpp_code}")
-    print(f"Detected imports: {result}")
-    
-    # Test 6: Rust imports
-    print("\n[Test 6] Rust imports")
-    rust_code = """use std::collections::HashMap;
-use crate::utils::helper;
-use super::common;
-mod config;
-mod database;
-"""
-    result = parse_imports('src/main.rs', rust_code)
-    print(f"Current file: src/main.rs")
-    print(f"Code:\n{rust_code}")
-    print(f"Detected imports: {result}")
-    
-    # Test 7: Java imports
-    print("\n[Test 7] Java imports")
-    java_code = """package com.example.app;
-
-import java.util.List;
-import java.util.ArrayList;
-import com.example.utils.Helper;
-import com.example.models.User;
-"""
-    result = parse_imports('src/com/example/app/Main.java', java_code)
-    print(f"Current file: src/com/example/app/Main.java")
-    print(f"Code:\n{java_code}")
-    print(f"Detected imports: {result}")
-    
-    # Test 8: Kotlin imports
-    print("\n[Test 8] Kotlin imports")
-    kotlin_code = """package com.example.app
-
-import kotlin.collections.List
-import com.example.utils.Helper
-import com.example.models.User
-"""
-    result = parse_imports('src/com/example/app/Main.kt', kotlin_code)
-    print(f"Current file: src/com/example/app/Main.kt")
-    print(f"Code:\n{kotlin_code}")
-    print(f"Detected imports: {result}")
-    
-    # Test 9: Go imports
-    print("\n[Test 9] Go imports")
-    go_code = """package main
-
-import (
-    "fmt"
-    "os"
-    "github.com/example/package"
-    "myproject/utils"
-    helper "myproject/internal/helper"
-)
-"""
-    result = parse_imports('cmd/main.go', go_code)
-    print(f"Current file: cmd/main.go")
-    print(f"Code:\n{go_code}")
-    print(f"Detected imports: {result}")
-    
-    # Test 10: Mixed content with edge cases
-    print("\n[Test 10] Edge cases - Data URIs and external URLs")
-    html_edge_cases = """<img src="data:image/png;base64,iVBORw0KG...">
-<script src="https://cdnjs.cloudflare.com/lib.js"></script>
-<link href="//fonts.googleapis.com/css">
-<script src="./local.js"></script>
-"""
-    result = parse_imports('index.html', html_edge_cases)
-    print(f"Current file: index.html")
-    print(f"Code:\n{html_edge_cases}")
-    print(f"Detected imports (should only include local.js): {result}")
-    
-    # Test 11: Nested directories
-    print("\n[Test 11] Complex relative paths")
-    complex_code = """from ...utils.parser import Parser
-from ..models import User
-from .helpers import validate
-import config
-"""
-    result = parse_imports('src/app/services/auth.py', complex_code)
-    print(f"Current file: src/app/services/auth.py")
-    print(f"Code:\n{complex_code}")
-    print(f"Detected imports: {result}")
-    
-    # Test 12: No file extension (generic test)
-    print("\n[Test 12] No file extension")
-    generic_code = """import React from './App';
-from utils import helper
-use crate::common;
-#include "utils.h"
-"""
-    result = parse_imports('', generic_code)
-    print(f"Current file: (empty string)")
-    print(f"Code:\n{generic_code}")
-    print(f"Detected imports (all patterns should match): {result}")
+    # Test backward compatibility
+    print("\n" + "=" * 80)
+    print("[Test 2] Backward Compatibility Test")
+    simple_result = parse_imports('backend/scripts/initData.ts', ts_code)
+    print(f"parse_imports() returns list of file paths:")
+    for path in simple_result:
+        print(f"  - {path}")
     
     print("\n" + "=" * 80)
     print("All tests completed!")

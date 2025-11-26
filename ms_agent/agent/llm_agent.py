@@ -478,7 +478,9 @@ class LLMAgent(Agent):
                     yield messages
                 sys.stdout.write('\n')
             else:
+                logger.info(f'before generating response')
                 _response_message = self.llm.generate(messages, tools=tools)
+                logger.info(f'after generating response')
                 if _response_message.content:
                     self.log_output('[assistant]:')
                     self.log_output(_response_message.content)

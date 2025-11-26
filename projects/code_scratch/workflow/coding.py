@@ -134,7 +134,9 @@ class Programmer(LLMAgent):
             messages[-1].content += '\n```\n'
         has_tool_call = len(messages[-1].tool_calls or []) > 0
         if (not has_tool_call) and import_finish:
-            code_file = messages[-1].content.split('```')[1].split(':')[1].split('\n')[0].strip()
+            contents = messages[-1].content.split('\n')
+            content = [c for c in contents if '```' in c and ':' in c][0]
+            code_file = content.split('```')[1].split(':')[1].split('\n')[0].strip()
             all_files = parse_imports(code_file, messages[-1].content) or []
             deps = []
             for file in all_files:
@@ -272,7 +274,7 @@ class CodingAgent(CodeAgent):
         self.refresh_file_status(file_relation)
 
         # Use ThreadPoolExecutor for IO-intensive LLM API calls
-        max_workers = 10  # Optimal for IO-intensive tasks
+        max_workers = 1  # Optimal for IO-intensive tasks
         
         for files in file_orders:
             while True:
