@@ -65,10 +65,13 @@ class Programmer(LLMAgent):
                  code_file: str = None,
                  **kwargs):
         super().__init__(config, tag, trust_remote_code, **kwargs)
+        self.code_file = code_file
 
     async def on_task_begin(self, messages: List[Message]):
-        self.llm.args['stop'] = stop_words
-        self.code_files = [code_file]
+        if 'extra_body' not in self.llm.args:
+            self.llm.args['extra_body'] = DictConfig({})
+        self.llm.args['extra_body']['stop_sequences'] = stop_words
+        self.code_files = [self.code_file]
         self.find_all_files()
 
     def generate_abbr_file(self, file):
@@ -99,8 +102,8 @@ class Programmer(LLMAgent):
             Message(role='system', content=system),
             Message(role='user', content=query),
         ]
-        stop = self.llm.args['stop']
-        self.llm.args.pop('stop')
+        stop = self.llm.args['extra_body']['stop_sequences']
+        self.llm.args['extra_body'].pop('stop_sequences')
         try:
             response_message = self.llm.generate(messages, stream=False)
             content = response_message.content.split('\n')
@@ -113,7 +116,7 @@ class Programmer(LLMAgent):
                 f.write('\n'.join(content))
             return '\n'.join(content)
         finally:
-            self.llm.args['stop'] = stop
+            self.llm.args['extra_body']['stop_sequences'] = stop
 
     def filter_code_files(self):
         code_files = []
@@ -143,12 +146,13 @@ class Programmer(LLMAgent):
     async def after_tool_call(self, messages: List[Message]):
         deps_not_exist = False
         coding_finish = '```' in messages[-1].content and self.llm.args[
-            'stop'] == []
+            'extra_body']['stop_sequences'] == []
         import_finish = '```' in messages[-1].content and self.llm.args[
-            'stop'] == stop_words
+            'extra_body']['stop_sequences'] == stop_words
         if coding_finish:
             messages[-1].content += '\n```\n'
-        has_tool_call = len(messages[-1].tool_calls or []) > 0
+        has_tool_call = len(messages[-1].tool_calls
+                            or []) > 0 or messages[-1].role != 'assistant'
         if (not has_tool_call) and import_finish:
             contents = messages[-1].content.split('\n')
             content = [c for c in contents if '```' in c and ':' in c][0]
@@ -215,7 +219,7 @@ class Programmer(LLMAgent):
                         f'Now rewrite the full code of {code_file} based on the start lines:\n'
                     ))
                 if not wrong_imports:
-                    self.llm.args['stop'] = []
+                    self.llm.args['extra_body']['stop_sequences'] = []
         elif (not has_tool_call) and coding_finish:
             result, remaining_text = extract_code_blocks(messages[-1].content)
             if result:
@@ -252,7 +256,7 @@ class Programmer(LLMAgent):
                     content=
                     f'\nA code file in your imports not found, you should write it first: {last_file}\n'
                 ))
-            self.llm.args['stop'] = stop_words
+            self.llm.args['extra_body']['stop_sequences'] = stop_words
 
     async def condense_memory(self, messages):
         return messages
