@@ -1,14 +1,13 @@
 # Copyright (c) Alibaba, Inc. and its affiliates.
-import json
 import os
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from typing import List, Union
 
-from omegaconf import DictConfig
-
+import json
 from ms_agent.agent import CodeAgent
 from ms_agent.llm import LLM, Message
 from ms_agent.utils import get_logger
+from omegaconf import DictConfig
 
 logger = get_logger()
 
@@ -36,8 +35,7 @@ class GenerateVideoPrompts(CodeAgent):
         super().__init__(config, tag, trust_remote_code, **kwargs)
         self.work_dir = getattr(self.config, 'output_dir', 'output')
         self.num_parallel = getattr(self.config, 'llm_num_parallel', 10)
-        self.video_prompts_dir = os.path.join(self.work_dir,
-                                                     'video_prompts')
+        self.video_prompts_dir = os.path.join(self.work_dir, 'video_prompts')
         os.makedirs(self.video_prompts_dir, exist_ok=True)
 
     async def execute_code(self, messages: Union[str, List[Message]],
@@ -64,9 +62,8 @@ class GenerateVideoPrompts(CodeAgent):
         return messages
 
     @staticmethod
-    def _generate_video_prompts_static(i, segment, config, topic,
-                                              system,
-                                              video_prompts_dir):
+    def _generate_video_prompts_static(i, segment, config, topic, system,
+                                       video_prompts_dir):
         llm = LLM.from_config(config)
         GenerateVideoPrompts._generate_video_prompt_impl(
             llm, i, segment, topic, system, video_prompts_dir, config)
@@ -94,8 +91,7 @@ class GenerateVideoPrompts(CodeAgent):
                  f'illustration based on: {segment["content"]}, '
                  f'Video duration: {fit_duration}, '
                  f'Requirements from the storyboard designer: {video}')
-        logger.info(
-            f'Generating video prompt for : {segment["content"]}.')
+        logger.info(f'Generating video prompt for : {segment["content"]}.')
         inputs = [
             Message(role='system', content=system),
             Message(role='user', content=query),
@@ -107,4 +103,3 @@ class GenerateVideoPrompts(CodeAgent):
                 os.path.join(video_prompts_dir, f'segment_{i + 1}.txt'),
                 'w') as f:
             f.write(prompt)
-

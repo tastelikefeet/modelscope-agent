@@ -80,7 +80,8 @@ class ComposeVideo(CodeAgent):
             current_video_clips = []
 
             # Check if this segment uses generated video instead of illustration
-            use_generated_video = 'video' in segment and video_paths[i] and os.path.exists(video_paths[i])
+            use_generated_video = 'video' in segment and video_paths[
+                i] and os.path.exists(video_paths[i])
 
             if use_generated_video:
                 # Use generated video as base layer
@@ -88,7 +89,7 @@ class ComposeVideo(CodeAgent):
                 try:
                     video_clip = mp.VideoFileClip(video_paths[i])
                     video_original_w, video_original_h = video_clip.size
-                    
+
                     # Validate video dimensions
                     if video_original_w <= 0 or video_original_h <= 0:
                         logger.error(
@@ -101,40 +102,50 @@ class ComposeVideo(CodeAgent):
                         video_available_w, video_available_h = 1920, 1080
                         video_scale_w = video_available_w / video_original_w
                         video_scale_h = video_available_h / video_original_h
-                        video_scale = max(video_scale_w, video_scale_h)  # Cover mode
-                        
+                        video_scale = max(video_scale_w,
+                                          video_scale_h)  # Cover mode
+
                         video_new_w = int(video_original_w * video_scale)
                         video_new_h = int(video_original_h * video_scale)
                         if video_new_w % 2 != 0:
                             video_new_w += 1
                         if video_new_h % 2 != 0:
                             video_new_h += 1
-                        
+
                         if video_new_w > 0 and video_new_h > 0:
-                            video_clip = video_clip.resized((video_new_w, video_new_h))
+                            video_clip = video_clip.resized(
+                                (video_new_w, video_new_h))
                             video_clip = video_clip.with_position('center')
-                            
+
                             # Adjust video duration to match segment duration
                             if video_clip.duration < duration:
-                                logger.info(f'Video {i + 1} is shorter than segment, extending to {duration:.1f}s')
+                                logger.info(
+                                    f'Video {i + 1} is shorter than segment, extending to {duration:.1f}s'
+                                )
                                 video_clip = video_clip.with_duration(duration)
                             elif video_clip.duration > duration:
-                                logger.info(f'Video {i + 1} is longer than segment, trimming to {duration:.1f}s')
+                                logger.info(
+                                    f'Video {i + 1} is longer than segment, trimming to {duration:.1f}s'
+                                )
                                 video_clip = video_clip.subclipped(0, duration)
-                            
+
                             current_video_clips.append(video_clip)
                         else:
-                            logger.error(f'Invalid scaled video dimensions: {video_new_w}x{video_new_h}')
+                            logger.error(
+                                f'Invalid scaled video dimensions: {video_new_w}x{video_new_h}'
+                            )
                             video_clip.close()
                             use_generated_video = False
                 except Exception as e:
-                    logger.error(f'Failed to process video for segment {i + 1}: {e}')
+                    logger.error(
+                        f'Failed to process video for segment {i + 1}: {e}')
                     use_generated_video = False
 
             # Add illustration as base layer (if not using generated video)
-            if not use_generated_video and i < len(illustration_paths
-                       ) and illustration_paths[i] and os.path.exists(
-                           illustration_paths[i]):
+            if not use_generated_video and i < len(
+                    illustration_paths
+            ) and illustration_paths[i] and os.path.exists(
+                    illustration_paths[i]):
                 illustration_clip = mp.ImageClip(
                     illustration_paths[i], duration=duration)
                 bg_original_w, bg_original_h = illustration_clip.size
@@ -248,7 +259,8 @@ class ComposeVideo(CodeAgent):
                            foreground_paths[i]):
                 fg_clip = mp.VideoFileClip(foreground_paths[i], has_mask=True)
                 original_w, original_h = fg_clip.size
-                available_w, available_h = (1250, 700) if self.config.use_subtitle else (1450, 800)
+                available_w, available_h = (
+                    1250, 700) if self.config.use_subtitle else (1450, 800)
                 scale_w = available_w / original_w
                 scale_h = available_h / original_h
                 scale = min(scale_w, scale_h, 1.0)
@@ -274,9 +286,9 @@ class ComposeVideo(CodeAgent):
                 fg_clip = fg_clip.with_duration(duration)
                 current_video_clips.append(fg_clip)
             if self.config.use_subtitle:
-                if i < len(
-                        subtitle_paths) and subtitle_paths[i] and os.path.exists(
-                            subtitle_paths[i]):
+                if i < len(subtitle_paths
+                           ) and subtitle_paths[i] and os.path.exists(
+                               subtitle_paths[i]):
                     subtitle_img = Image.open(subtitle_paths[i])
                     subtitle_w, subtitle_h = subtitle_img.size
 
@@ -351,8 +363,8 @@ class ComposeVideo(CodeAgent):
             if os.path.exists(self.config.bg_audio_path):
                 bg_music_path = self.config.bg_audio_path
             else:
-                bg_music_path = os.path.join(
-                    self.config.local_dir, self.config.bg_audio_path)
+                bg_music_path = os.path.join(self.config.local_dir,
+                                             self.config.bg_audio_path)
             if os.path.exists(bg_music_path):
                 bg_music = mp.AudioFileClip(bg_music_path)
                 if bg_music.duration < final_video.duration:
@@ -363,7 +375,8 @@ class ComposeVideo(CodeAgent):
                     bg_music = bg_music.subclipped(0, final_video.duration)
                 elif bg_music.duration > final_video.duration:
                     bg_music = bg_music.subclipped(0, final_video.duration)
-                bg_music = bg_music.with_volume_scaled(self.config.bg_audio_volume)
+                bg_music = bg_music.with_volume_scaled(
+                    self.config.bg_audio_volume)
                 if final_video.audio:
                     tts_audio = final_video.audio.with_duration(
                         final_video.duration).with_volume_scaled(1.0)

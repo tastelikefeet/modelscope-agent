@@ -17,5 +17,3 @@ class SplitModuleAgent(LLMAgent):
         assert topic
         with open(os.path.join(self.output_dir, 'topic.txt'), 'w') as f:
             f.write(topic)
-
-

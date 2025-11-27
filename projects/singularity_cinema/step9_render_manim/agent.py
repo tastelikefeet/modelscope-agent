@@ -31,7 +31,7 @@ class RenderManim(CodeAgent):
                  **kwargs):
         super().__init__(config, tag, trust_remote_code, **kwargs)
         if not self.config.use_subtitle:
-            self.window_size = (1450,800)
+            self.window_size = (1450, 800)
         self.work_dir = getattr(self.config, 'output_dir', 'output')
         self.num_parallel = getattr(self.config, 'llm_num_parallel', 10)
         self.manim_render_timeout = getattr(self.config,
@@ -452,7 +452,7 @@ These images must be used.
 * Scale the images. Do not use the original size, carefully rescale the images to match the requirements below:
     * The image size on the canvas depend on its importance, important image occupies more spaces
     * Use 1/8 to 1/4 space of the canvas for your images
-"""
+""" # noqa
         else:
             image_prompt = ''
 

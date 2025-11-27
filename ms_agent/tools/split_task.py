@@ -82,7 +82,7 @@ class SplitTask(ToolBase):
                 trust_remote_code=trust_remote_code,
                 tag=f'{config.tag}-r{self.round}-{self.tag_prefix}{i}',
                 load_cache=getattr(config, 'load_cache', False))
-            
+
             # Run async agent.run() in sync context
             loop = asyncio.new_event_loop()
             asyncio.set_event_loop(loop)
@@ -95,9 +95,11 @@ class SplitTask(ToolBase):
         if execution_mode == 'parallel':
             # Use ThreadPoolExecutor for parallel execution
             with ThreadPoolExecutor() as executor:
-                futures = {executor.submit(run_agent_sync, i, task): i 
-                          for i, task in enumerate(tasks)}
-                
+                futures = {
+                    executor.submit(run_agent_sync, i, task): i
+                    for i, task in enumerate(tasks)
+                }
+
                 # Collect results as they complete
                 for future in as_completed(futures):
                     i = futures[future]
@@ -105,8 +107,9 @@ class SplitTask(ToolBase):
                         r = future.result()
                         result.append((i, r))
                     except Exception as e:
-                        result.append((i, f'Subtask{i} failed with error: {e}'))
-                
+                        result.append(
+                            (i, f'Subtask{i} failed with error: {e}'))
+
                 # Sort by task index to maintain order
                 result.sort(key=lambda x: x[0])
                 result = [r[1] for r in result]

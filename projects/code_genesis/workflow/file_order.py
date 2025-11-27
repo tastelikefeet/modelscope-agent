@@ -1,7 +1,7 @@
-import json
 import os
 from typing import List
 
+import json
 from ms_agent import LLMAgent
 from ms_agent.llm import Message
 
@@ -9,7 +9,7 @@ from ms_agent.llm import Message
 class FileDesignAgent(LLMAgent):
 
     async def run(self, messages, **kwargs):
-        query = f'请读取file_design.txt并输出file_order.txt:'
+        query = '请读取file_design.txt并输出file_order.txt:'
 
         messages = [
             Message(role='system', content=self.config.prompt.system),

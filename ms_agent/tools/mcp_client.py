@@ -250,7 +250,9 @@ class MCPClient(ToolBase):
                     self.exclude_functions[name] = server.pop('exclude')
                 if 'include' in server:
                     self.include_functions[name] = server.pop('include')
-                assert (not self.include_functions[name]) or (not self.exclude_functions[name]), 'Set either `include` or `exclude` in tools config.'
+                assert (not self.include_functions[name]) or (
+                    not self.exclude_functions[name]
+                ), 'Set either `include` or `exclude` in tools config.'
                 timeout = server.pop('timeout', timeout)
                 await self.connect_to_server(
                     server_name=name, env=env_dict, timeout=timeout, **server)

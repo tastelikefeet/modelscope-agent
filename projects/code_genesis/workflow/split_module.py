@@ -8,7 +8,7 @@ from ms_agent.llm import Message
 class SplitModuleAgent(LLMAgent):
 
     async def run(self, messages, **kwargs):
-        query = f'请读取对应文件并给出你的设计：'
+        query = '请读取对应文件并给出你的设计：'
 
         messages = [
             Message(role='system', content=self.config.prompt.system),

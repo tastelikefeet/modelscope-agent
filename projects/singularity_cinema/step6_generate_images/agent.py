@@ -41,8 +41,9 @@ class GenerateImages(CodeAgent):
         illustration_prompts = []
         for i in range(len(segments)):
             ilustration_path = os.path.join(self.illustration_prompts_dir,
-                                     f'segment_{i+1}.txt')
-            if self.config.background == 'image' and os.path.exists(ilustration_path):
+                                            f'segment_{i+1}.txt')
+            if self.config.background == 'image' and os.path.exists(
+                    ilustration_path):
                 with open(ilustration_path, 'r') as f:
                     illustration_prompts.append(f.read())
             else:
@@ -58,9 +59,9 @@ class GenerateImages(CodeAgent):
         # Use ThreadPoolExecutor for parallel execution
         with ThreadPoolExecutor(max_workers=self.num_parallel) as executor:
             futures = [
-                executor.submit(self._process_single_illustration_static,
-                               i, segment, prompt, self.config,
-                               self.images_dir, self.fusion.__name__)
+                executor.submit(self._process_single_illustration_static, i,
+                                segment, prompt, self.config, self.images_dir,
+                                self.fusion.__name__)
                 for i, segment, prompt in tasks
             ]
             # Wait for all tasks to complete
@@ -93,7 +94,8 @@ class GenerateImages(CodeAgent):
         """Implementation of single illustration processing"""
         if config.background != 'image':
             # Generate a 2000x2000 solid color image
-            logger.info(f'Generating solid color background for segment {i + 1}.')
+            logger.info(
+                f'Generating solid color background for segment {i + 1}.')
             output_path = os.path.join(images_dir, f'illustration_{i + 1}.png')
             if not os.path.exists(output_path):
                 # Create a 2000x2000 image with the color defined in config.background
@@ -101,18 +103,20 @@ class GenerateImages(CodeAgent):
                 img.save(output_path)
         else:
             logger.info(f'Generating image for: {prompt}.')
-            img_path = os.path.join(images_dir, f'illustration_{i + 1}_origin.png')
+            img_path = os.path.join(images_dir,
+                                    f'illustration_{i + 1}_origin.png')
             output_path = os.path.join(images_dir, f'illustration_{i + 1}.png')
             if os.path.exists(output_path):
                 return
             if prompt is None:
                 return
 
-            await GenerateImages._generate_images_impl(prompt, img_path, config)
+            await GenerateImages._generate_images_impl(prompt, img_path,
+                                                       config)
 
             if fusion_name == 'keep_only_black_for_folder':
-                GenerateImages.keep_only_black_for_folder(img_path, output_path,
-                                                        segment)
+                GenerateImages.keep_only_black_for_folder(
+                    img_path, output_path, segment)
             else:
                 GenerateImages.fade(img_path, output_path, segment)
 
@@ -152,10 +156,6 @@ class GenerateImages(CodeAgent):
                                     img_path,
                                     config,
                                     negative_prompt=None):
-        #img = Image.new('RGB', (1664, 1664), 'white')
-        #img.save(img_path)
-        #logger.info(f'Generated 1664x1664 white image saved to: {img_path}')
-        #return img_path
         """Implementation of image generation"""
         base_url = config.text2image.t2i_base_url.strip('/')
         api_key = config.text2image.t2i_api_key
@@ -215,7 +215,12 @@ class GenerateImages(CodeAgent):
                 poll_interval = min(poll_interval * 1.5, max_poll_interval)
 
     @staticmethod
-    def fade(input_image, output_image, segment, fade_factor=0.3, brightness_boost=80, opacity=1.0):
+    def fade(input_image,
+             output_image,
+             segment,
+             fade_factor=0.3,
+             brightness_boost=80,
+             opacity=1.0):
         manim = segment.get('manim')
         img = Image.open(input_image).convert('RGBA')
         if manim:

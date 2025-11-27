@@ -187,10 +187,11 @@ class Shell(ToolBase):
         except Exception as e:
             result = f'Run failed with an exception: {e}.'
 
-        output = (f'Shell command status:\n'
-                  f'Command line: {command}\n'
-                  f'Workdir: {work_dir}\n'
-                  f'Result: {result or "The command does not give any responses."}')
+        output = (
+            f'Shell command status:\n'
+            f'Command line: {command}\n'
+            f'Workdir: {work_dir}\n'
+            f'Result: {result or "The command does not give any responses."}')
         return output
 
     async def call_tool(self, server_name: str, *, tool_name: str,

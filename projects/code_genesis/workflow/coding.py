@@ -1,21 +1,20 @@
 import asyncio
 import dataclasses
-import json
 import os
+import re
 from collections import OrderedDict
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from copy import deepcopy
-from typing import Set
-import re
-from typing import List, Optional, Tuple
-from omegaconf import DictConfig
+from typing import List, Optional, Set, Tuple
 
+import json
 from ms_agent import LLMAgent
 from ms_agent.agent import CodeAgent
 from ms_agent.llm import Message
 from ms_agent.utils import get_logger
 from ms_agent.utils.constants import DEFAULT_TAG
-from utils import stop_words, parse_imports
+from omegaconf import DictConfig
+from utils import parse_imports, stop_words
 
 logger = get_logger()
 
@@ -66,7 +65,6 @@ class Programmer(LLMAgent):
                  code_file: str = None,
                  **kwargs):
         super().__init__(config, tag, trust_remote_code, **kwargs)
-
 
     async def on_task_begin(self, messages: List[Message]):
         self.llm.args['stop'] = stop_words
@@ -144,16 +142,20 @@ class Programmer(LLMAgent):
 
     async def after_tool_call(self, messages: List[Message]):
         deps_not_exist = False
-        coding_finish = '```' in messages[-1].content and self.llm.args['stop'] == []
-        import_finish = '```' in messages[-1].content and self.llm.args['stop'] == stop_words
+        coding_finish = '```' in messages[-1].content and self.llm.args[
+            'stop'] == []
+        import_finish = '```' in messages[-1].content and self.llm.args[
+            'stop'] == stop_words
         if coding_finish:
             messages[-1].content += '\n```\n'
         has_tool_call = len(messages[-1].tool_calls or []) > 0
         if (not has_tool_call) and import_finish:
             contents = messages[-1].content.split('\n')
             content = [c for c in contents if '```' in c and ':' in c][0]
-            code_file = content.split('```')[1].split(':')[1].split('\n')[0].strip()
-            all_files = parse_imports(code_file, messages[-1].content, self.output_dir) or []
+            code_file = content.split('```')[1].split(':')[1].split(
+                '\n')[0].strip()
+            all_files = parse_imports(code_file, messages[-1].content,
+                                      self.output_dir) or []
             all_read_files = self.find_all_read_files(messages)
             deps = []
             definitions = []
@@ -172,7 +174,9 @@ class Programmer(LLMAgent):
                         deps.append(file.source_file)
                         definitions.extend(file.imported_items)
                 else:
-                    folders.append(f'You are importing {file.imported_items} from {file.source_file} folder')
+                    folders.append(
+                        f'You are importing {file.imported_items} from {file.source_file} folder'
+                    )
 
             if not deps_not_exist:
                 dep_content = ''
@@ -190,17 +194,26 @@ class Programmer(LLMAgent):
                     dep_content += f'File content {dep}:\n{content}\n\n'
                 if folders:
                     folders = '\n'.join(folders)
-                    dep_content += f'Some definitions come from folders:\n{folders}\nYou need to check the definition file with `read_file` tool if they are not in your context.\n'
+                    dep_content += (
+                        f'Some definitions come from folders:\n{folders}\nYou need to check the definition '
+                        f'file with `read_file` tool if they are not in your context.\n'
+                    )
                 if wrong_imports:
                     wrong_imports = '\n'.join(wrong_imports)
-                    dep_content += f'Some import files are not in the project plans: {wrong_imports}, check the error now.\n'
+                    dep_content += (
+                        f'Some import files are not in the project plans: {wrong_imports}, '
+                        f'check the error now.\n')
                 content = messages.pop(-1).content.split('```')[1]
                 messages.append(
-                    Message(role='user', content=f'We break your generation to import more relative information. '
-                                                 f'According to your imports, some extra contents manually given here:\n'
-                                                 f'\n{dep_content or "No extra dependencies needed"}\n'
-                                                 f'Here is the few start lines of your code: {content}\n\n'
-                                                 f'Now rewrite the full code of {code_file} based on the start lines:\n'))
+                    Message(
+                        role='user',
+                        content=
+                        f'We break your generation to import more relative information. '
+                        f'According to your imports, some extra contents manually given here:\n'
+                        f'\n{dep_content or "No extra dependencies needed"}\n'
+                        f'Here is the few start lines of your code: {content}\n\n'
+                        f'Now rewrite the full code of {code_file} based on the start lines:\n'
+                    ))
                 if not wrong_imports:
                     self.llm.args['stop'] = []
         elif (not has_tool_call) and coding_finish:
@@ -212,21 +225,33 @@ class Programmer(LLMAgent):
                     code = r['code']
                     path = os.path.join(self.output_dir, path)
                     if os.path.exists(path):
-                        saving_result += f'The target file exists, cannot override. here is the file abbreviation content: \n{self.generate_abbr_file(r["filename"])}\n'
+                        saving_result += (
+                            f'The target file exists, cannot override. here is the file abbreviation '
+                            f'content: \n{self.generate_abbr_file(r["filename"])}\n'
+                        )
                     else:
                         os.makedirs(os.path.dirname(path), exist_ok=True)
                         with open(path, 'w') as f:
                             f.write(code)
-                        saving_result += f'Save file <{r["filename"]}> successfully\n. here is the file abbreviation content: \n{self.generate_abbr_file(r["filename"])}\n'
+                        saving_result += (
+                            f'Save file <{r["filename"]}> successfully\n. here is the file abbreviation '
+                            f'content: \n{self.generate_abbr_file(r["filename"])}\n'
+                        )
                 messages[-1].content = remaining_text + 'Code content removed.'
                 messages.append(Message(role='user', content=saving_result))
             self.filter_code_files()
             if not self.code_files:
                 self.runtime.should_stop = True
 
-        if not has_tool_call and (deps_not_exist or (coding_finish and self.code_files)):
+        new_task = coding_finish and self.code_files
+        if not has_tool_call and (deps_not_exist or new_task):
             last_file = self.code_files[-1]
-            messages.append(Message(role='user', content=f'\nA code file in your imports not found, you should write it first: {last_file}\n'))
+            messages.append(
+                Message(
+                    role='user',
+                    content=
+                    f'\nA code file in your imports not found, you should write it first: {last_file}\n'
+                ))
             self.llm.args['stop'] = stop_words
 
     async def condense_memory(self, messages):
@@ -244,10 +269,13 @@ class Programmer(LLMAgent):
         all_written_files = []
         for idx, message in enumerate(messages):
             if message.role == 'assistant' and message.tool_calls:
-                if message.tool_calls[0]['tool_name'] == 'file_system---write_file':
+                if message.tool_calls[0][
+                        'tool_name'] == 'file_system---write_file':
                     arguments = message.tool_calls[0]['arguments']
                     arguments = json.loads(arguments)
-                    if not arguments.get('abbreviation', False) and not arguments['path'].startswith('abbr'):
+                    if not arguments.get(
+                            'abbreviation', False
+                    ) and not arguments['path'].startswith('abbr'):
                         all_written_files.append(arguments['content'])
 
         if all_written_files:
@@ -272,7 +300,7 @@ class Programmer(LLMAgent):
                 for chunk in chunks:
                     _messages = [Message(role='assistant', content=chunk)]
                     await super().add_memory(_messages, **kwargs)
-        
+
 
 @dataclasses.dataclass
 class FileRelation:
@@ -285,23 +313,29 @@ class FileRelation:
 
 class CodingAgent(CodeAgent):
 
-    async def write_code(self, topic, user_story, framework, protocol,
-                         name, description, fast_fail):
+    async def write_code(self, topic, user_story, framework, protocol, name,
+                         description, fast_fail):
         logger.info(f'Writing {name}')
         _config = deepcopy(self.config)
         messages = [
             Message(role='system', content=self.config.prompt.system),
-            Message(role='user', content=f'原始需求(topic.txt): {topic}\n'
-                                         f'LLM规划的用户故事(user_story.txt): {user_story}\n'
-                                         f'技术栈(framework.txt): {framework}\n'
-                                         f'通讯协议(protocol.txt): {protocol}\n'
-                                         f'你需要编写的文件: {name}\n文件描述: {description}\n'),
+            Message(
+                role='user',
+                content=f'原始需求(topic.txt): {topic}\n'
+                f'LLM规划的用户故事(user_story.txt): {user_story}\n'
+                f'技术栈(framework.txt): {framework}\n'
+                f'通讯协议(protocol.txt): {protocol}\n'
+                f'你需要编写的文件: {name}\n文件描述: {description}\n'),
         ]
 
         _config = deepcopy(self.config)
         _config.save_history = True
         _config.load_cache = False
-        programmer = Programmer(_config, tag=f'programmer-{name.replace(os.sep, "-")}', trust_remote_code=True, code_file=name)
+        programmer = Programmer(
+            _config,
+            tag=f'programmer-{name.replace(os.sep, "-")}',
+            trust_remote_code=True,
+            code_file=name)
         await programmer.run(messages)
 
     async def execute_code(self, inputs, **kwargs):
@@ -319,7 +353,7 @@ class CodingAgent(CodeAgent):
         self.refresh_file_status(file_relation)
 
         max_workers = 5
-        
+
         for files in file_orders:
             while True:
                 files = self.filter_done_files(files)
@@ -335,8 +369,14 @@ class CodingAgent(CodeAgent):
                     asyncio.set_event_loop(loop)
                     try:
                         return loop.run_until_complete(
-                            self.write_code(topic, user_story, framework, protocol, name, description, fast_fail=False)
-                        )
+                            self.write_code(
+                                topic,
+                                user_story,
+                                framework,
+                                protocol,
+                                name,
+                                description,
+                                fast_fail=False))
                     finally:
                         loop.close()
 
@@ -405,7 +445,8 @@ class CodingAgent(CodeAgent):
                 description = file['description']
                 file_path = os.path.join(self.output_dir, file_name)
                 if file_name not in file_relation:
-                    file_relation[file_name] = FileRelation(name=file_name, description=description)
+                    file_relation[file_name] = FileRelation(
+                        name=file_name, description=description)
                 file_relation[file_name].done = os.path.exists(file_path)
 
     def construct_file_information(self, file_relation, add_output_dir=False):

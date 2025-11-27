@@ -24,7 +24,8 @@ class GenerateSubtitle(CodeAgent):
         super().__init__(config, tag, trust_remote_code, **kwargs)
         self.work_dir = getattr(self.config, 'output_dir', 'output')
         self.llm: OpenAI = LLM.from_config(self.config)
-        self.subtitle_translate = getattr(self.config, 'subtitle_translate', None)
+        self.subtitle_translate = getattr(self.config, 'subtitle_translate',
+                                          None)
         self.subtitle_dir = os.path.join(self.work_dir, 'subtitles')
         os.makedirs(self.subtitle_dir, exist_ok=True)
         self.fonts = self.config.fonts
@@ -39,7 +40,8 @@ class GenerateSubtitle(CodeAgent):
             text = seg.get('content', '')
             subtitle = None
             if self.subtitle_translate:
-                subtitle = await self.translate_text(text, self.subtitle_translate)
+                subtitle = await self.translate_text(text,
+                                                     self.subtitle_translate)
             output_file = os.path.join(self.subtitle_dir,
                                        f'bilingual_subtitle_{i + 1}.png')
             if os.path.exists(output_file):

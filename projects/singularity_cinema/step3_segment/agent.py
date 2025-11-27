@@ -207,7 +207,7 @@ Now begin:"""  # noqa
             if self.config.background == 'image':
                 assert 'background' in segment or 'video' in segment
             else:
-                segment["background"] = self.config.background
+                segment['background'] = self.config.background
             logger.info(
                 f'\nScene {i}\n'
                 f'Content: {segment["content"]}\n'
@@ -220,9 +220,11 @@ Now begin:"""  # noqa
 
     async def add_images(self, segments, topic, script, **kwargs):
 
-        video_prompt = ('Note: No need to modify shots that contain a video field. These shots are text-to-video shots '
-                        'and do not require background, manim animations, or foreground images. '
-                        'Simply keep and return the index of these shots in the return value.')
+        video_prompt = (
+            'Note: No need to modify shots that contain a video field. These shots are text-to-video shots '
+            'and do not require background, manim animations, or foreground images. '
+            'Simply keep and return the index of these shots in the return value.'
+        )
         if not self.config.use_text2video:
             video_prompt = ''
 
@@ -236,7 +238,7 @@ Now begin:"""  # noqa
     * User-provided images may be insufficient. Trust text-to-image models to generate additional images for more visually compelling videos
         a. Output image generation requirements and the generated filenames(with .png format) in `foreground` field
         b. The shape of generated images are square
-    
+
     * Important: Use smaller image sizes for generated images and larger image sizes for user doc images. DO NOT crop image to circular**
 
 2. The manim field is used as guidance for subsequent manim animation generation. Read the manim field content, **recreate/refine the animation/manim**, and perfectly integrate/add the images into it
@@ -245,7 +247,7 @@ Now begin:"""  # noqa
     * One image can only use once(one segment and one position)
     * DO NOT put images to the corner, left or right is Ok
     * Images must be decorated with frames
-    
+
     Manim layouts:
     * Do not create multi-track complex manim animations. One object per segment, or two to three(NO MORE THAN three!) object arranged in a simple manner, manim layout rules:
         1. One object in the middle

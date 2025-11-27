@@ -1,7 +1,7 @@
 # Copyright (c) Alibaba, Inc. and its affiliates.
-import json
 import os
 
+import json
 from ms_agent.agent import LLMAgent
 from ms_agent.llm import Message
 from ms_agent.tools import SplitTask
@@ -69,7 +69,7 @@ First, there is a root directory folder for storing all files. All files describ
     * memory: memory/generate_video.json memory/generate_video.yaml
     * Input: segments.txt, video_prompts/segment_N.txt
     * Output: videos/video_N.txt, not every segment has video
-    
+
 12. Generate subtitles
     * memory: memory/generate_subtitle.json memory/generate_subtitle.yaml
     * Input: segments.txt
@@ -100,7 +100,7 @@ Notes:
 2. When re-executing a step, if the corresponding output file exists, execution will be skipped. For example, if segment_N.png for a certain segment has already been generated, only the generation operations for other segments without local files will be executed
 
 Requirements for you:
-1. After receiving the user's reported issue, you should read segments.txt and topic.txt to gain basic understanding of the task, understand the image/manim/video settings in each segment 
+1. After receiving the user's reported issue, you should read segments.txt and topic.txt to gain basic understanding of the task, understand the image/manim/video settings in each segment
 2. Analyze which segment numbers and which steps the user-described problem occurs in
     * [Very Important] After reading segments.txt, you need to read the corresponding files based on the approximate steps where the issue occurred, such as manim code (manim_code/segment_N.py), image prompts, etc., to ensure you have a 100% understanding of the user's feedback. You don't need to fix the code yourself. When providing feedback to previous steps, you should be as specific as possible to prevent ineffective fixes from occurring.
 3. If there's a Manim animation issue, you can construct code_fix/code_fix_N.txt, where N starts from 1

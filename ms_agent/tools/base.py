@@ -21,7 +21,9 @@ class ToolBase:
             self.exclude_functions = getattr(tool_config, 'exclude', [])
             self.include_functions = getattr(tool_config, 'include', [])
 
-        assert (not self.exclude_functions) or (not self.include_functions), 'Set either `include` or `exclude` in tools config.'
+        assert (not self.exclude_functions) or (
+            not self.include_functions
+        ), 'Set either `include` or `exclude` in tools config.'
 
     @abstractmethod
     async def connect(self) -> None:
@@ -65,7 +67,6 @@ class ToolBase:
                     available_tools.append(tool)
             output[server] = available_tools
         return output
-
 
     @abstractmethod
     async def _get_tools_inner(self) -> Dict[str, Any]:

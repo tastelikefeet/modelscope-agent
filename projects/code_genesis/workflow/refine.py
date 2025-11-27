@@ -1,10 +1,10 @@
-import json
 import os
 from typing import List, OrderedDict
 
+import json
+from coding import CodingAgent
 from ms_agent import LLMAgent
 from ms_agent.llm import Message
-from coding import CodingAgent
 from ms_agent.utils import get_logger
 
 logger = get_logger()
@@ -13,7 +13,7 @@ logger = get_logger()
 class RefineAgent(LLMAgent):
 
     system = """你是一个帮助总结、压缩模型执行历史的机器人。你会被给与模型的历史messages，你需要总结给你的多轮消息，并压缩它们。压缩比例需要达到1:6（30000token压缩到5000token）
-    
+
 你的工作场景是代码编写完成后的修复场景。大模型会不断调用shell等工具，并尝试解决一个大的代码项目中出现的问题。你的工作流程：
 
 1. 你会被给与项目原始需求，技术栈以及文件列表，你需要仔细阅读它们
@@ -27,7 +27,8 @@ class RefineAgent(LLMAgent):
 """
 
     async def compress_memory(self, messages):
-        if len(str(messages)) > 32000 and messages[-1].role in ('user', 'tool'):
+        if len(str(messages)) > 32000 and messages[-1].role in ('user',
+                                                                'tool'):
             keep_messages = messages[:2]
             keep_messages_tail = []
             i = 0
@@ -36,7 +37,10 @@ class RefineAgent(LLMAgent):
                 if message.role == 'assistant':
                     break
             keep_messages_tail = reversed(keep_messages_tail)
-            compress_messages = json.dumps([message.to_dict_clean() for message in messages[2:-i-1]], ensure_ascii=False, indent=2)
+            compress_messages = json.dumps(
+                [message.to_dict_clean() for message in messages[2:-i - 1]],
+                ensure_ascii=False,
+                indent=2)
             with open(os.path.join(self.output_dir, 'topic.txt')) as f:
                 topic = f.read()
             with open(os.path.join(self.output_dir, 'framework.txt')) as f:
@@ -55,13 +59,20 @@ class RefineAgent(LLMAgent):
             ]
             _response_message = self.llm.generate(_messages)
             content = _response_message.content
-            keep_messages.append(Message(role='user', content=f'Intermediate messages are compressed, here is the compressed message:\n{content}\n'))
-            messages = keep_messages + list(keep_messages_tail) + [Message(role='user', content='历史消息已经压缩，现在根据历史消息和最后的tool调用继续解决问题：')]
+            keep_messages.append(
+                Message(
+                    role='user',
+                    content=
+                    f'Intermediate messages are compressed, here is the compressed message:\n{content}\n'
+                ))
+            messages = keep_messages + list(keep_messages_tail) + [
+                Message(
+                    role='user', content='历史消息已经压缩，现在根据历史消息和最后的tool调用继续解决问题：')
+            ]
             logger.info(f'Compressed messages length: {len(str(messages))}')
             return messages
         else:
             return messages
-
 
     async def condense_memory(self, messages):
         return await self.compress_memory(messages)
@@ -83,13 +94,15 @@ class RefineAgent(LLMAgent):
         CodingAgent.construct_file_information(self, file_relation, True)
         messages = [
             Message(role='system', content=self.config.prompt.system),
-            Message(role='user', content=f'原始需求(topic.txt): {topic}\n'
-                                         f'LLM规划的用户故事(user_story.txt): {user_story}\n'
-                                         f'技术栈(framework.txt): {framework}\n'
-                                         f'通讯协议(protocol.txt): {protocol}\n'
-                                         f'文件列表:{file_info}\n'
-                                         f'你的shell工具的work_dir（项目输出文件）是{self.output_dir}\n'
-                                         f'请针对项目进行refine:'),
+            Message(
+                role='user',
+                content=f'原始需求(topic.txt): {topic}\n'
+                f'LLM规划的用户故事(user_story.txt): {user_story}\n'
+                f'技术栈(framework.txt): {framework}\n'
+                f'通讯协议(protocol.txt): {protocol}\n'
+                f'文件列表:{file_info}\n'
+                f'你的shell工具的work_dir（项目输出文件）是{self.output_dir}\n'
+                f'请针对项目进行refine:'),
         ]
         return await super().run(messages, **kwargs)
 
