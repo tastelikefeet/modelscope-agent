@@ -6,7 +6,8 @@ from collections import OrderedDict
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from copy import deepcopy
 from typing import Set
-
+import re
+from typing import List, Optional, Tuple
 from omegaconf import DictConfig
 
 from ms_agent import LLMAgent
@@ -17,9 +18,6 @@ from ms_agent.utils.constants import DEFAULT_TAG
 from utils import stop_words, parse_imports
 
 logger = get_logger()
-
-import re
-from typing import List, Optional, Tuple
 
 
 def extract_code_blocks(text: str,
@@ -68,11 +66,12 @@ class Programmer(LLMAgent):
                  code_file: str = None,
                  **kwargs):
         super().__init__(config, tag, trust_remote_code, **kwargs)
-        self.code_files = [code_file]
-        self.find_all_files()
+
 
     async def on_task_begin(self, messages: List[Message]):
         self.llm.args['stop'] = stop_words
+        self.code_files = [code_file]
+        self.find_all_files()
 
     def generate_abbr_file(self, file):
         abbr_dir = os.path.join(self.output_dir, 'abbr')
@@ -82,22 +81,22 @@ class Programmer(LLMAgent):
             with open(abbr_file, 'r') as f:
                 return f.read()
 
-        system = """你是一个帮我简化代码并返回缩略的机器人。你缩略的文件会给与另一个LLM用来编写代码，因此你缩略的代码文件需要具有充足的其他文件依赖的信息。
+        system = """你是一个帮我简化代码并返回缩略的机器人。你缩略的文件会给与另一个LLM用来编写代码，因此你生成的缩略文件需要具有充足的供其他文件依赖的信息。
 
 需要保留的信息：
-1. 类名、方法名、方法参数类型，返回值类型
-2. imports依赖
-3. exports导出及导出类型
-4. 不要缩略任何类或数据结构的名称、字段，如果一个文件包含很多数据结构定义，全部保留
-5. 如果是css样式代码，保留每个样式名称
-6. 如果是json，保留结构即可
-7. 仅返回缩略信息，不要返回其他无关信息
+1. 代码框架：类名、方法名、方法参数类型，返回值类型
+2. 导入信息：imports依赖
+3. 输出信息：exports导出及导出类型
+4. 结构体信息：不要缩略任何类或数据结构的名称、字段，如果一个文件包含很多数据结构定义，全部保留
+5. 样式信息：如果是css样式代码，保留每个样式名称
+6. json格式：如果是json，保留结构即可
+7. 仅返回满足要求的缩略信息，不要返回其他无关信息
 
 你的优化目标：
 1. 【优先】保留充足的信息供其它代码使用
 2. 【其次】保留尽量少的token数量
 """
-        query = f'代码：{file}'
+        query = f'原始代码：{file}'
         messages = [
             Message(role='system', content=system),
             Message(role='user', content=query),
@@ -319,8 +318,7 @@ class CodingAgent(CodeAgent):
         file_relation = OrderedDict()
         self.refresh_file_status(file_relation)
 
-        # Use ThreadPoolExecutor for IO-intensive LLM API calls
-        max_workers = 10  # Optimal for IO-intensive tasks
+        max_workers = 5
         
         for files in file_orders:
             while True:
@@ -358,40 +356,6 @@ class CodingAgent(CodeAgent):
 
         self.construct_file_information(file_relation)
         return inputs
-
-    @staticmethod
-    def get_next_file(file_relation):
-
-        def get_parent(parent, loops):
-            for _dep in file_relation[parent].deps:
-                if file_relation[_dep].done:
-                    continue
-                if _dep in loops:
-                    return loops[-1], False
-                loops.append(_dep)
-                return get_parent(_dep, loops)
-
-            return parent, True
-
-        for file in file_relation.values():
-            file: FileRelation
-            if file.done:
-                continue
-
-            loops = [file.name]
-            return get_parent(file.name, loops)
-        return None, True
-
-    def get_missing_files(self):
-        if os.path.exists(os.path.join(self.output_dir, 'missing.txt')):
-            with open(os.path.join(self.output_dir, 'missing.txt')) as f:
-                missing_files = f.readlines()
-                missing_files = [file.strip() for file in missing_files if file.strip()]
-            os.remove(os.path.join(self.output_dir, 'missing.txt'))
-            assert not os.path.exists(os.path.join(self.output_dir, 'missing.txt'))
-            return missing_files
-        else:
-            return []
 
     def construct_file_orders(self):
         with open(os.path.join(self.output_dir, 'file_order.txt')) as f:
