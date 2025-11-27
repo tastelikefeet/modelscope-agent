@@ -485,6 +485,7 @@ class FileSystemTool(ToolBase):
     async def search_file_name(self,
                                file: str = None,
                                parent_path: str = None):
+        parent_path = parent_path or ''
         target_path_real = self.get_real_path(parent_path)
         if target_path_real is None:
             return f'<{parent_path}> is out of the valid project path: {self.output_dir}'
