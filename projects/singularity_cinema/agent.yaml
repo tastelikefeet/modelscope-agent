@@ -120,7 +120,7 @@ bg_audio_volume: 0.3
 background: image
 
 # image/blank value
-foreground:
+foreground: image
 
 voice: male
 

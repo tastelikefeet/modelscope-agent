@@ -237,7 +237,7 @@ Now begin:"""  # noqa
         a. Output image generation requirements and the generated filenames(with .png format) in `foreground` field
         b. The shape of generated images are square
     
-    * Important: Use smaller image sizes for generated images and larger image sizes for user doc images. DO NOT use circular frame to user doc images**
+    * Important: Use smaller image sizes for generated images and larger image sizes for user doc images. DO NOT crop image to circular**
 
 2. The manim field is used as guidance for subsequent manim animation generation. Read the manim field content, **recreate/refine the animation/manim**, and perfectly integrate/add the images into it
     * No more than 2 images in a segment, 0 image in one segment is allowed

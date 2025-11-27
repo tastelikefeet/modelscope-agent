@@ -121,9 +121,9 @@ class GenerateManimCode(CodeAgent):
     * You can more freely consider the integration of images to achieve a better presentation
     * Image sizes should be **medium OR small** to prevent them from occupying the entire screen or most of the screen, **huge image is strictly forbidden**
     * Ensure aspect ratios of non-square images remain correct
-    * When using circular frames around images in Manim, you MUST CROP the image to a circle using PIL before loading it. A square image inside a circular frame looks unprofessional. Create a helper function that uses PIL's ImageDraw to create a circular mask, applies it to the image, saves it temporarily, then loads it with ImageMobject - simply creating a Circle object does NOT crop the image.
+    * DO NOT crop image to circular
     * Images must be decorated with frames
-    * IMPORTANT: **Use smaller image sizes for generated images and larger image sizes for user doc images. DO NOT use circular frame to user doc images**
+    * IMPORTANT: **Use smaller image sizes for generated images and larger image sizes for user doc images. DO NOT crop image to circular**
 - IMPORTANT: If images files are not empty, **you must use them all at the appropriate time and position in your animation**. Here is the image files list:
 
 {images_info}
