@@ -2,6 +2,7 @@
 
 [ ] 更有效的refine P0
     [ ] 支持chrome-dev-tools
+    [ ] 防止shell执行超时
 [ ] 支持读取sketch和图片界面草图 P0
 
 # 优化
