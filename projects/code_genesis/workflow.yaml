@@ -31,7 +31,7 @@ file_order:
     - coding
 
 coding:
-  agent_config: coding2.yaml
+  agent_config: coding.yaml
   agent:
     kwargs:
       code_file: workflow/coding.py
@@ -42,4 +42,4 @@ refine:
   agent:
     kwargs:
       code_file: workflow/refine.py
-  agent_config: refine2.yaml
+  agent_config: refine.yaml

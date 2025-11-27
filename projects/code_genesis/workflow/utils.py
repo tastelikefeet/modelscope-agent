@@ -54,6 +54,7 @@ Key Features:
 
 import os
 import re
+from functools import partial
 from typing import List, Dict, Optional, Set
 from dataclasses import dataclass, field
 
@@ -110,7 +111,7 @@ stop_words = [
 ]
 
 
-def parse_imports_detailed(current_file: str, code_content: str) -> List[ImportInfo]:
+def parse_imports_detailed(current_file: str, code_content: str, output_dir: str) -> List[ImportInfo]:
     """Parse imports and return detailed information about what's imported from each file"""
     imports = []
     current_dir = os.path.dirname(current_file) if current_file else '.'
@@ -129,13 +130,13 @@ def parse_imports_detailed(current_file: str, code_content: str) -> List[ImportI
         # JavaScript/TypeScript: import ... from '...'
         # Match: import { A, B } from 'path' or import A from 'path' or import * as A from 'path'
         (r"import\s+(type\s+)?(?:(\{[^}]*\}|\*\s+as\s+\w+|\w+)\s*,?\s*)*from\s+['\"]([^'\"]+)['\"]",
-         ['js', 'ts', 'jsx', 'tsx', 'mjs', 'cjs'], _extract_js_import, re.MULTILINE | re.DOTALL),
+         ['js', 'ts', 'jsx', 'tsx', 'mjs', 'cjs'], partial(_extract_js_import, output_dir=output_dir), re.MULTILINE | re.DOTALL),
         # Match: import 'path' (side-effect)
         (r"^\s*import\s+['\"]([^'\"]+)['\"]", ['js', 'ts', 'jsx', 'tsx', 'mjs', 'cjs'],
-         _extract_js_side_effect, re.MULTILINE),
+         partial(_extract_js_side_effect, output_dir=output_dir), re.MULTILINE),
         # Match: export ... from 'path'
         (r"export\s+(type\s+)?(?:(\{[^}]*\}|\*(?:\s+as\s+\w+)?)\s+)?from\s+['\"]([^'\"]+)['\"]",
-         ['js', 'ts', 'jsx', 'tsx', 'mjs', 'cjs'], _extract_js_export, re.MULTILINE | re.DOTALL),
+         ['js', 'ts', 'jsx', 'tsx', 'mjs', 'cjs'], partial(_extract_js_export, output_dir=output_dir), re.MULTILINE | re.DOTALL),
 
         # C/C++: #include
         (r'^\s*#include\s+"([^"]+)"', ['c', 'cpp', 'cc', 'cxx', 'h', 'hpp'],
@@ -170,16 +171,16 @@ def parse_imports_detailed(current_file: str, code_content: str) -> List[ImportI
     return imports
 
 
-def parse_imports(current_file: str, code_content: str) -> List[ImportInfo]:
+def parse_imports(current_file: str, code_content: str, output_dir: str) -> List[ImportInfo]:
     """Parse imports and return list of file paths (for backward compatibility)"""
-    return parse_imports_detailed(current_file, code_content)
+    return parse_imports_detailed(current_file, code_content, output_dir)
 
 
 # ============================================================================
 # Detailed Import Extractors (return ImportInfo objects)
 # ============================================================================
 
-def _extract_js_import(match, current_dir, current_file, code_content):
+def _extract_js_import(match, current_dir, current_file, code_content, output_dir):
     """Extract JavaScript/TypeScript import details"""
     full_match = match.group(0)
     is_type_only = match.group(1) is not None  # 'type' keyword
@@ -190,7 +191,7 @@ def _extract_js_import(match, current_dir, current_file, code_content):
         return None
     
     # Resolve file path
-    source_file = _resolve_js_path(import_path, current_dir)
+    source_file = _resolve_js_path(import_path, current_dir, output_dir)
     
     # Extract imported items
     imported_items = []
@@ -234,14 +235,14 @@ def _extract_js_import(match, current_dir, current_file, code_content):
     )
 
 
-def _extract_js_side_effect(match, current_dir, current_file, code_content):
+def _extract_js_side_effect(match, current_dir, current_file, code_content, output_dir):
     """Extract side-effect import: import './file'"""
     import_path = match.group(1)
     
     if not import_path.startswith('.') and not import_path.startswith('/'):
         return None
     
-    source_file = _resolve_js_path(import_path, current_dir)
+    source_file = _resolve_js_path(import_path, current_dir, output_dir)
     
     return ImportInfo(
         source_file=source_file,
@@ -251,7 +252,7 @@ def _extract_js_side_effect(match, current_dir, current_file, code_content):
     )
 
 
-def _extract_js_export(match, current_dir, current_file, code_content):
+def _extract_js_export(match, current_dir, current_file, code_content, output_dir):
     """Extract re-export: export { A } from './file'"""
     is_type_only = match.group(1) is not None
     export_clause = match.group(2)
@@ -260,7 +261,7 @@ def _extract_js_export(match, current_dir, current_file, code_content):
     if not import_path.startswith('.') and not import_path.startswith('/'):
         return None
     
-    source_file = _resolve_js_path(import_path, current_dir)
+    source_file = _resolve_js_path(import_path, current_dir, output_dir)
     
     imported_items = []
     import_type = 'named'
@@ -291,7 +292,7 @@ def _extract_js_export(match, current_dir, current_file, code_content):
     )
 
 
-def _resolve_js_path(import_path, current_dir):
+def _resolve_js_path(import_path, current_dir, output_dir):
     """Resolve JavaScript/TypeScript import path to file"""
     if import_path.startswith('/'):
         resolved = import_path.lstrip('/')
@@ -313,7 +314,12 @@ def _resolve_js_path(import_path, current_dir):
             return index_path
 
     if '.' not in resolved[1:]:
-        return resolved + '.ts'
+        exts = ['.ts', '.tsx', '.js', '.jsx']
+        for ext in exts:
+            file = os.path.join(output_dir, resolved + ext)
+            if os.path.exists(file):
+                return resolved + ext
+        return resolved
     else:
         return resolved
 
@@ -522,7 +528,7 @@ import type { Dataset } from '../models/Dataset';
 import './styles.css';
 export { Button } from './components/Button';
 '''
-    result = parse_imports_detailed('backend/scripts/initData.ts', ts_code)
+    result = parse_imports_detailed('backend/scripts/initData.ts', ts_code, 'output')
     print(f"Current file: backend/scripts/initData.ts")
     print(f"\nDetected {len(result)} imports:")
     for imp in result:
@@ -536,7 +542,7 @@ export { Button } from './components/Button';
     # Test backward compatibility
     print("\n" + "=" * 80)
     print("[Test 2] Backward Compatibility Test")
-    simple_result = parse_imports('backend/scripts/initData.ts', ts_code)
+    simple_result = parse_imports('backend/scripts/initData.ts', ts_code, 'output')
     print(f"parse_imports() returns list of file paths:")
     for path in simple_result:
         print(f"  - {path}")

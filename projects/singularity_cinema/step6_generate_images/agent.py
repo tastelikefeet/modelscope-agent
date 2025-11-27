@@ -215,7 +215,7 @@ class GenerateImages(CodeAgent):
                 poll_interval = min(poll_interval * 1.5, max_poll_interval)
 
     @staticmethod
-    def fade(input_image, output_image, segment, fade_factor=0.5, brightness_boost=60, opacity=0.7):
+    def fade(input_image, output_image, segment, fade_factor=0.3, brightness_boost=80, opacity=1.0):
         manim = segment.get('manim')
         img = Image.open(input_image).convert('RGBA')
         if manim:

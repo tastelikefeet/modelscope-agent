@@ -38,7 +38,7 @@ def extract_code_blocks(text: str,
             0: The extracted code blocks.
             1: The left content of the input text.
     """
-    pattern = r'```[a-zA-Z]*:([^\n\r`]+)\n(.*?)```'
+    pattern = r'```[a-zA-Z]*:([^\n\r`]+)\n(.*?)```\n'
     matches = re.findall(pattern, text, re.DOTALL)
     result = []
 
@@ -48,7 +48,7 @@ def extract_code_blocks(text: str,
             result.append({'filename': filename, 'code': code.strip()})
 
     if target_filename is not None:
-        remove_pattern = rf'```[a-zA-Z]*:{re.escape(target_filename)}\n.*?```'
+        remove_pattern = rf'```[a-zA-Z]*:{re.escape(target_filename)}\n.*?```\n'
     else:
         remove_pattern = pattern
 
@@ -145,7 +145,7 @@ class Programmer(LLMAgent):
 
     async def after_tool_call(self, messages: List[Message]):
         deps_not_exist = False
-        coding_finish = '```' in messages[-1].content and self.llm.args['stop'] == ['```\n']
+        coding_finish = '```' in messages[-1].content and self.llm.args['stop'] == []
         import_finish = '```' in messages[-1].content and self.llm.args['stop'] == stop_words
         if coding_finish:
             messages[-1].content += '\n```\n'
@@ -154,7 +154,7 @@ class Programmer(LLMAgent):
             contents = messages[-1].content.split('\n')
             content = [c for c in contents if '```' in c and ':' in c][0]
             code_file = content.split('```')[1].split(':')[1].split('\n')[0].strip()
-            all_files = parse_imports(code_file, messages[-1].content) or []
+            all_files = parse_imports(code_file, messages[-1].content, self.output_dir) or []
             all_read_files = self.find_all_read_files(messages)
             deps = []
             definitions = []
@@ -203,7 +203,7 @@ class Programmer(LLMAgent):
                                                  f'Here is the few start lines of your code: {content}\n\n'
                                                  f'Now rewrite the full code of {code_file} based on the start lines:\n'))
                 if not wrong_imports:
-                    self.llm.args['stop'] = ['```\n']
+                    self.llm.args['stop'] = []
         elif (not has_tool_call) and coding_finish:
             result, remaining_text = extract_code_blocks(messages[-1].content)
             if result:

@@ -4,48 +4,56 @@ llm:
   openai_api_key:
   openai_base_url: https://dashscope.aliyuncs.com/compatible-mode/v1
 
-
 generation_config:
   temperature: 0.2
   top_k: 20
   max_tokens: 64000
+  stream: true
   extra_body:
     dashscope_extend_params:
-      provider: b
+      provider: d
 
 
 prompt:
   system: |
-    You are a senior software developer, you duty is to write the specified code file in a complex project. Follow instructions:
-
-    1. Before writing the file, list the imports of all code files under your responsibility and read the implementations first, to compatible with other code files.
-
+    你是一个优秀的软件编程工程师。你的职责是根据原始需求和模块划分进行具体模块的编写。你的工作流程如下：
+    
+    1. 用户原始需求和用户故事已经放入上下文，你无需再读取。这些知识包括：
+      * topic.txt：原始需求
+      * user_story.txt：用户故事
+      * protocol.txt：通讯协议
+      * framework.txt：技术选型
+    2. 读取`file_order.txt`确认文件列表和编写分组情况。和你一组的文件会和你并行编写。你只能依赖index小于你的文件，不要依赖你的siblings和index晚于你的文件
+    3. 你会被给与一些可能用得到的代码的内容或缩略内容
+    4. 读取你需要的依赖文件
+    5. 编写代码
+      * 如果你需要编写的组件或功能在文件列表中不存在，你应当在你负责的文件中冗余编写，而不要指定引用一个不存在的其他文件
+      * 始终使用绝对导入或明确的相对导入规则，并始终使用类型提示
+      * 任何你用到的数据结构都需要在文件顶引用来源对应文件
+      * 你的import/#include不要截止到文件夹，而应该指定到具体文件来源
+      * 引用文件时带有扩展名，不要省略扩展名
+      * 注意命名导出或默认导出方式
+    6. Output your code with this format:
+    
+    ```type: filename
+    text
     ```
-    The A file depends on the B and C file, and D on the css format, I should read them:
+    
+    for example:
+    ```javascript: frontend/index.js
+    your code here
     ```
+    
+    The `frontend/index.js` will be used to saving. Therefore, you must generate it strictly in this format.
 
-    If any dependencies do not exist, create them.
-
-    2. Read the target code file itself to prevent a break change to the existing files.
-
-    You may read several files in step1 and step2, this is good to understand the project,
-    you may read other files if necessary, like config files or package files to enhance your understanding.
-
-    4. Do not let your code silent crash, make the logs shown in the running terminal, later the compiling process can feedback these issues to you.
-
-    5. Do not leave the images blank, you don't have any local assets(neither images nor logos), use image links from unsplash
-        * Do not generate icos or pngs, always import from unsplash
+    7. 如果你发现依赖的任一底层代码文件不存在，你应当创建这个代码文件和对应的缩略文件
+    8. 在编写文件完成后，为节省token不要做任何总结文字
 
 tools:
-  split_task:
-    mcp: false
-    tag_prefix: programmer-
-
   file_system:
     mcp: false
-    exclude:
-      - create_directory
-      - list_files
+    include:
+      - read_file
 
 memory:
   - user_id: "code_scratch"
@@ -55,9 +63,9 @@ memory:
       memory_type: "procedural_memory"
     search:
       - user_id: "code_scratch"
-        search_limit: 10
+        search_limit: 5
       - user_id: "subagent"
-        search_limit: 3
+        search_limit: 0
     embedder:
       service: dashscope
       model: text-embedding-v4
@@ -114,7 +122,7 @@ memory:
       Following is a conversation between the user and the assistant. You have to extract the relevant technical facts and development details about the project, if any, from the conversation and return them in the json format as shown above.
       You should detect the language of the user input and record the facts in the same language.
 
-max_chat_round: 100
+max_chat_round: 20
 
 tool_call_timeout: 30000
 
