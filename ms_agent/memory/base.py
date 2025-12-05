@@ -5,12 +5,16 @@ from typing import List
 from ms_agent.llm.utils import Message
 from omegaconf import DictConfig
 
+from ms_agent.utils.constants import DEFAULT_OUTPUT_DIR
+
 
 class Memory(ABC):
     """The memory refine tool"""
 
     def __init__(self, config):
         self.config = config
+        self.output_dir = getattr(self.config, 'output_dir',
+                                  DEFAULT_OUTPUT_DIR)
         self.base_config = None
 
     @abstractmethod

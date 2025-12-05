@@ -1,98 +1,25 @@
 import asyncio
 import dataclasses
+import json
 import os
 import re
 import shutil
-import time
 from collections import OrderedDict
 from concurrent.futures import ThreadPoolExecutor, as_completed
-from contextlib import contextmanager
 from copy import deepcopy
-from typing import List, Optional, Set, Tuple
+from typing import List, Set
 
-import json
+from omegaconf import DictConfig
+
 from ms_agent import LLMAgent
 from ms_agent.agent import CodeAgent
 from ms_agent.llm import Message
 from ms_agent.utils import get_logger
 from ms_agent.utils.constants import DEFAULT_TAG
-from omegaconf import DictConfig
+from ms_agent.utils.utils import extract_code_blocks, file_lock
 from utils import parse_imports, stop_words
 
 logger = get_logger()
-
-
-@contextmanager
-def file_lock(lock_dir: str, filename: str, timeout: float = 15.0):
-    os.makedirs(lock_dir, exist_ok=True)
-    lock_file_name = filename.replace(os.sep, '_') + '.lock'
-    lock_file_path = os.path.join(lock_dir, lock_file_name)
-
-    # Acquire lock with timeout
-    start_time = time.time()
-    lock_fd = None
-
-    while True:
-        try:
-            lock_fd = os.open(lock_file_path,
-                              os.O_CREAT | os.O_EXCL | os.O_WRONLY)
-            os.write(lock_fd, f'{os.getpid()}'.encode())
-            break
-        except FileExistsError:
-            if time.time() - start_time >= timeout:
-                raise TimeoutError(
-                    f'Failed to acquire lock for {filename} after {timeout} seconds'
-                )
-            time.sleep(0.1)  # Wait 100ms before retry
-
-    try:
-        yield
-    finally:
-        # Release lock
-        if lock_fd is not None:
-            os.close(lock_fd)
-        try:
-            os.remove(lock_file_path)
-        except OSError:
-            pass
-
-
-def extract_code_blocks(text: str,
-                        target_filename: Optional[str] = None
-                        ) -> Tuple[List, str]:
-    """Extract code blocks from the given text.
-
-    <result>py:a.py
-    </result>
-
-    Args:
-        text: The text to extract code blocks from.
-        target_filename: The filename target to extract.
-
-    Returns:
-        Tuple:
-            0: The extracted code blocks.
-            1: The left content of the input text.
-    """
-    pattern = r'<result>[a-zA-Z]*:([^\n\r`]+)\n(.*?)</result>'
-    matches = re.findall(pattern, text, re.DOTALL)
-    result = []
-
-    for filename, code in matches:
-        filename = filename.strip()
-        if target_filename is None or filename == target_filename:
-            result.append({'filename': filename, 'code': code.strip()})
-
-    if target_filename is not None:
-        remove_pattern = rf'<result>[a-zA-Z]*:{re.escape(target_filename)}\n.*?</result>'
-    else:
-        remove_pattern = pattern
-
-    remaining_text = re.sub(remove_pattern, '', text, flags=re.DOTALL)
-    remaining_text = re.sub(r'\n\s*\n\s*\n', '\n\n', remaining_text)
-    remaining_text = remaining_text.strip()
-
-    return result, remaining_text
 
 
 class Programmer(LLMAgent):
@@ -112,80 +39,6 @@ class Programmer(LLMAgent):
         self.llm.args['extra_body']['stop_sequences'] = stop_words
         self.code_files = [self.code_file]
         self.find_all_files()
-
-    def generate_abbr_file(self, file):
-        lock_dir = os.path.join(self.output_dir, 'locks')
-        abbr_dir = os.path.join(self.output_dir, 'abbr')
-        os.makedirs(abbr_dir, exist_ok=True)
-        abbr_file = os.path.join(abbr_dir, file)
-        with file_lock(lock_dir, os.path.join('abbr', file)):
-            if os.path.exists(abbr_file):
-                with open(abbr_file, 'r') as f:
-                    return f.read()
-
-            system = """你是一个帮我简化代码并返回缩略的机器人。你缩略的文件会给与另一个LLM用来编写代码，因此你生成的缩略文件需要具有充足的供其他文件依赖的信息。
-
-需要保留的信息：
-1. 代码框架：类名、方法名、方法参数类型，返回值类型
-    * 如果无法找到参数和返回值类型，则分析函数实现，给出该参数或输出结构需要/具有哪些字段
-2. 导入信息：imports依赖
-3. 输出信息：exports导出及导出类型，注意不要忽略`default`这类关键字，注意命名导出或默认导出方式
-4. 结构体信息：不要缩略任何类或数据结构的名称、字段，如果一个文件包含很多数据结构定义，全部保留
-5. 样式信息：如果是css样式代码，保留每个样式名称
-6. json格式：如果是json，保留结构即可
-7. 仅返回满足要求的缩略信息，不要返回其他无关信息
-
-* 例子：
-    ```xx.ts原始文件
-    import {...} from ...
-    async function func(a: Record<string, any>): Promise<any> {
-        const b = a['some-key'];
-        return b;
-    }
-    export default func;
-    ```
-
-    缩略：
-    ```xx.ts缩略文件
-    ... imports here ...
-    async func(a: Record<string, any>) -> Promise<any>
-        Args: a(Record): keys: some-key, ...
-
-    export default func;
-    ```
-
-你的优化目标：
-1. 【优先】保留充足的信息供其它代码使用
-2. 【其次】保留尽量少的token数量
-"""
-            # Read the actual file content
-            source_file_path = os.path.join(self.output_dir, file)
-            if not os.path.exists(source_file_path):
-                return ''
-
-            with open(source_file_path, 'r') as f:
-                file_content = f.read()
-
-            query = f'原始代码文件 {file}:\n{file_content}'
-            messages = [
-                Message(role='system', content=system),
-                Message(role='user', content=query),
-            ]
-            stop = self.llm.args['extra_body']['stop_sequences']
-            self.llm.args['extra_body'].pop('stop_sequences')
-            try:
-                response_message = self.llm.generate(messages, stream=False)
-                content = response_message.content.split('\n')
-                if '```' in content[0]:
-                    content = content[1:]
-                if '```' in content[-1]:
-                    content = content[:-1]
-                os.makedirs(os.path.dirname(abbr_file), exist_ok=True)
-                with open(abbr_file, 'w') as f:
-                    f.write('\n'.join(content))
-                return '\n'.join(content)
-            finally:
-                self.llm.args['extra_body']['stop_sequences'] = stop
 
     def filter_code_files(self):
         code_files = []
@@ -351,50 +204,9 @@ class Programmer(LLMAgent):
 
     async def condense_memory(self, messages):
         return messages
-        if not getattr(self, '_memory_fetched', False):
-            for memory_tool in self.memory_tools:
-                messages = await memory_tool.run(messages)
-            self._memory_fetched = True
-        return messages
 
     async def add_memory(self, messages, **kwargs):
         return
-        if not self.runtime.should_stop:
-            return
-        all_written_files = []
-        for idx, message in enumerate(messages):
-            if message.role == 'assistant' and message.tool_calls:
-                if message.tool_calls[0][
-                        'tool_name'] == 'file_system---write_file':
-                    arguments = message.tool_calls[0]['arguments']
-                    arguments = json.loads(arguments)
-                    if not arguments.get(
-                            'abbreviation', False
-                    ) and not arguments['path'].startswith('abbr'):
-                        all_written_files.append(arguments['content'])
-
-        if all_written_files:
-            for file_content in all_written_files:
-                file_len = len(file_content)
-                chunk_size = 2048
-                overlap = 256
-                chunks = []
-
-                if file_len <= chunk_size:
-                    chunks.append(file_content)
-                else:
-                    start = 0
-                    while start < file_len:
-                        end = min(start + chunk_size, file_len)
-                        chunks.append(file_content[start:end])
-                        if end >= file_len:
-                            break
-                        start += (chunk_size - overlap)
-
-                # Add each chunk to memory
-                for chunk in chunks:
-                    _messages = [Message(role='assistant', content=chunk)]
-                    await super().add_memory(_messages, **kwargs)
 
 
 @dataclasses.dataclass
