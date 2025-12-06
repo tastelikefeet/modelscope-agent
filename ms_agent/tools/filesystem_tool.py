@@ -407,7 +407,7 @@ class FileSystemTool(ToolBase):
         Args:
             paths(`list[str]`): List of relative file path(s) to read, a prefix dir will be automatically concatenated.
             start_line(int): Start line number (1-based, inclusive). Only effective when paths has exactly one element.
-                0 means from beginning.
+                0 means from the beginning.
             end_line(int): End line number (1-based, inclusive). Only effective when paths has exactly one element.
                 None means to the end.
 
@@ -549,35 +549,31 @@ class FileSystemTool(ToolBase):
         # Function to search in a single file
         def search_in_file(file_path):
             matches = []
-            try:
-                with open(
-                        file_path, 'r', encoding='utf-8',
-                        errors='ignore') as f:
-                    lines = f.readlines()
-                    for line_num, line in enumerate(lines, start=1):
-                        if content in line:
-                            # Calculate context range
-                            start_line = max(0, line_num - context_lines - 1)
-                            end_line = min(
-                                len(lines), line_num + context_lines)
+            with open(
+                    file_path, 'r', encoding='utf-8') as f:
+                lines = f.readlines()
+                for line_num, line in enumerate(lines, start=1):
+                    if content in line:
+                        # Calculate context range
+                        start_line = max(0, line_num - context_lines - 1)
+                        end_line = min(
+                            len(lines), line_num + context_lines)
 
-                            # Extract context lines
-                            context = []
-                            for i in range(start_line, end_line):
-                                prefix = '> ' if i == line_num - 1 else '  '
-                                context.append(
-                                    f'{prefix}{i + 1:4d} | {lines[i].rstrip()}'
-                                )
+                        # Extract context lines
+                        context = []
+                        for i in range(start_line, end_line):
+                            prefix = '> ' if i == line_num - 1 else '  '
+                            context.append(
+                                f'{prefix}{i + 1:4d} | {lines[i].rstrip()}'
+                            )
 
-                            relative_path = os.path.relpath(
-                                file_path, self.output_dir)
-                            matches.append({
-                                'file': relative_path,
-                                'line': line_num,
-                                'context': '\n'.join(context)
-                            })
-            except Exception as e:
-                logger.debug(f'Error reading file {file_path}: {e}')
+                        relative_path = os.path.relpath(
+                            file_path, self.output_dir)
+                        matches.append({
+                            'file': relative_path,
+                            'line': line_num,
+                            'context': '\n'.join(context)
+                        })
             return matches
 
         # Use thread pool to search files in parallel
@@ -588,12 +584,8 @@ class FileSystemTool(ToolBase):
                 for f in files_to_search
             }
             for future in as_completed(future_to_file):
-                try:
-                    matches = future.result()
-                    all_matches.extend(matches)
-                except Exception as e:
-                    file_path = future_to_file[future]
-                    logger.debug(f'Error processing {file_path}: {e}')
+                matches = future.result()
+                all_matches.extend(matches)
 
         if not all_matches:
             return f'No matches found for <{content}> in files matching <{file_pattern}>'

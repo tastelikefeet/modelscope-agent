@@ -4,6 +4,7 @@ from typing import List
 
 from ms_agent.llm import Message, LLM
 from ms_agent.memory import Memory
+from ms_agent.utils.constants import DEFAULT_INDEX_DIR, DEFAULT_LOCK_DIR, DEFAULT_OUTPUT_WRAPPER
 from ms_agent.utils.utils import file_lock, extract_code_blocks
 from ms_agent.utils import get_logger
 
@@ -95,10 +96,10 @@ class CodeCondenser(Memory):
         mem_config = self.config.memory.code_condenser
         if getattr(mem_config, 'system', None):
             self.system = mem_config.system
-        index_dir = getattr(mem_config, 'index_cache_dir', '.index_cache_dir')
+        index_dir = getattr(mem_config, 'index_cache_dir', DEFAULT_INDEX_DIR)
         self.index_dir = os.path.join(self.output_dir, index_dir)
-        self.lock_dir = os.path.join(self.output_dir, '.locks')
-        self.code_wrapper = getattr(mem_config, 'code_wrapper', ['<result>', '</result>'])
+        self.lock_dir = os.path.join(self.output_dir, DEFAULT_LOCK_DIR)
+        self.code_wrapper = getattr(mem_config, 'code_wrapper', DEFAULT_OUTPUT_WRAPPER)
 
     def condense_code(self, message: Message):
         if message.role == 'assistant':

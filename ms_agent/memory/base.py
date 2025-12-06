@@ -28,11 +28,3 @@ class Memory(ABC):
             The output messages
         """
         pass
-
-    def set_base_config(self, config: DictConfig):
-        """Set the config containing all information
-
-        Args:
-            config(`DictConfig`): The config containing all information
-        """
-        self.base_config = config
