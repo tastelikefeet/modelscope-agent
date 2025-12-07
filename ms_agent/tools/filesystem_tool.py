@@ -6,19 +6,18 @@ from concurrent.futures import ThreadPoolExecutor, as_completed
 from typing import Optional
 
 import json
-from ms_agent.llm.utils import Tool
+
+from ms_agent.llm import LLM
+from ms_agent.llm.utils import Tool, Message
 from ms_agent.tools.base import ToolBase
 from ms_agent.utils import get_logger
-from ms_agent.utils.constants import DEFAULT_OUTPUT_DIR
+from ms_agent.utils.constants import DEFAULT_OUTPUT_DIR, DEFAULT_INDEX_DIR
 
 logger = get_logger()
 
 
 class FileSystemTool(ToolBase):
-    """A file system operation tool
-
-    TODO: This tool now is a simple implementation, sandbox or mcp TBD.
-    """
+    """A file system operation tool"""
 
     # Directories to exclude from file operations
     EXCLUDED_DIRS = {
@@ -26,6 +25,20 @@ class FileSystemTool(ToolBase):
     }
     # File prefixes to exclude
     EXCLUDED_FILE_PREFIXES = ('.', '..')
+
+    SYSTEM_FOR_ABBREVIATIONS = """你是一个帮我简化文件信息并返回缩略的机器人，你需要根据输入文件内容来生成压缩过的文件内容。
+
+要求：
+1. 如果是代码文件，你需要保留imports、exports、类信息、方法信息、异步或同步等可用于其他文件引用或理解的必要信息
+2. 如果是配置文件，你需要保留所有的key
+3. 如果是文档，你需要总结所有章节，并给出一个精简的版本
+
+你的返回内容会直接存储下来，因此你需要省略其他非必要符号，例如"```"或者"让我来帮忙..."都不需要。
+
+你的优化目标：
+1. 【优先】保留充足的信息，尽量不损失原意
+2. 【其次】保留尽量少的token数量
+"""
 
     def __init__(self, config, **kwargs):
         super(FileSystemTool, self).__init__(config)
@@ -37,6 +50,14 @@ class FileSystemTool(ToolBase):
             False)
         if not self.trust_remote_code:
             self.allow_read_all_files = False
+        super().__init__(config)
+        if hasattr(self.config, 'llm'):
+            self.llm: LLM = LLM.from_config(self.config)
+        index_dir = getattr(config, 'index_cache_dir', DEFAULT_INDEX_DIR)
+        self.index_dir = os.path.join(self.output_dir, index_dir)
+        self.system = self.SYSTEM_FOR_ABBREVIATIONS
+        if hasattr(self.config.tools.file_system, 'system_for_abbreviations'):
+            self.system = self.config.tools.file_system.system_for_abbreviations
 
     async def connect(self):
         logger.warning_once(
@@ -80,6 +101,27 @@ class FileSystemTool(ToolBase):
                             },
                         },
                         'required': ['path', 'content'],
+                        'additionalProperties': False
+                    }),
+                Tool(
+                    tool_name='read_abbreviation_file',
+                    server_name='file_system',
+                    description=
+                    'Read the abbreviation content of file(s). If the information is not enough, read the original file by `read_file`',
+                    parameters={
+                        'type': 'object',
+                        'properties': {
+                            'paths': {
+                                'type':
+                                    'array',
+                                'items': {
+                                    'type': 'string'
+                                },
+                                'description':
+                                    'List of relative file path(s) to read',
+                            },
+                        },
+                        'required': ['paths'],
                         'additionalProperties': False
                     }),
                 Tool(
@@ -397,6 +439,52 @@ class FileSystemTool(ToolBase):
             return None
         else:
             return target_path_real
+
+    async def read_abbreviation_file(self, paths: list[str]):
+        results = {}
+
+        def process_file(path):
+            try:
+                target_path_real = self.get_real_path(path)
+                if target_path_real is None:
+                    return path, f'Access denied: Reading file <{path}> outside output directory is not allowed.'
+
+                index_file = os.path.join(self.index_dir, path.strip(os.sep))
+                if os.path.exists(index_file):
+                    with open(index_file, 'r', encoding='utf-8') as f:
+                        return path, f.read()
+
+                # Read file content
+                with open(target_path_real, 'r', encoding='utf-8') as f:
+                    content = f.read()
+
+                # Use LLM to generate abbreviation
+                messages = [
+                    Message(role='system', content=self.system),
+                    Message(role='user', content='The content to be abbreviated:\n\n' + content),
+                ]
+                response = self.llm.generate(messages=messages)
+                os.makedirs(os.path.dirname(index_file), exist_ok=True)
+                with open(index_file, 'w', encoding='utf-8') as f:
+                    f.write(response.content)
+                return path, response.content
+            except FileNotFoundError:
+                return path, f'Read file <{path}> failed: FileNotFound'
+            except Exception as e:
+                return path, f'Process file <{path}> failed, error: ' + str(e)
+
+        # Use thread pool for parallel LLM API calls
+        with ThreadPoolExecutor(max_workers=4) as executor:
+            future_to_path = {
+                executor.submit(process_file, p): p
+                for p in paths
+            }
+            for future in as_completed(future_to_path):
+                path, result = future.result()
+                results[path] = result
+
+        return json.dumps(results, indent=2, ensure_ascii=False)
+
 
     async def read_file(self,
                         paths: list[str],

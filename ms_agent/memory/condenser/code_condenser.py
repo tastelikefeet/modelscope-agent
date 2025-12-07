@@ -96,7 +96,7 @@ class CodeCondenser(Memory):
         mem_config = self.config.memory.code_condenser
         if getattr(mem_config, 'system', None):
             self.system = mem_config.system
-        index_dir = getattr(mem_config, 'index_cache_dir', DEFAULT_INDEX_DIR)
+        index_dir = getattr(config, 'index_cache_dir', DEFAULT_INDEX_DIR)
         self.index_dir = os.path.join(self.output_dir, index_dir)
         self.lock_dir = os.path.join(self.output_dir, DEFAULT_LOCK_DIR)
         self.code_wrapper = getattr(mem_config, 'code_wrapper', DEFAULT_OUTPUT_WRAPPER)

@@ -52,6 +52,7 @@ tools:
     mcp: false
     include:
       - read_file
+      - read_abbreviation_file
       - write_file
 
 tool_call_timeout: 30

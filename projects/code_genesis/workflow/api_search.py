@@ -13,8 +13,7 @@ class ApiSearch(ToolBase):
 
     def __init__(self, config):
         super().__init__(config)
-        mem_config = self.config.memory.code_condenser
-        index_dir = getattr(mem_config, 'index_cache_dir', DEFAULT_INDEX_DIR)
+        index_dir = getattr(config, 'index_cache_dir', DEFAULT_INDEX_DIR)
         self.index_dir = os.path.join(self.output_dir, index_dir)
 
     async def connect(self) -> None:

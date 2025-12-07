@@ -25,17 +25,20 @@ prompt:
     5. 将你的用户故事存储进user_story.txt，精确、简洁表述，不超过1000个字
     6. 不要编写任何代码，代码工作会后续由专门的LLM进行
 
-max_chat_round: 1
+max_chat_round: 20
 
 tools:
   file_system:
     mcp: false
+    allow_read_all_files: true
     include:
       - read_file
+      - read_abbreviation_file
       - write_file
+      - list_files
 
 memory:
-  - name: diversity
+  diversity:
 
 tool_call_timeout: 30
 
