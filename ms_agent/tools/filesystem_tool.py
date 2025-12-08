@@ -41,7 +41,7 @@ class FileSystemTool(ToolBase):
 """
 
     def __init__(self, config, **kwargs):
-        super(FileSystemTool, self).__init__(config)
+        super().__init__(config)
         self.exclude_func(getattr(config.tools, 'file_system', None))
         self.output_dir = getattr(config, 'output_dir', DEFAULT_OUTPUT_DIR)
         self.trust_remote_code = kwargs.get('trust_remote_code', False)
@@ -50,7 +50,6 @@ class FileSystemTool(ToolBase):
             False)
         if not self.trust_remote_code:
             self.allow_read_all_files = False
-        super().__init__(config)
         if hasattr(self.config, 'llm'):
             self.llm: LLM = LLM.from_config(self.config)
         index_dir = getattr(config, 'index_cache_dir', DEFAULT_INDEX_DIR)

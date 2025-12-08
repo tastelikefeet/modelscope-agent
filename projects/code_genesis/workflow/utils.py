@@ -131,11 +131,13 @@ def parse_imports_detailed(current_file: str, code_content: str,
     # Import patterns for different languages with detailed extraction
     # Pattern structure: (regex_pattern, file_extensions, resolver_function, regex_flags)
     patterns = [
-        # Python: from ... import ...
-        (r'^\s*from\s+([\w.]+)\s+import\s+([^\n]+)', ['py'],
-         _extract_python_import, re.MULTILINE),
+        # Python: from ... import ... (including multi-line with parentheses)
+        (r'^\s*from\s+([\w.]+)\s+import\s+(?:\(([^)]+)\)|([^\n]+))', ['py'],
+         partial(_extract_python_import, output_dir=output_dir),
+         re.MULTILINE | re.DOTALL),
         # Python: import ...
-        (r'^\s*import\s+([\w.,\s]+)', ['py'], _extract_python_import_simple,
+        (r'^\s*import\s+([\w.,\s]+)', ['py'],
+         partial(_extract_python_import_simple, output_dir=output_dir),
          re.MULTILINE),
 
         # JavaScript/TypeScript/Vue: import ... from '...'
@@ -514,25 +516,41 @@ def _resolve_js_path_from_absolute(resolved_path, output_dir):
     return resolved_path
 
 
-def _extract_python_import(match, current_dir, current_file, code_content):
+def _extract_python_import(match, current_dir, current_file, code_content, output_dir):
     """Extract Python 'from ... import ...' statement"""
     module_path = match.group(1)
-    imports_str = match.group(2).strip()
+    # Group 2 is parenthesized multi-line imports, group 3 is single-line imports
+    imports_str = (match.group(2) or match.group(3)).strip()
+    
+    # Remove inline comments from the import string
+    # Handle both single-line and multi-line formats
+    lines = imports_str.split('\n')
+    cleaned_items = []
+    for line in lines:
+        # Remove comments from each line
+        if '#' in line:
+            line = line[:line.index('#')]
+        cleaned_items.append(line.strip())
+    
+    # Rejoin and parse
+    imports_str = ','.join(cleaned_items)
 
     # Parse imported items
     imported_items = []
     for item in imports_str.split(','):
         item = item.strip()
+        if not item:  # Skip empty items
+            continue
         if ' as ' in item:
             imported_items.append(item.split(' as ')[0].strip())
-        elif item and item != '*':
+        elif item != '*':
             imported_items.append(item)
         elif item == '*':
             imported_items = ['*']
             break
 
     # Resolve file path
-    file_path = _resolve_python_path(module_path, current_dir)
+    file_path = _resolve_python_path(module_path, current_dir, output_dir)
     if not file_path:
         return None
 
@@ -544,7 +562,7 @@ def _extract_python_import(match, current_dir, current_file, code_content):
 
 
 def _extract_python_import_simple(match, current_dir, current_file,
-                                  code_content):
+                                  code_content, output_dir):
     """Extract Python 'import ...' statement"""
     imports_str = match.group(1)
     results = []
@@ -560,7 +578,7 @@ def _extract_python_import_simple(match, current_dir, current_file,
             module = module.strip()
             alias = alias.strip()
 
-        file_path = _resolve_python_path(module, current_dir)
+        file_path = _resolve_python_path(module, current_dir, output_dir)
         if file_path:
             results.append(
                 ImportInfo(
@@ -573,10 +591,19 @@ def _extract_python_import_simple(match, current_dir, current_file,
     return results if results else None
 
 
-def _resolve_python_path(module_path, current_dir):
-    """Resolve Python module to file path"""
+def _resolve_python_path(module_path, current_dir, output_dir=None):
+    """Resolve Python module to file path
+    
+    Tries to resolve the module path in the following order:
+    1. Relative to current_dir (for relative imports)
+    2. Absolute from output_dir (for absolute imports like 'models.database')
+    
+    Returns:
+        Relative path from output_dir if found, or None if not found
+    """
     module_file_path = module_path.replace('.', os.sep)
 
+    # First, try as relative import from current_dir
     # Try as package
     package_init = os.path.normpath(
         os.path.join(current_dir, module_file_path, '__init__.py'))
@@ -588,6 +615,22 @@ def _resolve_python_path(module_path, current_dir):
         os.path.join(current_dir, module_file_path + '.py'))
     if os.path.exists(module_file):
         return module_file
+    
+    # If not found and output_dir is provided, try as absolute import from project root
+    if output_dir:
+        # Try as package from output_dir
+        package_init_abs = os.path.normpath(
+            os.path.join(output_dir, module_file_path, '__init__.py'))
+        if os.path.exists(package_init_abs):
+            # Return path relative to output_dir
+            return os.path.join(module_file_path, '__init__.py')
+        
+        # Try as module from output_dir
+        module_file_abs = os.path.normpath(
+            os.path.join(output_dir, module_file_path + '.py'))
+        if os.path.exists(module_file_abs):
+            # Return path relative to output_dir
+            return module_file_path + '.py'
 
     return None
 
