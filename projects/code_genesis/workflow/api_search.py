@@ -1,6 +1,6 @@
 import json
 import os
-from asyncio import as_completed
+from concurrent.futures import as_completed
 from concurrent.futures import ThreadPoolExecutor
 from typing import Dict, Any, List
 
@@ -21,7 +21,7 @@ class ApiSearch(ToolBase):
 
     async def _get_tools_inner(self) -> Dict[str, Any]:
         tools = {
-            'shell': [
+            'api_search': [
                 Tool(
                     tool_name='url_search',
                     server_name='api_search',

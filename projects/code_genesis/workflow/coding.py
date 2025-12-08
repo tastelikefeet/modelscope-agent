@@ -71,8 +71,11 @@ class Programmer(LLMAgent):
                     if 'read_file' in tool_call['tool_name']:
                         arguments = tool_call['arguments']
                         if isinstance(arguments, str):
-                            arguments = json.loads(arguments)
-                        files.extend(arguments['paths'])
+                            try:
+                                arguments = json.loads(arguments)
+                                files.extend(arguments['paths'])
+                            except json.decoder.JSONDecodeError:
+                                pass
         return set(files)
 
     def read_index_file(self, path):
@@ -89,6 +92,8 @@ class Programmer(LLMAgent):
             code_file = ''
         is_config = code_file.endswith('.json') or code_file.endswith(
             '.yaml') or code_file.endswith('.md')
+        if 'abbr' in code_file:
+            print()
         coding_finish = '<result>' in messages[
             -1].content and '</result>' in messages[-1].content
         import_finish = '<result>' in messages[-1].content and self.llm.args[
@@ -111,10 +116,12 @@ class Programmer(LLMAgent):
                     ))
             else:
                 contents = messages[-1].content.split('\n')
+                comments = ['*', "#", '-', '%', '/']
+                contents = [c for c in contents if not any(c.strip().startswith(cm) for cm in comments)]
                 content = [c for c in contents if '<result>' in c and ':' in c][0]
                 code_file = content.split('<result>')[1].split(':')[1].split(
                     '\n')[0].strip()
-                all_files = parse_imports(code_file, messages[-1].content,
+                all_files = parse_imports(code_file, '\n'.join(contents),
                                           self.output_dir) or []
                 all_read_files = self.find_all_read_files(messages)
                 deps = []
@@ -122,6 +129,9 @@ class Programmer(LLMAgent):
                 folders = []
                 wrong_imports = []
                 for file in all_files:
+                    if file.source_file == code_file:
+                        wrong_imports.append(f'You should not import the file itself: {code_file}')
+                        continue
                     filename = os.path.join(self.output_dir, file.source_file)
                     if not os.path.exists(filename):
                         if file.source_file in self.all_code_files:

@@ -70,7 +70,7 @@ class CodeCondenser(Memory):
             {
                 "type": "http",
                 "url": "...", # http url信息
-                "params": "...", # http输入参数需求，包含param结构和header需求
+                "params": "...", # http输入参数需求，包含param结构和header需求，如果是类结构，给出结构引用信息（例如UserRequest in api/user.xx）
                 "responses": "..." # http输出结构和错误定义情况
             }
         ],
@@ -133,7 +133,6 @@ class CodeCondenser(Memory):
     def generate_index_file(self, file: str, content: str = None):
         os.makedirs(self.index_dir, exist_ok=True)
         index_file = os.path.join(self.index_dir, file)
-        protocol_file = os.path.join(self.index_dir, file + '.protocol')
         with file_lock(self.lock_dir, os.path.join('index', file)):
             if os.path.exists(index_file):
                 with open(index_file, 'r') as f:
@@ -165,11 +164,7 @@ class CodeCondenser(Memory):
                     os.makedirs(os.path.dirname(index_file), exist_ok=True)
                     with open(index_file, 'w') as f:
                         f.write(content)
-                    info = json.loads(content)
-                    if 'protocols' in info and info['protocols']:
-                        protocols = info['protocols']
-                        with open(protocol_file, 'w') as f:
-                            json.dump(protocols, f, ensure_ascii=False, indent=2)
+                    json.loads(content)
                     break
                 except Exception as e:
                     logger.info(f'Code index file generate failed because of {e}')
