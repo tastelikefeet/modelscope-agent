@@ -116,17 +116,19 @@ class CodeCondenser(Memory):
                         tool_call['arguments'] = json.dumps(arguments, ensure_ascii=False)
             elif self.code_wrapper[0] in message.content and self.code_wrapper[1] in message.content:
                 result, remaining_text = extract_code_blocks(message.content, file_wrapper=self.code_wrapper)
-                final_content = remaining_text + 'Your generated code was replaced by a index version:\n'
-                for code_block in result:
-                    code_file = code_block['filename']
-                    content = code_block['code']
-                    index_content = self.generate_index_file(code_file, content)
-                    final_content += index_content + '\n'
-                message.content = final_content
+                if result:
+                    final_content = remaining_text + 'Your generated code was replaced by a index version:\n'
+                    for code_block in result:
+                        code_file = code_block['filename']
+                        content = code_block['code']
+                        index_content = self.generate_index_file(code_file, content)
+                        final_content += index_content + '\n'
+                    message.content = final_content
 
     async def run(self, messages: List[Message]):
         for message in messages:
             self.condense_code(message)
+        return messages
 
     def generate_index_file(self, file: str, content: str = None):
         os.makedirs(self.index_dir, exist_ok=True)
@@ -160,18 +162,17 @@ class CodeCondenser(Memory):
                     if '```' in content[-1]:
                         content = content[:-1]
                     content = '\n'.join(content)
+                    os.makedirs(os.path.dirname(index_file), exist_ok=True)
+                    with open(index_file, 'w') as f:
+                        f.write(content)
                     info = json.loads(content)
-                    if 'protocols' in info:
+                    if 'protocols' in info and info['protocols']:
                         protocols = info['protocols']
                         with open(protocol_file, 'w') as f:
-                            json.dump(protocols, f, ensure_ascii=False)
-                    with open(index_file, 'w') as f:
-                        json.dump(info, f, ensure_ascii=False)
+                            json.dump(protocols, f, ensure_ascii=False, indent=2)
+                    break
                 except Exception as e:
                     logger.info(f'Code index file generate failed because of {e}')
-            os.makedirs(os.path.dirname(index_file), exist_ok=True)
-            with open(index_file, 'w') as f:
-                f.write()
-            return '\n'.join(content)
+            return content
 
 

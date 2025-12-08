@@ -14,8 +14,9 @@ from omegaconf import DictConfig
 from ms_agent import LLMAgent
 from ms_agent.agent import CodeAgent
 from ms_agent.llm import Message
+from ms_agent.memory.condenser.code_condenser import CodeCondenser
 from ms_agent.utils import get_logger
-from ms_agent.utils.constants import DEFAULT_TAG
+from ms_agent.utils.constants import DEFAULT_TAG, DEFAULT_INDEX_DIR, DEFAULT_LOCK_DIR
 from ms_agent.utils.utils import extract_code_blocks, file_lock
 from utils import parse_imports, stop_words
 
@@ -32,6 +33,15 @@ class Programmer(LLMAgent):
                  **kwargs):
         super().__init__(config, tag, trust_remote_code, **kwargs)
         self.code_file = code_file
+        index_dir = getattr(config, 'index_cache_dir', DEFAULT_INDEX_DIR)
+        self.index_dir = os.path.join(self.output_dir, index_dir)
+        self.code_condenser = CodeCondenser(config)
+
+    async def condense_memory(self, messages):
+        return messages
+
+    async def add_memory(self, messages, **kwargs):
+        return
 
     async def on_task_begin(self, messages: List[Message]):
         if 'extra_body' not in self.llm.args:
@@ -65,6 +75,10 @@ class Programmer(LLMAgent):
                         files.extend(arguments['paths'])
         return set(files)
 
+    def read_index_file(self, path):
+        with open(os.path.join(self.index_dir, path), 'r') as f:
+            return f.read()
+
     async def after_tool_call(self, messages: List[Message]):
         deps_not_exist = False
         pattern = r'<result>[a-zA-Z]*:([^\n\r`]+)\n(.*?)'
@@ -84,84 +98,97 @@ class Programmer(LLMAgent):
         has_tool_call = len(messages[-1].tool_calls
                             or []) > 0 or messages[-1].role != 'assistant'
         if (not has_tool_call) and import_finish:
-            contents = messages[-1].content.split('\n')
-            content = [c for c in contents if '<result>' in c and ':' in c][0]
-            code_file = content.split('<result>')[1].split(':')[1].split(
-                '\n')[0].strip()
-            all_files = parse_imports(code_file, messages[-1].content,
-                                      self.output_dir) or []
-            all_read_files = self.find_all_read_files(messages)
-            deps = []
-            definitions = []
-            folders = []
-            wrong_imports = []
-            for file in all_files:
-                filename = os.path.join(self.output_dir, file.source_file)
-                if not os.path.exists(filename):
-                    if file.source_file in self.all_code_files:
-                        deps_not_exist = True
-                        self.code_files.append(file.source_file)
-                    else:
-                        wrong_imports.append(file.source_file)
-                elif os.path.isfile(filename):
-                    if file.source_file not in all_read_files:
-                        deps.append(file.source_file)
-                        definitions.extend(file.imported_items)
-                else:
-                    folders.append(
-                        f'You are importing {file.imported_items} from {file.source_file} folder'
-                    )
-
-            if not deps_not_exist:
-                dep_content = ''
-                for dep in deps:
-                    content = self.generate_abbr_file(dep)
-                    need_detail = False
-                    for definition in definitions:
-                        if definition not in content:
-                            need_detail = True
-                            break
-                    if need_detail:
-                        detail_file = os.path.join(self.output_dir, dep)
-                        with open(detail_file, 'r') as f:
-                            content = f.read()
-                    dep_content += f'File content {dep}:\n{content}\n\n'
-                if folders:
-                    folders = '\n'.join(folders)
-                    dep_content += (
-                        f'Some definitions come from folders:\n{folders}\nYou need to check the definition '
-                        f'file with `read_file` tool if they are not in your context.\n'
-                    )
-                if wrong_imports:
-                    wrong_imports = '\n'.join(wrong_imports)
-                    dep_content += (
-                        f'Some import files are not in the project plans: {wrong_imports}, '
-                        f'check the error now.\n')
-                content = messages.pop(-1).content.split('<result>')[1]
+            if os.path.isfile(os.path.join(self.output_dir, code_file)):
+                index_content = self.read_index_file(code_file)
                 messages.append(
                     Message(
                         role='user',
                         content=
                         f'We break your generation to import more relative information. '
-                        f'According to your imports, some extra contents manually given here:\n'
-                        f'\n{dep_content or "No extra dependencies needed"}\n'
-                        f'Here is the a few start lines of your code: {content}\n\n'
-                        f'Now review your imports in it, correct any error according to the dependencies, '
-                        f'if any data structure undefined/not found, you can go on reading any code files you need, '
-                        f'then rewrite the full code of {code_file} based on the start lines:\n'
+                        f'The file: {code_file} you are generating has existed already, here is the abbreviate content:\n'
+                        f'{index_content}\n'
+                        f'Read the content and generating other code files.'
                     ))
-                if not wrong_imports:
-                    self.llm.args['extra_body']['stop_sequences'] = []
+            else:
+                contents = messages[-1].content.split('\n')
+                content = [c for c in contents if '<result>' in c and ':' in c][0]
+                code_file = content.split('<result>')[1].split(':')[1].split(
+                    '\n')[0].strip()
+                all_files = parse_imports(code_file, messages[-1].content,
+                                          self.output_dir) or []
+                all_read_files = self.find_all_read_files(messages)
+                deps = []
+                definitions = []
+                folders = []
+                wrong_imports = []
+                for file in all_files:
+                    filename = os.path.join(self.output_dir, file.source_file)
+                    if not os.path.exists(filename):
+                        if file.source_file in self.all_code_files:
+                            deps_not_exist = True
+                            self.code_files.append(file.source_file)
+                        else:
+                            wrong_imports.append(file.source_file)
+                    elif os.path.isfile(filename):
+                        if file.source_file not in all_read_files:
+                            deps.append(file.source_file)
+                            definitions.extend(file.imported_items)
+                    else:
+                        folders.append(
+                            f'You are importing {file.imported_items} from {file.source_file} folder'
+                        )
+
+                if not deps_not_exist:
+                    dep_content = ''
+                    for dep in deps:
+                        content = self.read_index_file(dep)
+                        need_detail = False
+                        for definition in definitions:
+                            if definition not in content:
+                                need_detail = True
+                                break
+                        if need_detail:
+                            detail_file = os.path.join(self.output_dir, dep)
+                            with open(detail_file, 'r') as f:
+                                content = f.read()
+                        dep_content += f'File content {dep}:\n{content}\n\n'
+                    if folders:
+                        folders = '\n'.join(folders)
+                        dep_content += (
+                            f'Some definitions come from folders:\n{folders}\nYou need to check the definition '
+                            f'file with `read_file` tool if they are not in your context.\n'
+                        )
+                    if wrong_imports:
+                        wrong_imports = '\n'.join(wrong_imports)
+                        dep_content += (
+                            f'Some import files are not in the project plans: {wrong_imports}, '
+                            f'check the error now.\n')
+                    content = messages.pop(-1).content.split('<result>')[1]
+                    messages.append(
+                        Message(
+                            role='user',
+                            content=
+                            f'We break your generation to import more relative information. '
+                            f'According to your imports, some extra contents manually given here:\n'
+                            f'\n{dep_content or "No extra dependencies needed"}\n'
+                            f'Here is the a few start lines of your code: {content}\n\n'
+                            f'Now review your imports in it, correct any error according to the dependencies, '
+                            f'if any data structure undefined/not found, you can go on reading any code files you need, '
+                            f'then rewrite the full code of {code_file} based on the start lines:\n'
+                        ))
+                    if not wrong_imports:
+                        self.llm.args['extra_body']['stop_sequences'] = []
         elif (not has_tool_call) and coding_finish:
             result, remaining_text = extract_code_blocks(messages[-1].content)
             if result:
+                _response = remaining_text
                 saving_result = ''
                 for r in result:
                     path = r['filename']
                     code = r['code']
                     path = os.path.join(self.output_dir, path)
 
-                    lock_dir = os.path.join(self.output_dir, 'locks')
+                    lock_dir = os.path.join(self.output_dir, DEFAULT_LOCK_DIR)
 
                     # Check and write file with lock
                     with file_lock(lock_dir, r['filename']):
@@ -170,21 +197,13 @@ class Programmer(LLMAgent):
                             os.makedirs(os.path.dirname(path), exist_ok=True)
                             with open(path, 'w') as f:
                                 f.write(code)
+                        else:
+                            with open(path, 'r') as f:
+                                code = f.read()
+                            _response += f'\n```{path.split(".")[-1]}: {r["filename"]}\n{code}\n```\n'
 
-                    # Generate abbreviation outside the lock to avoid nested locking
-                    abbr_content = self.generate_abbr_file(r['filename'])
+                    saving_result += f'Save file <{r["filename"]}> successfully\n'
 
-                    if file_exists:
-                        saving_result += (
-                            f'The target file exists, cannot override. here is the file abbreviation '
-                            f'content: \n{abbr_content}\n')
-                    else:
-                        saving_result += (
-                            f'Save file <{r["filename"]}> successfully\n. here is the file abbreviation '
-                            f'content: \n{abbr_content}\n')
-                messages[-1].content = remaining_text + (
-                    'Code generated here. Content removed to condense messages, '
-                    'check save result for details.')
                 messages.append(Message(role='user', content=saving_result))
                 self.llm.args['extra_body']['stop_sequences'] = stop_words
             self.filter_code_files()
@@ -202,11 +221,7 @@ class Programmer(LLMAgent):
                 ))
             self.llm.args['extra_body']['stop_sequences'] = stop_words
 
-    async def condense_memory(self, messages):
-        return messages
-
-    async def add_memory(self, messages, **kwargs):
-        return
+        await self.code_condenser.run(messages)
 
 
 @dataclasses.dataclass

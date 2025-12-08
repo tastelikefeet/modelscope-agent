@@ -26,7 +26,8 @@ prompt:
     1. 根据以上信息设计所有模块的文件列表
     2. 考虑横向的包设计（文件夹），不同模块的同一个水平层级放在一个包里，例如`services`
       * 输出在file_design.txt中，json格式
-      * 注意包含README，包含项目介绍、安装和启动方式
+      * 包含README，包含项目介绍、安装、和启动方式
+      * 注意不要遗漏项目主体文件或每个代码包的index(例如__init__.py)文件
       * 你的所有文件都应该分配进modules.txt的模块中，你输出的file_design.txt的模块应与modules.txt模块一一对应
 
       例子：

@@ -21,7 +21,7 @@ prompt:
     1. 用户原始需求和用户故事已经放入上下文，你无需再读取。这些知识包括：
       * topic.txt：原始需求
       * user_story.txt：用户故事
-      * protocol.txt：通讯协议
+      * protocol.txt：**通讯协议和重要框架接入方法**
       * framework.txt：技术选型
     2. 读取`file_order.txt`确认文件列表和编写分组情况。和你一组的文件会和你并行编写。你只能依赖index小于你的文件，不要依赖你的siblings和index晚于你的文件
     3. 你会被给与一些可能用得到的代码的内容或缩略内容
