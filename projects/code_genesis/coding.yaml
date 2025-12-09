@@ -55,7 +55,7 @@ tools:
     include:
       - read_file
       - read_abbreviation_file
-      - replace_file_lines
+      - replace_file_contents
       - list_files
   plugins:
     - workflow/api_search

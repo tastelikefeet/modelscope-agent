@@ -292,6 +292,40 @@ class FileSystemTool(ToolBase):
                         'required': ['path', 'content', 'start_line'],
                         'additionalProperties': False
                     }),
+                Tool(
+                    tool_name='replace_file_contents',
+                    server_name='file_system',
+                    description=
+                    'Replace exact content in a file without using line numbers. '
+                    'This is safer for parallel operations as line numbers may change when '
+                    'multiple agents modify files concurrently. The old_content must match exactly '
+                    'including all whitespace.',
+                    parameters={
+                        'type': 'object',
+                        'properties': {
+                            'path': {
+                                'type': 'string',
+                                'description': 'The relative path of the file to modify',
+                            },
+                            'old_content': {
+                                'type': 'string',
+                                'description':
+                                'The exact content to find and replace (must match exactly including whitespace)',
+                            },
+                            'new_content': {
+                                'type': 'string',
+                                'description': 'The new content to replace with',
+                            },
+                            'occurrence': {
+                                'type': 'integer',
+                                'description':
+                                'Which occurrence to replace (1-based). Use -1 to replace all occurrences. '
+                                'Default is -1 (all occurrences).',
+                            },
+                        },
+                        'required': ['path', 'old_content', 'new_content'],
+                        'additionalProperties': False
+                    }),
             ]
         }
         return tools
@@ -345,6 +379,72 @@ class FileSystemTool(ToolBase):
             return f'Save file <{path}> successfully.'
         except Exception as e:
             return f'Write file <{path}> failed, error: ' + str(e)
+
+    async def replace_file_contents(self,
+                                    path: str,
+                                    old_content: str,
+                                    new_content: str,
+                                    occurrence: int = -1):
+        """Replace exact content in a file without using line numbers.
+        
+        This method is safer for parallel operations as it doesn't rely on line numbers
+        that might change when multiple agents modify the same file concurrently.
+        
+        Args:
+            path(str): The relative file path to modify
+            old_content(str): The exact content to find and replace (must match exactly including whitespace)
+            new_content(str): The new content to replace with
+            occurrence(int): Which occurrence to replace (1-based). Use -1 to replace all occurrences.
+                           Default is -1 (all occurrences).
+        
+        Returns:
+            Success or error message.
+        """
+        try:
+            target_path_real = self.get_real_path(path)
+            if target_path_real is None:
+                return f'<{path}> is out of the valid project path: {self.output_dir}'
+            
+            # Read file content
+            if not os.path.exists(target_path_real):
+                return f'Error: File <{path}> does not exist'
+            
+            with open(target_path_real, 'r', encoding='utf-8') as f:
+                file_content = f.read()
+            
+            # Check if old_content exists
+            if old_content not in file_content:
+                return f'Error: Could not find the exact content to replace in <{path}>. Make sure the content matches exactly including all whitespace.'
+            
+            # Count occurrences
+            count = file_content.count(old_content)
+            
+            # Replace based on occurrence parameter
+            if occurrence == -1:
+                # Replace all occurrences
+                updated_content = file_content.replace(old_content, new_content)
+                operation_msg = f'Replaced all {count} occurrence(s)'
+            elif occurrence < 1:
+                return f'Error: occurrence must be >= 1 or -1 (for all), got {occurrence}'
+            elif occurrence > count:
+                return f'Error: occurrence {occurrence} exceeds total occurrences ({count}) of the content'
+            else:
+                # Replace specific occurrence
+                parts = file_content.split(old_content, occurrence)
+                if len(parts) <= occurrence:
+                    return f'Error: Could not find occurrence {occurrence} of the content'
+                # Rejoin: first (occurrence-1) parts with old_content, then new_content, then the rest
+                updated_content = old_content.join(parts[:occurrence]) + new_content + old_content.join(parts[occurrence:])
+                operation_msg = f'Replaced occurrence {occurrence} of {count}'
+            
+            # Write back to file
+            with open(target_path_real, 'w', encoding='utf-8') as f:
+                f.write(updated_content)
+            
+            return f'{operation_msg} in file <{path}> successfully.'
+            
+        except Exception as e:
+            return f'Replace content in file <{path}> failed, error: ' + str(e)
 
     async def replace_file_lines(self,
                                  path: str,
@@ -406,7 +506,8 @@ class FileSystemTool(ToolBase):
 
                 # Convert to 0-based indices
                 start_idx = start_line - 1
-                end_idx = min(end_line, total_lines)  # end_line is inclusive
+                # end_line is inclusive (1-based), so we keep lines from end_line onwards (0-based)
+                end_idx = end_line  # Lines to keep start from index end_line (which is the line after end_line in 1-based)
 
                 new_lines = lines[:start_idx] + [content] + lines[end_idx:]
                 operation = f'Replaced lines {start_line}-{end_line}'

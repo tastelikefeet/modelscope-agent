@@ -207,11 +207,11 @@ Output your code with this format:
                 all_issues = (f'We check the code with LSP server, here are the issues found:\n'
                               f'{all_issues}\n'
                               f'You can read related file to find the root cause if needed\n'
-                              f'Then fix the file with `replace_file_lines`\n'
+                              f'Then fix the file with `replace_file_contents`\n'
                               f'Some tips:\n'
                               f'1. Check any code file not in your dependencies and not in the `file_design.txt`\n'
                               f'2. Consider the relative path mistakes to your current writing file location\n'
-                              f'3. Do not rewrite the code with <result></result> after fixing with `replace_file_lines`\n'
+                              f'3. Do not rewrite the code with <result></result> after fixing with `replace_file_contents`\n'
                               )
                 messages.append(Message(role='user', content=all_issues))
                 messages[0].content = self.config.prompt.system
