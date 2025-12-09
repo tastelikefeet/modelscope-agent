@@ -21,10 +21,10 @@ class FileSystemTool(ToolBase):
 
     # Directories to exclude from file operations
     EXCLUDED_DIRS = {
-        'node_modules', 'dist', '.git', '__pycache__', '.venv', 'venv'
+        'node_modules', 'dist', 'venv'
     }
     # File prefixes to exclude
-    EXCLUDED_FILE_PREFIXES = ('.', '..')
+    EXCLUDED_FILE_PREFIXES = ('.', '..', '__')
 
     SYSTEM_FOR_ABBREVIATIONS = """你是一个帮我简化文件信息并返回缩略的机器人，你需要根据输入文件内容来生成压缩过的文件内容。
 
@@ -624,7 +624,7 @@ class FileSystemTool(ToolBase):
                 continue
             for filename in files:
                 # Skip excluded files
-                if filename.startswith(self.EXCLUDED_FILE_PREFIXES):
+                if filename.startswith(self.EXCLUDED_FILE_PREFIXES) or root.startswith(self.EXCLUDED_FILE_PREFIXES):
                     continue
                 # Match file pattern
                 if fnmatch.fnmatch(filename, file_pattern):
@@ -709,7 +709,7 @@ class FileSystemTool(ToolBase):
                     # Skip excluded directories and files
                     if any(excluded_dir in root
                            for excluded_dir in self.EXCLUDED_DIRS
-                           ) or file.startswith(self.EXCLUDED_FILE_PREFIXES):
+                           ) or file.startswith(self.EXCLUDED_FILE_PREFIXES) or root.startswith(self.EXCLUDED_FILE_PREFIXES):
                         continue
                     absolute_path = os.path.join(root, file)
                     relative_path = os.path.relpath(absolute_path, path)

@@ -165,31 +165,36 @@ class Programmer(LLMAgent):
                             with open(path, 'w') as f:
                                 f.write(code)
                             self.unchecked_files.add(r['filename'])
-                            saving_result += f'Save file <{r["filename"]}> successfully\n'
-                            messages.append(Message(role='user', content=saving_result))
                         else:
                             with open(path, 'r') as f:
                                 code = f.read()
-                        _response += f'\n```{path.split(".")[-1]}: {r["filename"]}\n{code}\n```\n'
+                        _response += f'\n<result>{path.split(".")[-1]}: {r["filename"]}\n{code}\n</result>\n'
+                    saving_result += f'Save file <{r["filename"]}> successfully\n'
                 message.content = _response
+                messages.append(Message(role='user', content=saving_result))
+        if not has_tool_call:
+            all_issues = []
+            for uncheck_file in self.unchecked_files.copy():
+                with open(os.path.join(self.output_dir, uncheck_file), 'r') as f:
+                    _code = f.read()
+                lsp_feedback = await self._incremental_lsp_check(uncheck_file, _code)
+                if lsp_feedback:
+                    all_issues.append(f'Issues in {uncheck_file}:' + lsp_feedback)
+                else:
+                    self.unchecked_files.remove(uncheck_file)
 
-        all_issues = []
-        for uncheck_file in self.unchecked_files.copy():
-            with open(os.path.join(self.output_dir, uncheck_file), 'r') as f:
-                _code = f.read()
-            lsp_feedback = await self._incremental_lsp_check(uncheck_file, _code)
-            if lsp_feedback:
-                all_issues.append(f'Issues in {uncheck_file}:' + lsp_feedback)
-
-        if all_issues:
-            all_issues = '\n'.join(all_issues)
-            logger.warning(f'Compile error in {self.tag}:')
-            logger.warning(all_issues)
-            all_issues = (f'We check the code with LSP server, here are the issues found:\n'
-                          f'{all_issues}\n'
-                          f'You can read related file to find the root cause if needed\n'
-                          f'Then fix the file with `replace_file_lines`')
-            messages.append(Message(role='user', content=all_issues))
+            if all_issues:
+                all_issues = '\n'.join(all_issues)
+                logger.warning(f'Compile error in {self.tag}:')
+                logger.warning(all_issues)
+                all_issues = (f'We check the code with LSP server, here are the issues found:\n'
+                              f'{all_issues}\n'
+                              f'Some tips:\n'
+                              f'1. Check any code file not in your dependencies and not in the `file_design.txt`\n'
+                              f'2. Consider the relative path mistakes to your current writing file location\n'
+                              f'You can read related file to find the root cause if needed\n'
+                              f'Then fix the file with `replace_file_lines`')
+                messages.append(Message(role='user', content=all_issues))
 
         self.filter_code_files()
         if not self.code_files and not self.unchecked_files:

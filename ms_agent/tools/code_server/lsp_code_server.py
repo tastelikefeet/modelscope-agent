@@ -213,10 +213,15 @@ class LSPServer:
             "contentChanges": [{"text": content}]
         })
         
-    async def get_diagnostics(self, file_path: str) -> List[dict]:
-        """Get diagnostics for a file"""
+    async def get_diagnostics(self, file_path: str, wait_time: float = 0.5) -> List[dict]:
+        """Get diagnostics for a file
+        
+        Args:
+            file_path: Path to the file
+            wait_time: Time to wait for diagnostics (longer for new files)
+        """
         # Wait a bit for diagnostics to be computed
-        await asyncio.sleep(0.5)
+        await asyncio.sleep(wait_time)
         
         # Request diagnostics through publishDiagnostics
         # Note: Different LSP servers handle this differently
@@ -623,16 +628,21 @@ class LSPCodeServer(ToolBase):
             all_files = []
             for ext in extensions:
                 all_files.extend(dir_path.rglob(f"*{ext}"))
-            
-            # Filter out config files that depend on node_modules
-            skip_basenames = {
-                'vite.config.ts', 'vite.config.js',
-                'webpack.config.js', 'webpack.config.ts',
-                'rollup.config.js', 'rollup.config.ts',
-                'next.config.js', 'next.config.ts',
-            }
-            all_files = [f for f in all_files if f.name not in skip_basenames]
-                
+            all_files = [file.relative_to(dir_path) for file in all_files]
+
+            skip_prefixes = ['.', '..', '__']
+            cleaned_files = []
+            for file in all_files:
+                filename = os.path.basename(file)
+                if filename in self.skip_files:
+                    continue
+                if any([filename.startswith(prefix) for prefix in skip_prefixes]):
+                    continue
+                if any([str(file).startswith(prefix) for prefix in skip_prefixes]):
+                    continue
+                cleaned_files.append(file)
+
+            all_files = cleaned_files
             if not all_files:
                 return json.dumps({
                     "message": f"No {language} files found in {directory}",
@@ -643,23 +653,18 @@ class LSPCodeServer(ToolBase):
             # Check each file
             all_diagnostics = []
             for file_path in all_files:
-                if os.path.basename(self.index_dir) in os.path.dirname(file_path):
-                    continue
-                if os.path.basename(self.lock_dir) in os.path.dirname(file_path):
-                    continue
-                if 'memory' in os.path.dirname(file_path):
-                    continue
-                if any([os.path.basename(file_path) in skip_file for skip_file in self.skip_files]):
-                    continue
                 try:
-                    content = file_path.read_text(encoding='utf-8')
-                    rel_path = file_path.relative_to(self.workspace_dir)
+                    content = Path(os.path.join(self.output_dir, str(file_path))).read_text(encoding='utf-8')
+                    rel_path = file_path
+                    
+                    # Convert to absolute path (consistent with other methods)
+                    abs_path = Path(self.workspace_dir) / file_path
                     
                     # Open document
-                    await server.open_document(str(file_path), content, lang_id)
+                    await server.open_document(str(abs_path), content, lang_id)
                     
                     # Get diagnostics
-                    diagnostics = await server.get_diagnostics(str(file_path))
+                    diagnostics = await server.get_diagnostics(str(abs_path))
                     
                     if diagnostics:
                         all_diagnostics.append({

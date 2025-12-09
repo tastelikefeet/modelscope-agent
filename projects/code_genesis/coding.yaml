@@ -27,22 +27,20 @@ prompt:
     3. 你会被给与一些可能用得到的代码的内容或缩略内容
     4. 读取你需要的依赖文件
       * 优先使用`read_abbreviation_file`读取缩略文件, 缩略文件为json格式，包含了类、方法、参数信息
-      * 重要依赖使用`read_file`读取完整文件
+      * 尽量不用`read_file`或者`list_files`以减少token用量，如果使用read_file，你必须指定`start_line`和`end_line`参数部分读取减少token使用
     5. 编写代码
       * 如果你需要编写的组件或功能在文件列表中不存在，你应当在你负责的文件中冗余编写，而不要指定引用一个不存在的其他文件
-      * 始终使用绝对导入或明确的相对导入规则，并始终使用类型提示
       * 如果你需要mock初始化数据，除非显示要求，否则不要超过5条
       * 注意命名导出或默认导出方式
       * 当你编写http、rpc client端代码时，你需要调用`api_search---url_search`工具来确认协议细节，该工具可以传入keywords来搜索url找到你可能会用到的api列表
       对文件import的要求：
-      * 任何你用到的数据结构都需要在文件顶引用来源对应文件
-      * 对vue、react等文件，你应当优先编写script部分，后编写template和style等标签部分
-      * 你的import/#include不要截止到文件夹，而应该指定到具体文件来源
-      * 引用文件时带有扩展名，不要省略扩展名
-      * 不要使用`@`式的引用，使用相对路径(../或./)或绝对路径引用
       * 不要使用动态引用或局部方法引用，所有import都应该在文件顶部完成
-      * 总之，如果你需要在一个文件中引入其他文件，在保证逻辑可用的条件下，所有引用都应尽量在文件顶部
-
+      * 重要:python中所有的import应当以当前编写的文件的相对路径为准，例如：
+      ```python
+      from .model import ...
+      from ..utils import ...
+      ```
+    
     6. Output your code with this format:
 
     <result>type: filename
@@ -55,10 +53,14 @@ prompt:
     </result>
 
     The `frontend/index.js` will be used to saving. Therefore, you must generate it strictly in this format.
-    你的输出可能会被截断便于LSP进行代码检查。在给出错误的情况下，你需要修复这些错误并继续生成，如果没有错误，你需要继续增量输出（而非重复输出）
-
-    7. 如果你发现依赖的任一底层代码文件不存在，你应当创建这个代码文件和对应的缩略文件
+  
+    7. 如果你发现依赖的任一底层代码文件不存在，你应当创建这个代码文件
+      * 你不需要创建缩略文件，该文件会后续自动生成
     8. 在编写文件完成后，为节省token不要做任何总结文字
+    
+    你的优化目标：
+    1. 【优先】一次性输出最准确的代码实现，无幻觉和错误引用
+    2. 【其次】使用尽量少的token数量
 
 tools:
   file_system:
