@@ -57,9 +57,10 @@ class LSPServer:
             raise RuntimeError("LSP server not started")
             
         self.message_id += 1
+        request_id = self.message_id
         request = {
             "jsonrpc": "2.0",
-            "id": self.message_id,
+            "id": request_id,
             "method": method,
             "params": params or {}
         }
@@ -71,9 +72,25 @@ class LSPServer:
             self.stdin.write(message.encode('utf-8'))
             await self.stdin.drain()
             
-            # Read response
-            response = await self._read_message()
-            return response
+            # Read response, skip notifications
+            # LSP servers may send notifications (like window/logMessage) before response
+            max_retries = 20
+            for _ in range(max_retries):
+                msg = await self._read_message()
+                
+                # Check if it's the response we're waiting for
+                if "id" in msg and msg["id"] == request_id:
+                    return msg
+                
+                # It's a notification (no id) or response for different request
+                # Log and continue reading
+                if "method" in msg:
+                    logger.debug(f"Received notification during request: {msg.get('method')}")
+                    continue
+                    
+            logger.warning(f"No response received for request {request_id} after {max_retries} attempts")
+            return {"error": "No response received"}
+            
         except Exception as e:
             logger.error(f"Error sending LSP request: {e}")
             return {"error": str(e)}
@@ -119,7 +136,7 @@ class LSPServer:
         return {}
         
     async def initialize(self):
-        """Initialize the LSP server"""
+        """Initialize the LSP server and wait for it to be ready"""
         response = await self.send_request("initialize", {
             "processId": os.getpid(),
             "rootUri": self.workspace_dir.as_uri(),
@@ -137,8 +154,26 @@ class LSPServer:
         
         if "result" in response:
             await self.send_notification("initialized", {})
+            
+            # CRITICAL: Wait for server to be fully ready
+            # Read and discard any startup messages
+            await asyncio.sleep(1.0)  # Give server time to complete initialization
+            
+            # Consume any pending messages (like "starting" notifications)
+            try:
+                for _ in range(10):
+                    try:
+                        await asyncio.wait_for(self._read_message(), timeout=0.1)
+                    except asyncio.TimeoutError:
+                        break  # No more messages
+            except Exception as e:
+                logger.debug(f"Cleared startup messages: {e}")
+            
             self.initialized = True
+            logger.info("LSP server fully initialized and ready")
             return True
+        
+        logger.error(f"LSP initialization failed: {response}")
         return False
         
     async def open_document(self, file_path: str, content: str, language_id: str):
@@ -150,6 +185,15 @@ class LSPServer:
                 "languageId": language_id,
                 "version": 1,
                 "text": content
+            }
+        })
+    
+    async def close_document(self, file_path: str):
+        """Close a document to clean up old index"""
+        file_uri = Path(file_path).resolve().as_uri()
+        await self.send_notification("textDocument/didClose", {
+            "textDocument": {
+                "uri": file_uri
             }
         })
         
@@ -371,10 +415,23 @@ class LSPCodeServer(ToolBase):
         logger.info("LSP Code Server connecting...")
         
     async def cleanup(self) -> None:
-        """Stop all LSP servers"""
+        """Stop all LSP servers and clear indexes"""
+        # Close all open documents first
+        for file_path in list(self.file_versions.keys()):
+            for lang, server in self.servers.items():
+                try:
+                    await server.close_document(file_path)
+                except Exception as e:
+                    logger.debug(f"Error closing document {file_path}: {e}")
+        
+        # Clear version tracking
+        self.file_versions.clear()
+        
+        # Stop all servers
         for server in self.servers.values():
             await server.stop()
         self.servers.clear()
+        logger.info("All LSP servers stopped and indexes cleared")
         
     async def _get_tools_inner(self) -> Dict[str, Any]:
         """Get available tools"""
@@ -663,15 +720,26 @@ class LSPCodeServer(ToolBase):
                 
             full_path = Path(self.workspace_dir) / file_path
             
+            # Check if file exists on disk
+            file_exists_on_disk = full_path.exists()
+            
             # Track version
             if file_path not in self.file_versions:
+                # First time opening this file
                 self.file_versions[file_path] = 1
-                # First time - open document
                 await server.open_document(str(full_path), content, lang_id)
             else:
-                # Update existing document
-                self.file_versions[file_path] += 1
-                await server.update_document(str(full_path), content, self.file_versions[file_path])
+                # File was opened before
+                # If file doesn't exist on disk anymore, it was deleted - close and reopen
+                if not file_exists_on_disk:
+                    logger.info(f"File {file_path} was deleted, closing old index")
+                    await server.close_document(str(full_path))
+                    self.file_versions[file_path] = 1
+                    await server.open_document(str(full_path), content, lang_id)
+                else:
+                    # Normal update
+                    self.file_versions[file_path] += 1
+                    await server.update_document(str(full_path), content, self.file_versions[file_path])
                 
             # Get diagnostics
             diagnostics = await server.get_diagnostics(str(full_path))

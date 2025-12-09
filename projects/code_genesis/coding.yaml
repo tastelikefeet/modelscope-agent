@@ -104,6 +104,7 @@ prompt:
     </result>
 
     The `frontend/index.js` will be used to saving. Therefore, you must generate it strictly in this format.
+    你的输出可能会被截断便于LSP进行代码检查。在给出错误的情况下，你需要修复这些错误并继续生成，如果没有错误，你需要继续增量输出（而非重复输出）
 
     7. 如果你发现依赖的任一底层代码文件不存在，你应当创建这个代码文件和对应的缩略文件
     8. 在编写文件完成后，为节省token不要做任何总结文字

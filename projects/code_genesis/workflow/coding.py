@@ -38,9 +38,8 @@ class Programmer(LLMAgent):
         self.index_dir = os.path.join(self.output_dir, index_dir)
         self.code_condenser = CodeCondenser(config)
         
-        # LSP incremental checking - support multiple languages
-        self.lsp_servers: Dict[str, LSPCodeServer] = {}  # language -> server instance
-        self.project_languages: Set[str] = set()  # Detected languages in project
+        # LSP incremental checking - lazy creation, shared across Programmers
+        self.shared_lsp_context = kwargs.get('shared_lsp_context', {})
         self.accumulated_code = ''  # Accumulate code segments
         self.current_file_name = ''  # Track current file
         self.import_phase_done = False  # Track if import phase is done
@@ -50,6 +49,22 @@ class Programmer(LLMAgent):
 
     async def add_memory(self, messages, **kwargs):
         return
+    
+    def _cleanup_lsp_index_dirs(self):
+        """Clean up LSP index directories to prevent stale indexes"""
+        cleanup_dirs = [
+            os.path.join(self.output_dir, '.jdtls_workspace'),      # Java LSP
+            os.path.join(self.output_dir, '.pyright'),              # Python LSP (if exists)
+            os.path.join(self.output_dir, 'node_modules', '.cache'), # TypeScript LSP cache
+        ]
+        
+        for dir_path in cleanup_dirs:
+            if os.path.exists(dir_path):
+                try:
+                    shutil.rmtree(dir_path)
+                    logger.info(f"Cleaned up old LSP index: {dir_path}")
+                except Exception as e:
+                    logger.warning(f"Failed to clean LSP index {dir_path}: {e}")
 
     async def on_task_begin(self, messages: List[Message]):
         if 'extra_body' not in self.llm.args:
@@ -62,8 +77,18 @@ class Programmer(LLMAgent):
         await self._init_lsp_server()
     
     async def _init_lsp_server(self):
-        """Initialize LSP servers based on project languages"""
+        """Lazily initialize LSP servers based on project languages (shared)"""
+        # Check if already initialized
+        if 'lsp_servers' in self.shared_lsp_context and self.shared_lsp_context['lsp_servers']:
+            logger.debug("LSP servers already initialized, reusing")
+            return
+            
         try:
+            # CRITICAL: Clean up old LSP index directories before starting (only once)
+            if 'cleaned' not in self.shared_lsp_context:
+                self._cleanup_lsp_index_dirs()
+                self.shared_lsp_context['cleaned'] = True
+            
             framework_file = os.path.join(self.output_dir, 'framework.txt')
             if not os.path.exists(framework_file):
                 return
@@ -87,7 +112,6 @@ class Programmer(LLMAgent):
                 logger.warning("No supported languages detected in framework.txt")
                 return
             
-            self.project_languages = detected_languages
             logger.info(f"Detected project languages: {', '.join(detected_languages)}")
             
             # Initialize LSP server for each detected language
@@ -96,22 +120,28 @@ class Programmer(LLMAgent):
                 'output_dir': self.output_dir
             })
             
+            lsp_servers = {}
             for lang in detected_languages:
                 try:
                     lsp_server = LSPCodeServer(lsp_config)
                     await lsp_server.connect()
-                    self.lsp_servers[lang] = lsp_server
+                    lsp_servers[lang] = lsp_server
                     logger.info(f"LSP Code Server initialized for {lang}")
                 except Exception as e:
                     logger.warning(f"Failed to initialize LSP server for {lang}: {e}")
+            
+            # Store in shared context
+            self.shared_lsp_context['lsp_servers'] = lsp_servers
+            self.shared_lsp_context['project_languages'] = detected_languages
                     
         except Exception as e:
             logger.warning(f"Failed to initialize LSP servers: {e}")
-            self.lsp_servers = {}
+            self.shared_lsp_context['lsp_servers'] = {}
     
     async def _incremental_lsp_check(self, code_file: str, partial_code: str) -> Optional[str]:
         """Incrementally check code quality using appropriate LSP server"""
-        if not self.lsp_servers:
+        lsp_servers = self.shared_lsp_context.get('lsp_servers', {})
+        if not lsp_servers:
             return None
             
         try:
@@ -131,7 +161,7 @@ class Programmer(LLMAgent):
                 return None
             
             # Get LSP server for this language
-            lsp_server = self.lsp_servers.get(lang)
+            lsp_server = lsp_servers.get(lang)
             if not lsp_server:
                 logger.debug(f"No LSP server initialized for {lang}")
                 return None
@@ -172,14 +202,9 @@ class Programmer(LLMAgent):
         return None
     
     async def on_task_end(self, messages: List[Message]):
-        """Clean up all LSP servers"""
-        if self.lsp_servers:
-            for lang, lsp_server in self.lsp_servers.items():
-                try:
-                    await lsp_server.cleanup()
-                    logger.info(f"LSP server for {lang} cleaned up")
-                except Exception as e:
-                    logger.warning(f"Error cleaning up LSP server for {lang}: {e}")
+        """Programmer task end - cleanup managed by last Programmer or CodingAgent"""
+        # Only cleanup if this is the last programmer (optional, can be managed by CodingAgent)
+        pass
 
     def filter_code_files(self):
         code_files = []
@@ -410,21 +435,18 @@ class Programmer(LLMAgent):
             
             # Run LSP check on accumulated code
             lsp_feedback = await self._incremental_lsp_check(self.current_file_name, self.accumulated_code)
-            
-            # Prepare feedback message
-            feedback_msg = f'Progress: {len(self.accumulated_code.splitlines())} lines generated.\n'
-            
             if lsp_feedback:
+                feedback_msg = f'Progress: {len(self.accumulated_code.splitlines())} lines generated.\n'
                 feedback_msg += lsp_feedback
                 feedback_msg += '\n**Fix the issues** using:\n'
                 feedback_msg += '<fix_line>\n'
                 feedback_msg += 'line_number: corrected code\n'
                 feedback_msg += '</fix_line>\n'
                 feedback_msg += 'Then continue with <continue>code</continue>\n'
+                messages.append(Message(role='user', content=feedback_msg))
             else:
-                feedback_msg += '✓ No issues. Continue generating, and do not output the code you generated.\n'
-            
-            messages.append(Message(role='user', content=feedback_msg))
+                messages.append(Message(role='user', content='continue:'))
+
             # Stop sequences remain active
         elif (not has_tool_call) and coding_finish:
             result, remaining_text = extract_code_blocks(messages[-1].content)
@@ -496,6 +518,36 @@ class FileRelation:
 
 
 class CodingAgent(CodeAgent):
+    
+    def __init__(self, config, tag, trust_remote_code, **kwargs):
+        super().__init__(config, tag, trust_remote_code, **kwargs)
+        # Shared LSP context across all Programmers
+        self.shared_lsp_context = {}
+    
+    async def _cleanup_lsp_servers(self):
+        """Clean up all LSP servers at the end"""
+        lsp_servers = self.shared_lsp_context.get('lsp_servers', {})
+        if lsp_servers:
+            for lang, lsp_server in lsp_servers.items():
+                try:
+                    await lsp_server.cleanup()
+                    logger.info(f"LSP server for {lang} cleaned up")
+                except Exception as e:
+                    logger.warning(f"Error cleaning up LSP server for {lang}: {e}")
+        
+        # Also clean up index directories
+        cleanup_dirs = [
+            os.path.join(self.output_dir, '.jdtls_workspace'),
+            os.path.join(self.output_dir, '.pyright'),
+            os.path.join(self.output_dir, 'node_modules', '.cache'),
+        ]
+        for dir_path in cleanup_dirs:
+            if os.path.exists(dir_path):
+                try:
+                    shutil.rmtree(dir_path)
+                    logger.info(f"Cleaned up LSP index: {dir_path}")
+                except Exception as e:
+                    logger.warning(f"Failed to clean LSP index {dir_path}: {e}")
 
     async def write_code(self, topic, user_story, framework, protocol, name,
                          description, fast_fail):
@@ -519,7 +571,8 @@ class CodingAgent(CodeAgent):
             _config,
             tag=f'programmer-{name.replace(os.sep, "-")}',
             trust_remote_code=True,
-            code_file=name)
+            code_file=name,
+            shared_lsp_context=self.shared_lsp_context)  # Pass shared context
         await programmer.run(messages)
 
     async def execute_code(self, inputs, **kwargs):
@@ -538,7 +591,7 @@ class CodingAgent(CodeAgent):
         lock_dir = os.path.join(self.output_dir, 'locks')
         shutil.rmtree(lock_dir, ignore_errors=True)
 
-        max_workers = 5
+        max_workers = 1
 
         for files in file_orders:
             while True:
@@ -580,6 +633,10 @@ class CodingAgent(CodeAgent):
             self.refresh_file_status(file_relation)
 
         self.construct_file_information(file_relation)
+        
+        # Clean up LSP servers after all files are generated
+        await self._cleanup_lsp_servers()
+        
         return inputs
 
     def construct_file_orders(self):
