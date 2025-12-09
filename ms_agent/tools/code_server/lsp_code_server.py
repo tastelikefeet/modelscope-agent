@@ -14,12 +14,12 @@ Used in complex code generation projects to continuously validate code quality.
 import asyncio
 import json
 import os
-import tempfile
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any, Dict, List, Optional
 
 from ms_agent.tools.base import ToolBase
 from ms_agent.utils import get_logger
+from ms_agent.utils.constants import DEFAULT_OUTPUT_DIR, DEFAULT_INDEX_DIR, DEFAULT_LOCK_DIR
 
 logger = get_logger()
 
@@ -27,13 +27,18 @@ logger = get_logger()
 class LSPServer:
     """Base class for LSP server management"""
     
-    def __init__(self, workspace_dir: str):
-        self.workspace_dir = Path(workspace_dir).resolve()
+    def __init__(self, config):
+        self.config = config
         self.process = None
         self.stdin = None
         self.stdout = None
         self.message_id = 0
         self.initialized = False
+        self.output_dir = getattr(self.config, 'output_dir',
+                                  DEFAULT_OUTPUT_DIR)
+        self.workspace_dir = Path(self.output_dir).resolve()
+        self.index_dir = os.path.join(self.output_dir, DEFAULT_INDEX_DIR)
+        self.lock_dir = os.path.join(self.output_dir, DEFAULT_LOCK_DIR)
         
     async def start(self) -> bool:
         """Start the LSP server process"""
@@ -403,12 +408,25 @@ class LSPCodeServer(ToolBase):
     2. Incremental code checking
     3. Detect issues in code segments
     """
-    
+
+    skip_files = [
+        'vite.config.ts', 'vite.config.js',
+        'webpack.config.js', 'webpack.config.ts',
+        'rollup.config.js', 'rollup.config.ts',
+        'next.config.js', 'next.config.ts',
+        'tsconfig.json', 'jsconfig.json',
+        'package.json', 'pom.xml', 'build.gradle'
+    ]
+
     def __init__(self, config):
         super().__init__(config)
         self.servers: Dict[str, LSPServer] = {}
-        self.workspace_dir = getattr(config, 'workspace_dir', self.output_dir)
         self.file_versions: Dict[str, int] = {}
+        self.output_dir = getattr(self.config, 'output_dir',
+                                  DEFAULT_OUTPUT_DIR)
+        self.workspace_dir = self.output_dir
+        self.index_dir = os.path.join(self.output_dir, DEFAULT_INDEX_DIR)
+        self.lock_dir = os.path.join(self.output_dir, DEFAULT_LOCK_DIR)
         
     async def connect(self) -> None:
         """Initialize LSP servers"""
@@ -557,11 +575,11 @@ class LSPCodeServer(ToolBase):
             
         # Create server
         if lang_key == "typescript":
-            server = TypeScriptLSPServer(self.workspace_dir)
+            server = TypeScriptLSPServer(self.config)
         elif lang_key == "python":
-            server = PythonLSPServer(self.workspace_dir)
+            server = PythonLSPServer(self.config)
         elif lang_key == "java":
-            server = JavaLSPServer(self.workspace_dir)
+            server = JavaLSPServer(self.config)
         else:
             return None
             
@@ -605,6 +623,15 @@ class LSPCodeServer(ToolBase):
             all_files = []
             for ext in extensions:
                 all_files.extend(dir_path.rglob(f"*{ext}"))
+            
+            # Filter out config files that depend on node_modules
+            skip_basenames = {
+                'vite.config.ts', 'vite.config.js',
+                'webpack.config.js', 'webpack.config.ts',
+                'rollup.config.js', 'rollup.config.ts',
+                'next.config.js', 'next.config.ts',
+            }
+            all_files = [f for f in all_files if f.name not in skip_basenames]
                 
             if not all_files:
                 return json.dumps({
@@ -616,6 +643,14 @@ class LSPCodeServer(ToolBase):
             # Check each file
             all_diagnostics = []
             for file_path in all_files:
+                if os.path.basename(self.index_dir) in os.path.dirname(file_path):
+                    continue
+                if os.path.basename(self.lock_dir) in os.path.dirname(file_path):
+                    continue
+                if 'memory' in os.path.dirname(file_path):
+                    continue
+                if any([os.path.basename(file_path) in skip_file for skip_file in self.skip_files]):
+                    continue
                 try:
                     content = file_path.read_text(encoding='utf-8')
                     rel_path = file_path.relative_to(self.workspace_dir)

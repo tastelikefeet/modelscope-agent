@@ -153,6 +153,11 @@ class Programmer(LLMAgent):
         if not lsp_servers:
             return None
 
+        file_basename = os.path.basename(code_file)
+        if file_basename in LSPCodeServer.skip_files:
+            logger.debug(f"Skipping LSP check for config file: {code_file}")
+            return None
+
         with file_lock(self.lock_dir, '_lsp_check_lock'):
             try:
                 # Determine language from file extension
