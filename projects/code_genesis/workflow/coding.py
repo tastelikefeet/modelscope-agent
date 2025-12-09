@@ -346,9 +346,7 @@ class Programmer(LLMAgent):
                         dep_content += (
                             f'Some import files are not in the project plans: {wrong_imports}, '
                             f'check the error now.\n')
-                    
-                    content = messages.pop(-1).content.split('<result>')[1]
-                    
+
                     messages.append(
                         Message(
                             role='user',
@@ -356,7 +354,6 @@ class Programmer(LLMAgent):
                             f'We break your generation to import more relative information. '
                             f'According to your imports, some extra contents manually given here:\n'
                             f'\n{dep_content or "No extra dependencies needed"}\n'
-                            f'Here is the a few start lines of your code: {content}\n\n'
                             f'Now review your imports in it, correct any error according to the dependencies, '
                             f'if any data structure undefined/not found, you can go on reading any code files you need, '
                             f'then rewrite the full code of {code_file} based on the start lines:\n'

@@ -741,7 +741,7 @@ def extract_code_blocks(text: str,
 
 
 @contextmanager
-def file_lock(lock_dir: str, filename: str, timeout: float = 15.0):
+def file_lock(lock_dir: str, filename: str, timeout: float = 120.0):
     os.makedirs(lock_dir, exist_ok=True)
     lock_file_name = filename.replace(os.sep, '_') + '.lock'
     lock_file_path = os.path.join(lock_dir, lock_file_name)

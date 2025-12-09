@@ -168,7 +168,7 @@ class LSPServer:
             try:
                 for _ in range(10):
                     try:
-                        await asyncio.wait_for(self._read_message(), timeout=0.1)
+                        await asyncio.wait_for(self._read_message(), timeout=2.0)
                     except asyncio.TimeoutError:
                         break  # No more messages
             except Exception as e:
