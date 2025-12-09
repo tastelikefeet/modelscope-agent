@@ -40,9 +40,6 @@ class Programmer(LLMAgent):
         
         # LSP incremental checking - lazy creation, shared across Programmers
         self.shared_lsp_context = kwargs.get('shared_lsp_context', {})
-        self.accumulated_code = ''  # Accumulate code segments
-        self.current_file_name = ''  # Track current file
-        self.import_phase_done = False  # Track if import phase is done
 
     async def condense_memory(self, messages):
         return messages
@@ -149,7 +146,6 @@ class Programmer(LLMAgent):
             file_ext = os.path.splitext(code_file)[1].lower()
             
             # Map file extension to language
-            lang = None
             if file_ext in ['.ts', '.tsx', '.js', '.jsx', '.mjs', '.cjs', '.vue']:
                 lang = 'typescript'
             elif file_ext == '.py':
@@ -256,59 +252,11 @@ class Programmer(LLMAgent):
             'extra_body'][
                 'stop_sequences'] == stop_words and '</result>' not in messages[
                     -1].content and not is_config
-        # Detect if stop_words triggered during code body generation
-        code_continue = (not coding_finish and not import_finish and 
-                        self.import_phase_done and 
-                        '<result>' in messages[-1].content and
-                        '</result>' not in messages[-1].content and
-                        not is_config)
-        
-        # Detect fix and continue response
-        has_fix = '<fix_line>' in messages[-1].content if messages[-1].role == 'assistant' else False
-        has_continue = '<continue>' in messages[-1].content if messages[-1].role == 'assistant' else False
         
         has_tool_call = len(messages[-1].tool_calls
                             or []) > 0 or messages[-1].role != 'assistant'
         
-        if (not has_tool_call) and (has_fix or has_continue):
-            # Handle model's fix and continue response
-            content = messages[-1].content
-            
-            # Process fixes if any
-            if has_fix:
-                fix_pattern = r'<fix_line>\s*([\s\S]*?)\s*</fix_line>'
-                fix_matches = re.findall(fix_pattern, content)
-                for fix_content in fix_matches:
-                    # Parse line fixes: "line_number: code"
-                    for line in fix_content.strip().split('\n'):
-                        if ':' in line:
-                            try:
-                                line_num_str, fixed_code = line.split(':', 1)
-                                line_num = int(line_num_str.strip())
-                                # Apply fix to accumulated code
-                                code_lines = self.accumulated_code.split('\n')
-                                if 0 < line_num <= len(code_lines):
-                                    code_lines[line_num - 1] = fixed_code.strip()
-                                    self.accumulated_code = '\n'.join(code_lines)
-                            except (ValueError, IndexError) as e:
-                                logger.debug(f"Failed to parse fix: {line}, error: {e}")
-            
-            # Process continue segment
-            if has_continue:
-                continue_pattern = r'<continue>\s*([\s\S]*?)\s*</continue>'
-                continue_matches = re.findall(continue_pattern, content)
-                if continue_matches:
-                    # Append continuation
-                    continuation = continue_matches[0].strip()
-                    self.accumulated_code += '\n' + continuation
-            
-            # Remove the assistant message and trigger next check
-            messages.pop(-1)
-            # Simulate stop_words trigger to continue checking
-            code_continue = True
-        
         if (not has_tool_call) and import_finish:
-            # First time after imports - load dependencies
             if os.path.isfile(os.path.join(self.output_dir, code_file)):
                 index_content = self.read_index_file(code_file)
                 messages.append(
@@ -327,10 +275,6 @@ class Programmer(LLMAgent):
                 content = [c for c in contents if '<result>' in c and ':' in c][0]
                 code_file = content.split('<result>')[1].split(':')[1].split(
                     '\n')[0].strip()
-                
-                # Initialize for this file
-                self.current_file_name = code_file
-                self.accumulated_code = ''
                 
                 all_files = parse_imports(code_file, '\n'.join(contents),
                                           self.output_dir) or []
@@ -386,7 +330,6 @@ class Programmer(LLMAgent):
                             f'check the error now.\n')
                     
                     content = messages.pop(-1).content.split('<result>')[1]
-                    # self.accumulated_code = content  # Start accumulating
                     
                     messages.append(
                         Message(
@@ -401,51 +344,7 @@ class Programmer(LLMAgent):
                             f'then rewrite the full code of {code_file} based on the start lines:\n'
                         ))
                     if not wrong_imports:
-                        # Set stop sequences for code body: \n\n + language-specific keywords
-                        code_stop_sequences = [
-                            # '\n\n',              # Primary: double newline (function/method boundary)
-                            '\nclass ',          # JS/TS/Java/Python: class definition
-                            '\nfunction ',       # JS/TS: function definition  
-                            '\nexport class ',   # TS: exported class
-                            '\nexport function ', # TS: exported function
-                            '\ndef ',            # Python: function definition
-                            '\nclass ',          # Python: class definition
-                            '\npublic class ',   # Java: public class
-                            '\nprivate class ',  # Java: private class
-                            '\npublic ',         # Java: public method/field
-                            '\nprotected ',      # Java: protected method/field
-                            '\nprivate ',        # Java: protected method/field
-                        ]
-                        self.llm.args['extra_body']['stop_sequences'] = code_stop_sequences
-                        self.import_phase_done = True
-                        
-        elif (not has_tool_call) and code_continue:
-            # Code body generation continues - accumulate and check
-            content = messages[-1].content
-            # Extract code segment
-            if '<result>' in content:
-                content_segment = content.split('<result>')[1]
-                content_segment = '\n'.join(content_segment.split('\n')[1:])
-            else:
-                content_segment = content
-            
-            # Remove the message and accumulate
-            # messages.pop(-1)
-            self.accumulated_code += content_segment
-            
-            # Run LSP check on accumulated code
-            lsp_feedback = await self._incremental_lsp_check(self.current_file_name, self.accumulated_code)
-            if lsp_feedback:
-                feedback_msg = f'Progress: {len(self.accumulated_code.splitlines())} lines generated.\n'
-                feedback_msg += lsp_feedback
-                feedback_msg += '\n**Fix the issues** using:\n'
-                feedback_msg += '<fix_line>\n'
-                feedback_msg += 'line_number: corrected code\n'
-                feedback_msg += '</fix_line>\n'
-                feedback_msg += 'Then continue with <continue>code</continue>\n'
-                messages.append(Message(role='user', content=feedback_msg))
-            else:
-                messages.append(Message(role='user', content='continue:'))
+                        self.llm.args['extra_body']['stop_sequences'] = []
 
             # Stop sequences remain active
         elif (not has_tool_call) and coding_finish:
@@ -455,16 +354,38 @@ class Programmer(LLMAgent):
                 saving_result = ''
                 for r in result:
                     path = r['filename']
-                    # Use accumulated code if available, otherwise use extracted code
-                    if r['filename'] == self.current_file_name and self.accumulated_code:
-                        code = self.accumulated_code
-                        # Extract final segment and append
-                        final_segment = messages[-1].content.split('<result>')[1].split('</result>')[0] if '</result>' in messages[-1].content else ''
-                        if final_segment and final_segment not in code:
-                            code += final_segment
-                    else:
-                        code = r['code']
-                    
+                    code = r['code']
+
+                    for i in range(3):
+                        _messages = deepcopy(messages)
+                        lsp_feedback = await self._incremental_lsp_check(path, code)
+                        if lsp_feedback:
+                            feedback_msg = ('We check the code with LSP server, here are the issues found:\n'
+                                            f'{lsp_feedback}\n')
+                            feedback_msg += '\n**Fix the issues** using:\n'
+                            feedback_msg += '<fix_line>\n'
+                            feedback_msg += 'line_number:corrected code\n'
+                            feedback_msg += '</fix_line>\n'
+                            messages.append(Message(role='user', content=feedback_msg))
+                            response = self.llm.generate(messages)
+                            content = response.content
+                            fix_pattern = r'<fix_line>\s*([\s\S]*?)\s*</fix_line>'
+                            fix_matches = re.findall(fix_pattern, content)
+                            for fix_content in fix_matches:
+                                # Parse line fixes: "line_number: code"
+                                for line in fix_content.strip().split('\n'):
+                                    if ':' in line:
+                                        line_num_str, fixed_code = line.split(':', 1)
+                                        line_num = int(line_num_str.strip())
+                                        # Apply fix to accumulated code
+                                        code_lines = code.split('\n')
+                                        if 0 < line_num <= len(code_lines):
+                                            code_lines[line_num - 1] = fixed_code.strip()
+                                            code = '\n'.join(code_lines)
+
+                        else:
+                            break
+
                     path = os.path.join(self.output_dir, path)
 
                     lock_dir = os.path.join(self.output_dir, DEFAULT_LOCK_DIR)
@@ -482,11 +403,6 @@ class Programmer(LLMAgent):
                             _response += f'\n```{path.split(".")[-1]}: {r["filename"]}\n{code}\n```\n'
 
                     saving_result += f'Save file <{r["filename"]}> successfully\n'
-                
-                # Reset for next file
-                self.accumulated_code = ''
-                self.current_file_name = ''
-                self.import_phase_done = False
 
                 messages.append(Message(role='user', content=saving_result))
                 self.llm.args['extra_body']['stop_sequences'] = stop_words
