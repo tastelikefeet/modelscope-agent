@@ -40,6 +40,7 @@ class Programmer(LLMAgent):
         
         # LSP incremental checking - lazy creation, shared across Programmers
         self.shared_lsp_context = kwargs.get('shared_lsp_context', {})
+        self.unchecked_files = set()
 
     async def condense_memory(self, messages):
         return messages
@@ -48,11 +49,7 @@ class Programmer(LLMAgent):
         return
 
     async def on_task_begin(self, messages: List[Message]):
-        if 'extra_body' not in self.llm.args:
-            self.llm.args['extra_body'] = DictConfig({})
-        self.llm.args['extra_body']['stop_sequences'] = stop_words
         self.code_files = [self.code_file]
-        self.find_all_files()
     
     async def _incremental_lsp_check(self, code_file: str, partial_code: str) -> Optional[str]:
         """Incrementally check code quality using appropriate LSP server"""
@@ -93,7 +90,7 @@ class Programmer(LLMAgent):
                     logger.debug(f"No LSP server initialized for {lang}")
                     return None
                     
-                result = await lsp_server.call_tool(
+                return await lsp_server.call_tool(
                     "lsp_code_server",
                     tool_name="update_and_check",
                     tool_args={
@@ -102,26 +99,6 @@ class Programmer(LLMAgent):
                         "language": lang
                     }
                 )
-                
-                diagnostics = json.loads(result)
-                
-                if diagnostics.get('has_errors'):
-                    issues = diagnostics.get('diagnostics', [])
-                    # Filter critical errors only
-                    critical_errors = [
-                        d for d in issues 
-                        if d.get('severity') == 'Error' and 
-                        'expected' not in d.get('message', '').lower()
-                    ]
-                    
-                    if critical_errors:
-                        error_msg = f"\n⚠️ LSP detected {len(critical_errors)} critical issues:\n"
-                        for i, diag in enumerate(critical_errors[:3], 1):
-                            line = diag.get('line', 0)
-                            msg = diag.get('message', '')
-                            error_msg += f"{i}. Line {line}: {msg}\n"
-                        error_msg += "Please fix these issues before continuing.\n"
-                        return error_msg
                         
             except Exception as e:
                 logger.debug(f"LSP check failed for {code_file}: {e}")
@@ -139,12 +116,6 @@ class Programmer(LLMAgent):
             if not os.path.exists(os.path.join(self.output_dir, code_file)):
                 code_files.append(code_file)
         self.code_files = code_files
-
-    def find_all_files(self):
-        self.all_code_files = []
-        with open(os.path.join(self.output_dir, 'file_order.txt'), 'r') as f:
-            for group in json.load(f):
-                self.all_code_files.extend(group['files'])
 
     def find_all_read_files(self, messages):
         files = []
@@ -166,117 +137,15 @@ class Programmer(LLMAgent):
             return f.read()
 
     async def after_tool_call(self, messages: List[Message]):
-        deps_not_exist = False
-        pattern = r'<result>[a-zA-Z]*:([^\n\r`]+)\n(.*?)'
-        matches = re.findall(pattern, messages[-1].content, re.DOTALL)
-        try:
-            code_file = next(iter(matches))[0].strip()
-        except StopIteration:
-            code_file = ''
-        is_config = code_file.endswith('.json') or code_file.endswith(
-            '.yaml') or code_file.endswith('.md')
-        if 'abbr' in code_file:
-            print()
         coding_finish = '<result>' in messages[
             -1].content and '</result>' in messages[-1].content
-        import_finish = '<result>' in messages[-1].content and self.llm.args[
-            'extra_body'][
-                'stop_sequences'] == stop_words and '</result>' not in messages[
-                    -1].content and not is_config
         
         has_tool_call = len(messages[-1].tool_calls
                             or []) > 0 or messages[-1].role != 'assistant'
         
-        if (not has_tool_call) and import_finish:
-            if os.path.isfile(os.path.join(self.output_dir, code_file)):
-                index_content = self.read_index_file(code_file)
-                messages.append(
-                    Message(
-                        role='user',
-                        content=
-                        f'We break your generation to import more relative information. '
-                        f'The file: {code_file} you are generating has existed already, here is the abbreviate content:\n'
-                        f'{index_content}\n'
-                        f'Read the content and generating other code files.'
-                    ))
-            else:
-                contents = messages[-1].content.split('\n')
-                comments = ['*', "#", '-', '%', '/']
-                contents = [c for c in contents if not any(c.strip().startswith(cm) for cm in comments)]
-                content = [c for c in contents if '<result>' in c and ':' in c][0]
-                code_file = content.split('<result>')[1].split(':')[1].split(
-                    '\n')[0].strip()
-                
-                all_files = parse_imports(code_file, '\n'.join(contents),
-                                          self.output_dir) or []
-                all_read_files = self.find_all_read_files(messages)
-                deps = []
-                definitions = []
-                folders = []
-                wrong_imports = []
-                for file in all_files:
-                    if file.source_file == code_file:
-                        wrong_imports.append(f'You should not import the file itself: {code_file}')
-                        continue
-                    filename = os.path.join(self.output_dir, file.source_file)
-                    if not os.path.exists(filename):
-                        if file.source_file in self.all_code_files:
-                            deps_not_exist = True
-                            self.code_files.append(file.source_file)
-                        else:
-                            wrong_imports.append(file.source_file)
-                    elif os.path.isfile(filename):
-                        if file.source_file not in all_read_files:
-                            deps.append(file.source_file)
-                            definitions.extend(file.imported_items)
-                    else:
-                        folders.append(
-                            f'You are importing {file.imported_items} from {file.source_file} folder'
-                        )
-
-                if not deps_not_exist:
-                    dep_content = ''
-                    for dep in deps:
-                        content = self.read_index_file(dep)
-                        need_detail = False
-                        for definition in definitions:
-                            if definition not in content:
-                                need_detail = True
-                                break
-                        if need_detail:
-                            detail_file = os.path.join(self.output_dir, dep)
-                            with open(detail_file, 'r') as f:
-                                content = f.read()
-                        dep_content += f'File content {dep}:\n{content}\n\n'
-                    if folders:
-                        folders = '\n'.join(folders)
-                        dep_content += (
-                            f'Some definitions come from folders:\n{folders}\nYou need to check the definition '
-                            f'file with `read_file` tool if they are not in your context.\n'
-                        )
-                    if wrong_imports:
-                        wrong_imports = '\n'.join(wrong_imports)
-                        dep_content += (
-                            f'Some import files are not in the project plans: {wrong_imports}, '
-                            f'check the error now.\n')
-
-                    messages.append(
-                        Message(
-                            role='user',
-                            content=
-                            f'We break your generation to import more relative information. '
-                            f'According to your imports, some extra contents manually given here:\n'
-                            f'\n{dep_content or "No extra dependencies needed"}\n'
-                            f'Now review your imports in it, correct any error according to the dependencies, '
-                            f'if any data structure undefined/not found, you can go on reading any code files you need, '
-                            f'then rewrite the full code of {code_file} based on the start lines:\n'
-                        ))
-                    if not wrong_imports:
-                        self.llm.args['extra_body']['stop_sequences'] = []
-
-            # Stop sequences remain active
-        elif (not has_tool_call) and coding_finish:
-            result, remaining_text = extract_code_blocks(messages[-1].content)
+        if (not has_tool_call) and coding_finish:
+            message = messages[-1]
+            result, remaining_text = extract_code_blocks(message.content)
             if result:
                 _response = remaining_text
                 saving_result = ''
@@ -295,30 +164,39 @@ class Programmer(LLMAgent):
                             os.makedirs(os.path.dirname(path), exist_ok=True)
                             with open(path, 'w') as f:
                                 f.write(code)
+                            self.unchecked_files.add(r['filename'])
+                            saving_result += f'Save file <{r["filename"]}> successfully\n'
+                            messages.append(Message(role='user', content=saving_result))
                         else:
                             with open(path, 'r') as f:
                                 code = f.read()
-                            _response += f'\n```{path.split(".")[-1]}: {r["filename"]}\n{code}\n```\n'
+                        _response += f'\n```{path.split(".")[-1]}: {r["filename"]}\n{code}\n```\n'
+                message.content = _response
 
-                    if new_file:
-                        lsp_feedback = await self._incremental_lsp_check(r['filename'], code)
-                        if lsp_feedback:
-                            feedback_msg = (f'Save code to <{r["filename"]}> done\n'
-                                            'But we check the code with LSP server, here are the issues found:\n'
-                                            f'{lsp_feedback}\n'
-                                            f'You can read related file to find the root cause if needed\n'
-                                            f'Then fix the file with `replace_file_lines`')
-                            messages.append(Message(role='user', content=feedback_msg))
-                        else:
-                            saving_result += f'Save file <{r["filename"]}> successfully\n'
-                            messages.append(Message(role='user', content=saving_result))
-                self.llm.args['extra_body']['stop_sequences'] = stop_words
-            self.filter_code_files()
-            if not self.code_files:
-                self.runtime.should_stop = True
+        all_issues = []
+        for uncheck_file in self.unchecked_files.copy():
+            with open(os.path.join(self.output_dir, uncheck_file), 'r') as f:
+                _code = f.read()
+            lsp_feedback = await self._incremental_lsp_check(uncheck_file, _code)
+            if lsp_feedback:
+                all_issues.append(f'Issues in {uncheck_file}:' + lsp_feedback)
 
-        new_task = coding_finish and self.code_files
-        if not has_tool_call and (deps_not_exist or new_task):
+        if all_issues:
+            all_issues = '\n'.join(all_issues)
+            logger.warning(f'Compile error in {self.tag}:')
+            logger.warning(all_issues)
+            all_issues = (f'We check the code with LSP server, here are the issues found:\n'
+                          f'{all_issues}\n'
+                          f'You can read related file to find the root cause if needed\n'
+                          f'Then fix the file with `replace_file_lines`')
+            messages.append(Message(role='user', content=all_issues))
+
+        self.filter_code_files()
+        if not self.code_files and not self.unchecked_files:
+            self.runtime.should_stop = True
+
+        new_task = coding_finish and self.code_files and (not self.unchecked_files)
+        if (not has_tool_call) and new_task:
             last_file = self.code_files[-1]
             messages.append(
                 Message(
@@ -326,7 +204,6 @@ class Programmer(LLMAgent):
                     content=
                     f'\nA code file in your imports not found, you should write it first: {last_file}\n'
                 ))
-            self.llm.args['extra_body']['stop_sequences'] = stop_words
 
         await self.code_condenser.run(messages)
 

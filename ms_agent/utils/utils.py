@@ -14,7 +14,7 @@ from contextlib import contextmanager
 from io import BytesIO
 from pathlib import Path
 from typing import List, Optional, Union, Tuple
-
+from .constants import DEFAULT_MEMORY_DIR
 import json
 import requests
 import yaml
@@ -197,7 +197,7 @@ def save_history(output_dir: str, task: str, config: DictConfig,
         TypeError / ValueError: If the config or messages cannot be serialized properly.
         AttributeError: If any message in the list does not implement the `to_dict()` method.
     """
-    cache_dir = os.path.join(output_dir, 'memory')
+    cache_dir = os.path.join(output_dir, DEFAULT_MEMORY_DIR)
     os.makedirs(cache_dir, exist_ok=True)
     config_file = os.path.join(cache_dir, f'{task}.yaml')
     message_file = os.path.join(cache_dir, f'{task}.json')
@@ -241,7 +241,7 @@ def read_history(output_dir: str, task: str):
     """
     from ms_agent.llm import Message
     from ms_agent.config import Config
-    cache_dir = os.path.join(output_dir, 'memory')
+    cache_dir = os.path.join(output_dir, DEFAULT_MEMORY_DIR)
     os.makedirs(cache_dir, exist_ok=True)
     config_file = os.path.join(cache_dir, f'{task}.yaml')
     message_file = os.path.join(cache_dir, f'{task}.json')

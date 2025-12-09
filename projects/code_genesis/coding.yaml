@@ -26,56 +26,7 @@ prompt:
     2. 读取`file_order.txt`确认文件列表和编写分组情况。和你一组的文件会和你并行编写。你只能依赖index小于你的文件，不要依赖你的siblings和index晚于你的文件
     3. 你会被给与一些可能用得到的代码的内容或缩略内容
     4. 读取你需要的依赖文件
-      * 优先使用`read_abbreviation_file`读取缩略文件
-        缩略文件为json格式，包含了类、方法、参数信息
-        例子:
-        ```xx.ts.index.json
-        {
-            "imports": # 引用文件列表
-            "classes": [ # 类列表
-                {   
-                    "name": # 类名
-                    "functions": [ # 类中的方法列表
-                        {
-                            "name": # 方法名，同步异步
-                            "inputs": [ # 输入
-                                {
-                                    "name": # 入参名
-                                    "type": # 类型
-                                    "define": # 可推测的定义文件
-                                },
-                                ...
-                            ],
-                            "outputs": [ # 输出
-                                {
-                                    "type": # 类型，以及可观测的结构需求
-                                    "define": # 可推测的定义文件
-                                },
-                                ...
-                            ]
-                        }
-                    ]
-                }
-            ],
-            "functions": [...], # 全局方法
-            "protocols": [
-                {
-                    "type": "http", # 协议
-                    "url": # url信息
-                    "params": # http输入参数结构
-                    "responses": # http输出结构和错误定义
-                }
-            ],
-            "structs": [ # 结构体信息
-                {
-                    "name": # 结构名称
-                    "fields": # 字段和类型列表
-                },
-                ...
-            ],
-            "exports": # 输出信息
-        }
-        ```
+      * 优先使用`read_abbreviation_file`读取缩略文件, 缩略文件为json格式，包含了类、方法、参数信息
       * 重要依赖使用`read_file`读取完整文件
     5. 编写代码
       * 如果你需要编写的组件或功能在文件列表中不存在，你应当在你负责的文件中冗余编写，而不要指定引用一个不存在的其他文件

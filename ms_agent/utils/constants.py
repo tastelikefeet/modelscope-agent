@@ -17,6 +17,9 @@ AGENT_CONFIG_FILE = 'agent.yaml'
 # Default agent code file
 DEFAULT_AGENT_FILE = 'agent.py'
 
+# Default memory folder
+DEFAULT_MEMORY_DIR = '.memory'
+
 # DEFAULT_WORKFLOW_YAML
 WORKFLOW_CONFIG_FILE = 'workflow.yaml'
 

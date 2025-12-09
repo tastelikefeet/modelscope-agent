@@ -226,19 +226,19 @@ class LSPServer:
         # Try to read any pending diagnostics messages
         diagnostics = []
         found_diagnostics = False
-        for _ in range(60):
+        for _ in range(30):
             try:
-                msg = await asyncio.wait_for(self._read_message(), timeout=10.0)
+                msg = await asyncio.wait_for(self._read_message(), timeout=3.0)
                 if msg.get("method") == "textDocument/publishDiagnostics":
                     if msg.get("params", {}).get("uri") == file_uri:
                         diagnostics = msg.get("params", {}).get("diagnostics", [])
                         found_diagnostics = True
                         break
             except asyncio.TimeoutError as e:
-                raise e
+                continue
         if not found_diagnostics:
             raise RuntimeError("Could not find a diagnostics message")
-        diagnostics = [d for d in diagnostics if not isinstance(d['code'], str) or 'unused' not in d['code'].lower()]
+        diagnostics = [d for d in diagnostics if not isinstance(d.get('code'), str) or 'unused' not in d['code'].lower()]
         return diagnostics
 
 
@@ -779,7 +779,7 @@ class LSPCodeServer(ToolBase):
             # Get diagnostics
             diagnostics = await server.get_diagnostics(str(full_path))
             
-            result = {
+            diagnostics = {
                 "file": file_path,
                 "language": language,
                 "version": self.file_versions[file_path],
@@ -787,8 +787,25 @@ class LSPCodeServer(ToolBase):
                 "diagnostic_count": len(diagnostics),
                 "diagnostics": self._format_diagnostics(diagnostics)
             }
-            
-            return json.dumps(result, indent=2)
+
+            if diagnostics.get('has_errors'):
+                issues = diagnostics.get('diagnostics', [])
+                # Filter critical errors only
+                critical_errors = [
+                    d for d in issues
+                    if d.get('severity') == 'Error' and
+                       'expected' not in d.get('message', '').lower()
+                ]
+
+                if critical_errors:
+                    error_msg = f"\n⚠️ LSP detected {len(critical_errors)} critical issues:\n"
+                    for i, diag in enumerate(critical_errors):
+                        line = diag.get('line', 0)
+                        msg = diag.get('message', '')
+                        error_msg += f"{i}. Line {line}: {msg}\n"
+                    return error_msg
+            else:
+                return ''
             
         except Exception as e:
             logger.error(f"Error updating and checking file: {e}")
