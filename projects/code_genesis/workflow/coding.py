@@ -46,22 +46,6 @@ class Programmer(LLMAgent):
 
     async def add_memory(self, messages, **kwargs):
         return
-    
-    def _cleanup_lsp_index_dirs(self):
-        """Clean up LSP index directories to prevent stale indexes"""
-        cleanup_dirs = [
-            os.path.join(self.output_dir, '.jdtls_workspace'),      # Java LSP
-            os.path.join(self.output_dir, '.pyright'),              # Python LSP (if exists)
-            os.path.join(self.output_dir, 'node_modules', '.cache'), # TypeScript LSP cache
-        ]
-        
-        for dir_path in cleanup_dirs:
-            if os.path.exists(dir_path):
-                try:
-                    shutil.rmtree(dir_path)
-                    logger.info(f"Cleaned up old LSP index: {dir_path}")
-                except Exception as e:
-                    logger.warning(f"Failed to clean LSP index {dir_path}: {e}")
 
     async def on_task_begin(self, messages: List[Message]):
         if 'extra_body' not in self.llm.args:
@@ -69,82 +53,6 @@ class Programmer(LLMAgent):
         self.llm.args['extra_body']['stop_sequences'] = stop_words
         self.code_files = [self.code_file]
         self.find_all_files()
-        
-        # Initialize LSP server
-        await self._init_lsp_server()
-    
-    async def _init_lsp_server(self):
-        """Lazily initialize LSP servers based on project languages (shared)"""
-        # Check if already initialized
-        if 'lsp_servers' in self.shared_lsp_context and self.shared_lsp_context['lsp_servers']:
-            logger.debug("LSP servers already initialized, reusing")
-            return
-            
-        try:
-            # CRITICAL: Clean up old LSP index directories before starting (only once)
-            if 'cleaned' not in self.shared_lsp_context:
-                self._cleanup_lsp_index_dirs()
-                self.shared_lsp_context['cleaned'] = True
-            
-            framework_file = os.path.join(self.output_dir, 'framework.txt')
-            if not os.path.exists(framework_file):
-                return
-                
-            with open(framework_file, 'r') as f:
-                framework = f.read().lower()
-            
-            # Detect all languages in the project
-            detected_languages = set()
-            
-            if any(kw in framework for kw in ['typescript', 'javascript', 'react', 'vue', 'node', 'npm']):
-                detected_languages.add('typescript')
-            
-            if any(kw in framework for kw in ['python', 'django', 'flask', 'fastapi']):
-                detected_languages.add('python')
-            
-            if any(kw in framework for kw in ['java ', 'java\n', 'spring', 'maven', 'gradle']):
-                detected_languages.add('java')
-            
-            if not detected_languages:
-                logger.warning("No supported languages detected in framework.txt")
-                return
-            
-            logger.info(f"Detected project languages: {', '.join(detected_languages)}")
-            
-            # Initialize LSP server for each detected language
-            lsp_config = DictConfig({
-                'workspace_dir': self.output_dir,
-                'output_dir': self.output_dir
-            })
-            
-            lsp_servers = {}
-            for lang in detected_languages:
-                try:
-                    lsp_server = LSPCodeServer(lsp_config)
-                    await lsp_server.connect()
-                    lsp_servers[lang] = lsp_server
-                    logger.info(f"LSP Code Server initialized for {lang}")
-                except Exception as e:
-                    logger.warning(f"Failed to initialize LSP server for {lang}: {e}")
-            
-            # Store in shared context
-            self.shared_lsp_context['lsp_servers'] = lsp_servers
-            self.shared_lsp_context['project_languages'] = detected_languages
-            
-            # Load existing files into LSP index using compile_directory
-            for lang, lsp_server in lsp_servers.items():
-                await lsp_server.call_tool(
-                    "lsp_code_server",
-                    tool_name="check_directory",
-                    tool_args={
-                        "directory": '',
-                        "language": lang
-                    }
-                )
-                    
-        except Exception as e:
-            logger.warning(f"Failed to initialize LSP servers: {e}")
-            self.shared_lsp_context['lsp_servers'] = {}
     
     async def _incremental_lsp_check(self, code_file: str, partial_code: str) -> Optional[str]:
         """Incrementally check code quality using appropriate LSP server"""
@@ -394,59 +302,62 @@ class Programmer(LLMAgent):
     ...
 ]
 </fix_line>
+注意：只应该有一个<fix_line>...</fix_line>块，内部是你所有需要修复的列表
 """
-                            messages.append(Message(role='user', content=feedback_msg))
-                            response = self.llm.generate(messages, stream=False)
+                            _messages.append(Message(role='user', content=feedback_msg))
+                            response = self.llm.generate(_messages, stream=False)
                             content = response.content
                             fix_pattern = r'<fix_line>\s*([\s\S]*?)\s*</fix_line>'
                             fix_matches = re.findall(fix_pattern, content)
                             if fix_matches:
-                                for fix_content in fix_matches:
-                                    try:
-                                        # Parse fix instructions
-                                        fixes = json.loads(fix_content)
-                                        if not isinstance(fixes, list):
-                                            fixes = [fixes]
+                                # Only use the first fix_line block to avoid confusion
+                                fix_content = fix_matches[0]
+                                try:
+                                    # Parse fix instructions
+                                    fixes = json.loads(fix_content)
+                                    if not isinstance(fixes, list):
+                                        fixes = [fixes]
+                                    
+                                    # Apply fixes to code
+                                    code_lines = code.split('\n')
+                                    
+                                    # Sort fixes by start_line in reverse order to avoid line number shifts
+                                    fixes_sorted = sorted(fixes, key=lambda x: x.get('start_line', 0), reverse=True)
+                                    
+                                    for fix in fixes_sorted:
+                                        start_line = fix.get('start_line', 0)
+                                        end_line = fix.get('end_line', start_line)
+                                        new_code = fix.get('code', '')
                                         
-                                        # Apply fixes to code
-                                        code_lines = code.split('\n')
+                                        # Validate line numbers
+                                        if start_line < 1 or start_line > len(code_lines):
+                                            logger.warning(f"Invalid start_line {start_line} for file {path}")
+                                            continue
                                         
-                                        # Sort fixes by start_line in reverse order to avoid line number shifts
-                                        fixes_sorted = sorted(fixes, key=lambda x: x.get('start_line', 0), reverse=True)
+                                        if end_line < start_line or end_line > len(code_lines):
+                                            logger.warning(f"Invalid end_line {end_line} for file {path}")
+                                            continue
                                         
-                                        for fix in fixes_sorted:
-                                            start_line = fix.get('start_line', 0)
-                                            end_line = fix.get('end_line', start_line)
-                                            new_code = fix.get('code', '')
-                                            
-                                            # Validate line numbers
-                                            if start_line < 1 or start_line > len(code_lines):
-                                                logger.warning(f"Invalid start_line {start_line} for file {path}")
-                                                continue
-                                            
-                                            if end_line < start_line or end_line > len(code_lines):
-                                                logger.warning(f"Invalid end_line {end_line} for file {path}")
-                                                continue
-                                            
-                                            # Apply fix (convert to 0-based index)
-                                            start_idx = start_line - 1
-                                            end_idx = end_line
-                                            
-                                            # Replace lines
-                                            code_lines[start_idx:end_idx] = new_code.split('\n')
-                                            
-                                            logger.info(f"Applied fix to {path} lines {start_line}-{end_line}")
+                                        # Apply fix (convert to 0-based index)
+                                        start_idx = start_line - 1
+                                        end_idx = end_line
                                         
-                                        # Update code with fixes
-                                        code = '\n'.join(code_lines)
-                                        logger.info(f"LSP fixes applied to {path}, retrying check...")
+                                        # Replace lines
+                                        code_lines[start_idx:end_idx] = new_code.split('\n')
                                         
-                                    except json.JSONDecodeError as e:
-                                        logger.warning(f"Failed to parse fix content: {e}")
-                                        continue
-                                    except Exception as e:
-                                        logger.warning(f"Failed to apply fix: {e}")
-                                        continue
+                                        logger.info(f"Applied fix to {path} lines {start_line}-{end_line}")
+                                    
+                                    # Update code with fixes
+                                    code = '\n'.join(code_lines)
+                                    logger.info(f"LSP fixes applied to {path}, retrying check...")
+                                    
+                                except json.JSONDecodeError as e:
+                                    logger.warning(f"Failed to parse fix content as JSON: {e}")
+                                    logger.debug(f"Problematic content: {fix_content}")
+                                    break
+                                except Exception as e:
+                                    logger.warning(f"Failed to apply fix: {e}")
+                                    break
                             else:
                                 # No valid fixes found, break retry loop
                                 logger.warning(f"No valid fix_line tags found in LLM response for {path}")
@@ -508,6 +419,93 @@ class CodingAgent(CodeAgent):
         # Shared LSP context across all Programmers
         self.shared_lsp_context = {}
     
+    def _cleanup_lsp_index_dirs(self):
+        """Clean up LSP index directories to prevent stale indexes"""
+        cleanup_dirs = [
+            os.path.join(self.output_dir, '.jdtls_workspace'),      # Java LSP
+            os.path.join(self.output_dir, '.pyright'),              # Python LSP (if exists)
+            os.path.join(self.output_dir, 'node_modules', '.cache'), # TypeScript LSP cache
+        ]
+        
+        for dir_path in cleanup_dirs:
+            if os.path.exists(dir_path):
+                try:
+                    shutil.rmtree(dir_path)
+                    logger.info(f"Cleaned up old LSP index: {dir_path}")
+                except Exception as e:
+                    logger.warning(f"Failed to clean LSP index {dir_path}: {e}")
+    
+    async def _init_lsp_servers(self):
+        """Initialize LSP servers based on framework.txt before creating Programmers"""
+        try:
+            # Clean up old LSP index directories
+            self._cleanup_lsp_index_dirs()
+            
+            framework_file = os.path.join(self.output_dir, 'framework.txt')
+            if not os.path.exists(framework_file):
+                logger.info("framework.txt not found, skipping LSP initialization")
+                return
+                
+            with open(framework_file, 'r') as f:
+                framework = f.read().lower()
+            
+            # Detect all languages in the project
+            detected_languages = set()
+            
+            if any(kw in framework for kw in ['typescript', 'javascript', 'react', 'vue', 'node', 'npm']):
+                detected_languages.add('typescript')
+            
+            if any(kw in framework for kw in ['python', 'django', 'flask', 'fastapi']):
+                detected_languages.add('python')
+            
+            if any(kw in framework for kw in ['java ', 'java\n', 'spring', 'maven', 'gradle']):
+                detected_languages.add('java')
+            
+            if not detected_languages:
+                logger.info("No supported languages detected in framework.txt")
+                return
+            
+            logger.info(f"Initializing LSP servers for languages: {', '.join(detected_languages)}")
+            
+            # Initialize LSP server for each detected language
+            lsp_config = DictConfig({
+                'workspace_dir': self.output_dir,
+                'output_dir': self.output_dir
+            })
+            
+            lsp_servers = {}
+            for lang in detected_languages:
+                try:
+                    lsp_server = LSPCodeServer(lsp_config)
+                    await lsp_server.connect()
+                    lsp_servers[lang] = lsp_server
+                    logger.info(f"LSP Code Server created for {lang}")
+                except Exception as e:
+                    logger.warning(f"Failed to create LSP server for {lang}: {e}")
+            
+            # Load existing files into LSP index using check_directory
+            # This triggers the actual LSP server process initialization
+            for lang, lsp_server in lsp_servers.items():
+                logger.info(f"Building LSP index for {lang}...")
+                await lsp_server.call_tool(
+                    "lsp_code_server",
+                    tool_name="check_directory",
+                    tool_args={
+                        "directory": '',
+                        "language": lang
+                    }
+                )
+                logger.info(f"LSP index built for {lang}")
+            
+            # Store in shared context for all Programmers to use
+            self.shared_lsp_context['lsp_servers'] = lsp_servers
+            self.shared_lsp_context['project_languages'] = detected_languages
+            logger.info(f"LSP servers ready for use")
+                    
+        except Exception as e:
+            logger.warning(f"Failed to initialize LSP servers: {e}")
+            self.shared_lsp_context['lsp_servers'] = {}
+    
     async def _cleanup_lsp_servers(self):
         """Clean up all LSP servers at the end"""
         lsp_servers = self.shared_lsp_context.get('lsp_servers', {})
@@ -560,6 +558,9 @@ class CodingAgent(CodeAgent):
         await programmer.run(messages)
 
     async def execute_code(self, inputs, **kwargs):
+        # Initialize LSP servers before starting code generation
+        await self._init_lsp_servers()
+        
         with open(os.path.join(self.output_dir, 'topic.txt')) as f:
             topic = f.read()
         with open(os.path.join(self.output_dir, 'user_story.txt')) as f:

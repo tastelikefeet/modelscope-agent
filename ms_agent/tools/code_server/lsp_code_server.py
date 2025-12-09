@@ -228,7 +228,7 @@ class LSPServer:
         found_diagnostics = False
         for _ in range(60):
             try:
-                msg = await asyncio.wait_for(self._read_message(), timeout=2.0)
+                msg = await asyncio.wait_for(self._read_message(), timeout=10.0)
                 if msg.get("method") == "textDocument/publishDiagnostics":
                     if msg.get("params", {}).get("uri") == file_uri:
                         diagnostics = msg.get("params", {}).get("diagnostics", [])
