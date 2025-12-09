@@ -284,95 +284,14 @@ class Programmer(LLMAgent):
                     path = r['filename']
                     code = r['code']
 
-                    for i in range(3):
-                        _messages = deepcopy(messages)
-                        lsp_feedback = await self._incremental_lsp_check(path, code)
-                        if lsp_feedback:
-                            feedback_msg = ('We check the code with LSP server, here are the issues found:\n'
-                                            f'{lsp_feedback}\n')
-                            feedback_msg += '\n**Fix the issues** using:\n'
-                            feedback_msg += """
-<fix_line>
-[
-    {
-        "start_line": start-line-number,
-        "end_line": end-line-number,
-        "code": "the correct code"
-    }, # multiple fixes enabled
-    ...
-]
-</fix_line>
-注意：只应该有一个<fix_line>...</fix_line>块，内部是你所有需要修复的列表
-"""
-                            _messages.append(Message(role='user', content=feedback_msg))
-                            response = self.llm.generate(_messages, stream=False)
-                            content = response.content
-                            fix_pattern = r'<fix_line>\s*([\s\S]*?)\s*</fix_line>'
-                            fix_matches = re.findall(fix_pattern, content)
-                            if fix_matches:
-                                # Only use the first fix_line block to avoid confusion
-                                fix_content = fix_matches[0]
-                                try:
-                                    # Parse fix instructions
-                                    fixes = json.loads(fix_content)
-                                    if not isinstance(fixes, list):
-                                        fixes = [fixes]
-                                    
-                                    # Apply fixes to code
-                                    code_lines = code.split('\n')
-                                    
-                                    # Sort fixes by start_line in reverse order to avoid line number shifts
-                                    fixes_sorted = sorted(fixes, key=lambda x: x.get('start_line', 0), reverse=True)
-                                    
-                                    for fix in fixes_sorted:
-                                        start_line = fix.get('start_line', 0)
-                                        end_line = fix.get('end_line', start_line)
-                                        new_code = fix.get('code', '')
-                                        
-                                        # Validate line numbers
-                                        if start_line < 1 or start_line > len(code_lines):
-                                            logger.warning(f"Invalid start_line {start_line} for file {path}")
-                                            continue
-                                        
-                                        if end_line < start_line or end_line > len(code_lines):
-                                            logger.warning(f"Invalid end_line {end_line} for file {path}")
-                                            continue
-                                        
-                                        # Apply fix (convert to 0-based index)
-                                        start_idx = start_line - 1
-                                        end_idx = end_line
-                                        
-                                        # Replace lines
-                                        code_lines[start_idx:end_idx] = new_code.split('\n')
-                                        
-                                        logger.info(f"Applied fix to {path} lines {start_line}-{end_line}")
-                                    
-                                    # Update code with fixes
-                                    code = '\n'.join(code_lines)
-                                    logger.info(f"LSP fixes applied to {path}, retrying check...")
-                                    
-                                except json.JSONDecodeError as e:
-                                    logger.warning(f"Failed to parse fix content as JSON: {e}")
-                                    logger.debug(f"Problematic content: {fix_content}")
-                                    break
-                                except Exception as e:
-                                    logger.warning(f"Failed to apply fix: {e}")
-                                    break
-                            else:
-                                # No valid fixes found, break retry loop
-                                logger.warning(f"No valid fix_line tags found in LLM response for {path}")
-                                break
-                        else:
-                            break
-
                     path = os.path.join(self.output_dir, path)
 
                     lock_dir = os.path.join(self.output_dir, DEFAULT_LOCK_DIR)
 
                     # Check and write file with lock
                     with file_lock(lock_dir, r['filename']):
-                        file_exists = os.path.exists(path)
-                        if not file_exists:
+                        new_file = not os.path.exists(path)
+                        if new_file:
                             os.makedirs(os.path.dirname(path), exist_ok=True)
                             with open(path, 'w') as f:
                                 f.write(code)
@@ -381,9 +300,18 @@ class Programmer(LLMAgent):
                                 code = f.read()
                             _response += f'\n```{path.split(".")[-1]}: {r["filename"]}\n{code}\n```\n'
 
-                    saving_result += f'Save file <{r["filename"]}> successfully\n'
-
-                messages.append(Message(role='user', content=saving_result))
+                    if new_file:
+                        lsp_feedback = await self._incremental_lsp_check(r['filename'], code)
+                        if lsp_feedback:
+                            feedback_msg = (f'Save code to <{r["filename"]}> done\n'
+                                            'But we check the code with LSP server, here are the issues found:\n'
+                                            f'{lsp_feedback}\n'
+                                            f'You can read related file to find the root cause if needed\n'
+                                            f'Then fix the file with `replace_file_lines`')
+                            messages.append(Message(role='user', content=feedback_msg))
+                        else:
+                            saving_result += f'Save file <{r["filename"]}> successfully\n'
+                            messages.append(Message(role='user', content=saving_result))
                 self.llm.args['extra_body']['stop_sequences'] = stop_words
             self.filter_code_files()
             if not self.code_files:

@@ -115,6 +115,8 @@ tools:
     include:
       - read_file
       - read_abbreviation_file
+      - replace_file_lines
+      - list_files
   plugins:
     - workflow/api_search
 
