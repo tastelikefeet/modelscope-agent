@@ -80,7 +80,7 @@ class Programmer(LLMAgent):
             if any(kw in framework for kw in ['python', 'django', 'flask', 'fastapi']):
                 detected_languages.add('python')
             
-            if any(kw in framework for kw in ['java', 'spring', 'maven', 'gradle']):
+            if any(kw in framework for kw in ['java ', 'java\n', 'spring', 'maven', 'gradle']):
                 detected_languages.add('java')
             
             if not detected_languages:
@@ -361,7 +361,7 @@ class Programmer(LLMAgent):
                             f'check the error now.\n')
                     
                     content = messages.pop(-1).content.split('<result>')[1]
-                    self.accumulated_code = content  # Start accumulating
+                    # self.accumulated_code = content  # Start accumulating
                     
                     messages.append(
                         Message(
@@ -370,16 +370,15 @@ class Programmer(LLMAgent):
                             f'We break your generation to import more relative information. '
                             f'According to your imports, some extra contents manually given here:\n'
                             f'\n{dep_content or "No extra dependencies needed"}\n'
-                            f'Here is the start of your code: {content}\n\n'
-                            f'**IMPORTANT**: Continue generating {code_file}.\n'
-                            f'Separate functions/methods/classes with double newlines (\\n\\n).\n'
-                            f'The generation will pause at these boundaries for quality checks.\n'
-                            f'When complete, use </result> to finish.\n'
+                            f'Here is the a few start lines of your code: {content}\n\n'
+                            f'Now review your imports in it, correct any error according to the dependencies, '
+                            f'if any data structure undefined/not found, you can go on reading any code files you need, '
+                            f'then rewrite the full code of {code_file} based on the start lines:\n'
                         ))
                     if not wrong_imports:
                         # Set stop sequences for code body: \n\n + language-specific keywords
                         code_stop_sequences = [
-                            '\n\n',              # Primary: double newline (function/method boundary)
+                            # '\n\n',              # Primary: double newline (function/method boundary)
                             '\nclass ',          # JS/TS/Java/Python: class definition
                             '\nfunction ',       # JS/TS: function definition  
                             '\nexport class ',   # TS: exported class
@@ -390,6 +389,7 @@ class Programmer(LLMAgent):
                             '\nprivate class ',  # Java: private class
                             '\npublic ',         # Java: public method/field
                             '\nprotected ',      # Java: protected method/field
+                            '\nprivate ',        # Java: protected method/field
                         ]
                         self.llm.args['extra_body']['stop_sequences'] = code_stop_sequences
                         self.import_phase_done = True
@@ -397,15 +397,15 @@ class Programmer(LLMAgent):
         elif (not has_tool_call) and code_continue:
             # Code body generation continues - accumulate and check
             content = messages[-1].content
-            
             # Extract code segment
             if '<result>' in content:
                 content_segment = content.split('<result>')[1]
+                content_segment = '\n'.join(content_segment.split('\n')[1:])
             else:
                 content_segment = content
             
             # Remove the message and accumulate
-            messages.pop(-1)
+            # messages.pop(-1)
             self.accumulated_code += content_segment
             
             # Run LSP check on accumulated code
@@ -422,8 +422,7 @@ class Programmer(LLMAgent):
                 feedback_msg += '</fix_line>\n'
                 feedback_msg += 'Then continue with <continue>code</continue>\n'
             else:
-                feedback_msg += '✓ No issues. Continue generating.\n'
-                feedback_msg += 'Remember to use double newlines (\\n\\n) between functions/methods/classes.\n'
+                feedback_msg += '✓ No issues. Continue generating, and do not output the code you generated.\n'
             
             messages.append(Message(role='user', content=feedback_msg))
             # Stop sequences remain active
