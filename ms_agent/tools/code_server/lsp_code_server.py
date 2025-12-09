@@ -793,13 +793,17 @@ class LSPCodeServer(ToolBase):
                 "diagnostics": self._format_diagnostics(diagnostics)
             }
 
+            ignored_errors = [
+                'expected', 'cannot be assigned to', 'is not assignable to',
+                'cannot assign to', 'is not a known attribute of "None"',
+            ]
+
             if diagnostics.get('has_errors'):
                 issues = diagnostics.get('diagnostics', [])
                 # Filter critical errors only
                 critical_errors = [
                     d for d in issues
-                    if d.get('severity') == 'Error' and
-                       'expected' not in d.get('message', '').lower()
+                    if d.get('severity') == 'Error' and not any([ignore in d.get('message', '').lower() for ignore in ignored_errors])
                 ]
 
                 if critical_errors:

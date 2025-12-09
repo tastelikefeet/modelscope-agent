@@ -369,6 +369,8 @@ class LLMAgent(Agent):
         Args:
             content (str): Content to log.
         """
+        if len(content) > 256:
+            content = content[:128] + '\n...\n' + content[-128:]
         for line in content.split('\n'):
             for _line in line.split('\\n'):
                 logger.info(f'[{self.tag}] {_line}')

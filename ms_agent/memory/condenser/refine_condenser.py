@@ -13,11 +13,16 @@ class RefineCondenser(Memory):
 1. 你会被给与项目原始需求，技术栈以及文件列表，你需要仔细阅读它们
 2. 你会被给与修复历史，其中可能修复了不同问题，也可能在同一个问题上死锁。
     * 对于已经解决的问题，可以保留较少的token或完全移除
+    * 保留模型已经完成了哪些任务的提示以及做过的事情的轨迹，例如创建了文件等
     * 未解决问题可以保留较多的token
     * 多次未解决的死锁问题应增加多次未解决的额外标注
     * 保留最后一个未解决问题的历史记录，并提示模型继续解决该问题
     * 你的优化目标：1. 最少的保留token数量 2. 尽量还原未解决问题概况 3. 尽量保留并总结模型的错误轨迹以备后用
 3. 返回你总结好的消息历史，不要增加额外内容（例如“让我来总结...”或“下面是对...的总结...”）
+
+你的优化目标：
+1. 【优先】保留充足的信息供后续使用
+2. 【其次】保留尽量少的token数量
 """
 
     def __init__(self, config):
@@ -26,7 +31,7 @@ class RefineCondenser(Memory):
         mem_config = self.config.memory.refine_condenser
         if getattr(mem_config, 'system', None):
             self.system = mem_config.system
-        self.threshold = getattr(mem_config, 'threshold', 24000)
+        self.threshold = getattr(mem_config, 'threshold', 60000)
 
     async def condense_memory(self, messages):
         if len(str(messages)) > self.threshold and messages[-1].role in ('user',
@@ -63,7 +68,7 @@ class RefineCondenser(Memory):
                 Message(role='system', content=self.system),
                 Message(role='user', content=query),
             ]
-            _response_message = self.llm.generate(_messages)
+            _response_message = self.llm.generate(_messages, stream=False)
             content = _response_message.content
             keep_messages.append(
                 Message(

@@ -40,23 +40,10 @@ prompt:
       from .model import ...
       from ..utils import ...
       ```
-    
-    6. Output your code with this format:
-
-    <result>type: filename
-    code here
-    </result>
-
-    for example:
-    <result>javascript: frontend/index.js
-    your code here
-    </result>
-
-    The `frontend/index.js` will be used to saving. Therefore, you must generate it strictly in this format.
   
-    7. 如果你发现依赖的任一底层代码文件不存在，你应当创建这个代码文件
+    6. 如果你发现依赖的任一底层代码文件不存在，你应当创建这个代码文件
       * 你不需要创建缩略文件，该文件会后续自动生成
-    8. 在编写文件完成后，为节省token不要做任何总结文字
+    7. 在编写文件完成后，为节省token不要做任何总结文字
     
     你的优化目标：
     1. 【优先】一次性输出最准确的代码实现，无幻觉和错误引用
@@ -75,9 +62,10 @@ tools:
 
 memory:
   code_condenser:
+  refine_condenser:
 
 
-max_chat_round: 20
+max_chat_round: 30
 
 tool_call_timeout: 30000
 

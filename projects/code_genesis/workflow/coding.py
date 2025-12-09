@@ -14,16 +14,31 @@ from ms_agent import LLMAgent
 from ms_agent.agent import CodeAgent
 from ms_agent.llm import Message
 from ms_agent.memory.condenser.code_condenser import CodeCondenser
+from ms_agent.memory.condenser.refine_condenser import RefineCondenser
 from ms_agent.tools.code_server import LSPCodeServer
 from ms_agent.utils import get_logger
 from ms_agent.utils.constants import DEFAULT_TAG, DEFAULT_INDEX_DIR, DEFAULT_LOCK_DIR
 from ms_agent.utils.utils import extract_code_blocks, file_lock
-from utils import parse_imports, stop_words
 
 logger = get_logger()
 
 
 class Programmer(LLMAgent):
+
+    save_system = """
+Output your code with this format:
+
+    <result>type: filename
+    code here
+    </result>
+
+    for example:
+    <result>javascript: frontend/index.js
+    your code here
+    </result>
+
+    The `frontend/index.js` will be used to saving. Therefore, you must generate it strictly in this format.
+"""
 
     def __init__(self,
                  config: DictConfig = DictConfig({}),
@@ -37,6 +52,7 @@ class Programmer(LLMAgent):
         self.index_dir = os.path.join(self.output_dir, index_dir)
         self.lock_dir = os.path.join(self.output_dir, DEFAULT_LOCK_DIR)
         self.code_condenser = CodeCondenser(config)
+        self.refine_condenser = RefineCondenser(config)
         
         # LSP incremental checking - lazy creation, shared across Programmers
         self.shared_lsp_context = kwargs.get('shared_lsp_context', {})
@@ -50,6 +66,7 @@ class Programmer(LLMAgent):
 
     async def on_task_begin(self, messages: List[Message]):
         self.code_files = [self.code_file]
+        messages[0].content = self.config.prompt.system + self.save_system
     
     async def _incremental_lsp_check(self, code_file: str, partial_code: str) -> Optional[str]:
         """Incrementally check code quality using appropriate LSP server"""
@@ -189,19 +206,22 @@ class Programmer(LLMAgent):
                 logger.warning(all_issues)
                 all_issues = (f'We check the code with LSP server, here are the issues found:\n'
                               f'{all_issues}\n'
+                              f'You can read related file to find the root cause if needed\n'
+                              f'Then fix the file with `replace_file_lines`\n'
                               f'Some tips:\n'
                               f'1. Check any code file not in your dependencies and not in the `file_design.txt`\n'
                               f'2. Consider the relative path mistakes to your current writing file location\n'
-                              f'You can read related file to find the root cause if needed\n'
-                              f'Then fix the file with `replace_file_lines`')
+                              f'3. Do not rewrite the code with <result></result> after fixing with `replace_file_lines`\n'
+                              )
                 messages.append(Message(role='user', content=all_issues))
+                messages[0].content = self.config.prompt.system
 
         self.filter_code_files()
         if not self.code_files and not self.unchecked_files:
             self.runtime.should_stop = True
 
-        new_task = coding_finish and self.code_files and (not self.unchecked_files)
-        if (not has_tool_call) and new_task:
+        new_task = (not has_tool_call) and self.code_files and (not self.unchecked_files)
+        if new_task:
             last_file = self.code_files[-1]
             messages.append(
                 Message(
@@ -209,8 +229,13 @@ class Programmer(LLMAgent):
                     content=
                     f'\nA code file in your imports not found, you should write it first: {last_file}\n'
                 ))
+            messages[0].content = self.config.prompt.system + self.save_system
 
         await self.code_condenser.run(messages)
+        if new_task or len(messages) > 20:
+            _messages = await self.refine_condenser.run(messages)
+            messages.clear()
+            messages.extend(_messages)
 
 
 @dataclasses.dataclass
@@ -346,7 +371,7 @@ class CodingAgent(CodeAgent):
         logger.info(f'Writing {name}')
         _config = deepcopy(self.config)
         messages = [
-            Message(role='system', content=self.config.prompt.system),
+            Message(role='system', content=self.config.prompt.system + Programmer.save_system),
             Message(
                 role='user',
                 content=f'原始需求(topic.txt): {topic}\n'
@@ -411,7 +436,9 @@ class CodingAgent(CodeAgent):
                 ]
                 
                 try:
-                    await asyncio.gather(*tasks, return_exceptions=True)
+                    for task in tasks:
+                        await task
+                    # await asyncio.gather(*tasks, return_exceptions=True)
                 except Exception as e:
                     logger.error(f'Error writing code: {e}')
 

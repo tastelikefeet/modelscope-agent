@@ -462,7 +462,7 @@ class FileSystemTool(ToolBase):
                     Message(role='system', content=self.system),
                     Message(role='user', content='The content to be abbreviated:\n\n' + content),
                 ]
-                response = self.llm.generate(messages=messages)
+                response = self.llm.generate(messages=messages, stream=False)
                 os.makedirs(os.path.dirname(index_file), exist_ok=True)
                 with open(index_file, 'w', encoding='utf-8') as f:
                     f.write(response.content)
