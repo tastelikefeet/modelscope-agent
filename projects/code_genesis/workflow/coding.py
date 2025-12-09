@@ -5,7 +5,6 @@ import os
 import re
 import shutil
 from collections import OrderedDict
-from concurrent.futures import ThreadPoolExecutor, as_completed
 from copy import deepcopy
 from typing import List, Set, Optional, Dict
 
@@ -158,7 +157,13 @@ class Programmer(LLMAgent):
             logger.debug(f"Skipping LSP check for config file: {code_file}")
             return None
 
-        with file_lock(self.lock_dir, '_lsp_check_lock'):
+        # Use async lock to serialize LSP operations across concurrent coroutines
+        lsp_lock = self.shared_lsp_context.get('lsp_lock')
+        if lsp_lock is None:
+            lsp_lock = asyncio.Lock()
+            self.shared_lsp_context['lsp_lock'] = lsp_lock
+            
+        async with lsp_lock:
             try:
                 # Determine language from file extension
                 file_ext = os.path.splitext(code_file)[1].lower()
@@ -378,26 +383,74 @@ class Programmer(LLMAgent):
                             feedback_msg = ('We check the code with LSP server, here are the issues found:\n'
                                             f'{lsp_feedback}\n')
                             feedback_msg += '\n**Fix the issues** using:\n'
-                            feedback_msg += '<fix_line>\n'
-                            feedback_msg += 'line_number:corrected code\n'
-                            feedback_msg += '</fix_line>\n'
+                            feedback_msg += """
+<fix_line>
+[
+    {
+        "start_line": start-line-number,
+        "end_line": end-line-number,
+        "code": "the correct code"
+    }, # multiple fixes enabled
+    ...
+]
+</fix_line>
+"""
                             messages.append(Message(role='user', content=feedback_msg))
                             response = self.llm.generate(messages, stream=False)
                             content = response.content
                             fix_pattern = r'<fix_line>\s*([\s\S]*?)\s*</fix_line>'
                             fix_matches = re.findall(fix_pattern, content)
-                            for fix_content in fix_matches:
-                                # Parse line fixes: "line_number: code"
-                                for line in fix_content.strip().split('\n'):
-                                    if ':' in line:
-                                        line_num_str, fixed_code = line.split(':', 1)
-                                        line_num = int(line_num_str.strip())
-                                        # Apply fix to accumulated code
+                            if fix_matches:
+                                for fix_content in fix_matches:
+                                    try:
+                                        # Parse fix instructions
+                                        fixes = json.loads(fix_content)
+                                        if not isinstance(fixes, list):
+                                            fixes = [fixes]
+                                        
+                                        # Apply fixes to code
                                         code_lines = code.split('\n')
-                                        if 0 < line_num <= len(code_lines):
-                                            code_lines[line_num - 1] = fixed_code.strip()
-                                            code = '\n'.join(code_lines)
-
+                                        
+                                        # Sort fixes by start_line in reverse order to avoid line number shifts
+                                        fixes_sorted = sorted(fixes, key=lambda x: x.get('start_line', 0), reverse=True)
+                                        
+                                        for fix in fixes_sorted:
+                                            start_line = fix.get('start_line', 0)
+                                            end_line = fix.get('end_line', start_line)
+                                            new_code = fix.get('code', '')
+                                            
+                                            # Validate line numbers
+                                            if start_line < 1 or start_line > len(code_lines):
+                                                logger.warning(f"Invalid start_line {start_line} for file {path}")
+                                                continue
+                                            
+                                            if end_line < start_line or end_line > len(code_lines):
+                                                logger.warning(f"Invalid end_line {end_line} for file {path}")
+                                                continue
+                                            
+                                            # Apply fix (convert to 0-based index)
+                                            start_idx = start_line - 1
+                                            end_idx = end_line
+                                            
+                                            # Replace lines
+                                            code_lines[start_idx:end_idx] = new_code.split('\n')
+                                            
+                                            logger.info(f"Applied fix to {path} lines {start_line}-{end_line}")
+                                        
+                                        # Update code with fixes
+                                        code = '\n'.join(code_lines)
+                                        logger.info(f"LSP fixes applied to {path}, retrying check...")
+                                        
+                                    except json.JSONDecodeError as e:
+                                        logger.warning(f"Failed to parse fix content: {e}")
+                                        continue
+                                    except Exception as e:
+                                        logger.warning(f"Failed to apply fix: {e}")
+                                        continue
+                            else:
+                                # No valid fixes found, break retry loop
+                                logger.warning(f"No valid fix_line tags found in LLM response for {path}")
+                                break
                         else:
                             break
 
@@ -532,34 +585,24 @@ class CodingAgent(CodeAgent):
                 if not files:
                     break
 
-                # Convert async tasks to sync wrapper for thread pool
-                def write_code_sync(name, description):
-                    loop = asyncio.new_event_loop()
-                    asyncio.set_event_loop(loop)
-                    try:
-                        return loop.run_until_complete(
-                            self.write_code(
-                                topic,
-                                user_story,
-                                framework,
-                                protocol,
-                                name,
-                                description,
-                                fast_fail=False))
-                    finally:
-                        loop.close()
-
-                with ThreadPoolExecutor(max_workers=max_workers) as executor:
-                    futures = [
-                        executor.submit(write_code_sync, name, description)
-                        for name, description in files.items()
-                    ]
-                    # Wait for all tasks to complete
-                    for future in as_completed(futures):
-                        try:
-                            future.result()
-                        except Exception as e:
-                            logger.error(f'Error writing code: {e}')
+                # Use asyncio.gather for concurrent execution in the same event loop
+                # This ensures LSP servers work correctly across all tasks
+                tasks = [
+                    self.write_code(
+                        topic,
+                        user_story,
+                        framework,
+                        protocol,
+                        name,
+                        description,
+                        fast_fail=False)
+                    for name, description in files.items()
+                ]
+                
+                try:
+                    await asyncio.gather(*tasks, return_exceptions=True)
+                except Exception as e:
+                    logger.error(f'Error writing code: {e}')
 
             self.refresh_file_status(file_relation)
 
