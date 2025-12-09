@@ -232,7 +232,7 @@ Output your code with this format:
             messages[0].content = self.config.prompt.system + self.save_system
 
         await self.code_condenser.run(messages)
-        if new_task or len(messages) > 20:
+        if new_task or len(messages) > 30:
             _messages = await self.refine_condenser.run(messages)
             messages.clear()
             messages.extend(_messages)

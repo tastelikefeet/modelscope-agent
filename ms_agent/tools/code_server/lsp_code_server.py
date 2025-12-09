@@ -794,8 +794,9 @@ class LSPCodeServer(ToolBase):
             }
 
             ignored_errors = [
-                'expected', 'cannot be assigned to', 'is not assignable to',
-                'cannot assign to', 'is not a known attribute of "None"',
+                'cannot be assigned to', 'is not assignable to',
+                'cannot assign to',
+                'is unknown', '"none"',
             ]
 
             if diagnostics.get('has_errors'):
