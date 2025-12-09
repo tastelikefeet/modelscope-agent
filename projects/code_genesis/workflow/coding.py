@@ -36,6 +36,7 @@ class Programmer(LLMAgent):
         self.code_file = code_file
         index_dir = getattr(config, 'index_cache_dir', DEFAULT_INDEX_DIR)
         self.index_dir = os.path.join(self.output_dir, index_dir)
+        self.lock_dir = os.path.join(self.output_dir, DEFAULT_LOCK_DIR)
         self.code_condenser = CodeCondenser(config)
         
         # LSP incremental checking - lazy creation, shared across Programmers
@@ -130,6 +131,17 @@ class Programmer(LLMAgent):
             # Store in shared context
             self.shared_lsp_context['lsp_servers'] = lsp_servers
             self.shared_lsp_context['project_languages'] = detected_languages
+            
+            # Load existing files into LSP index using compile_directory
+            for lang, lsp_server in lsp_servers.items():
+                await lsp_server.call_tool(
+                    "lsp_code_server",
+                    tool_name="check_directory",
+                    tool_args={
+                        "directory": '',
+                        "language": lang
+                    }
+                )
                     
         except Exception as e:
             logger.warning(f"Failed to initialize LSP servers: {e}")
@@ -140,62 +152,63 @@ class Programmer(LLMAgent):
         lsp_servers = self.shared_lsp_context.get('lsp_servers', {})
         if not lsp_servers:
             return None
-            
-        try:
-            # Determine language from file extension
-            file_ext = os.path.splitext(code_file)[1].lower()
-            
-            # Map file extension to language
-            if file_ext in ['.ts', '.tsx', '.js', '.jsx', '.mjs', '.cjs', '.vue']:
-                lang = 'typescript'
-            elif file_ext == '.py':
-                lang = 'python'
-            elif file_ext in ['.java', '.kt', '.kts']:
-                lang = 'java'
-            else:
-                logger.debug(f"Unsupported file extension: {file_ext}")
-                return None
-            
-            # Get LSP server for this language
-            lsp_server = lsp_servers.get(lang)
-            if not lsp_server:
-                logger.debug(f"No LSP server initialized for {lang}")
-                return None
+
+        with file_lock(self.lock_dir, '_lsp_check_lock'):
+            try:
+                # Determine language from file extension
+                file_ext = os.path.splitext(code_file)[1].lower()
                 
-            result = await lsp_server.call_tool(
-                "lsp_code_server",
-                tool_name="update_and_check",
-                tool_args={
-                    "file_path": code_file,
-                    "content": partial_code,
-                    "language": lang
-                }
-            )
-            
-            diagnostics = json.loads(result)
-            
-            if diagnostics.get('has_errors'):
-                issues = diagnostics.get('diagnostics', [])
-                # Filter critical errors only
-                critical_errors = [
-                    d for d in issues 
-                    if d.get('severity') == 'Error' and 
-                    'expected' not in d.get('message', '').lower()
-                ]
+                # Map file extension to language
+                if file_ext in ['.ts', '.tsx', '.js', '.jsx', '.mjs', '.cjs', '.vue']:
+                    lang = 'typescript'
+                elif file_ext == '.py':
+                    lang = 'python'
+                elif file_ext in ['.java', '.kt', '.kts']:
+                    lang = 'java'
+                else:
+                    logger.debug(f"Unsupported file extension: {file_ext}")
+                    return None
                 
-                if critical_errors:
-                    error_msg = f"\n⚠️ LSP detected {len(critical_errors)} critical issues:\n"
-                    for i, diag in enumerate(critical_errors[:3], 1):
-                        line = diag.get('line', 0)
-                        msg = diag.get('message', '')
-                        error_msg += f"{i}. Line {line}: {msg}\n"
-                    error_msg += "Please fix these issues before continuing.\n"
-                    return error_msg
+                # Get LSP server for this language
+                lsp_server = lsp_servers.get(lang)
+                if not lsp_server:
+                    logger.debug(f"No LSP server initialized for {lang}")
+                    return None
                     
-        except Exception as e:
-            logger.debug(f"LSP check failed for {code_file}: {e}")
-            
-        return None
+                result = await lsp_server.call_tool(
+                    "lsp_code_server",
+                    tool_name="update_and_check",
+                    tool_args={
+                        "file_path": code_file,
+                        "content": partial_code,
+                        "language": lang
+                    }
+                )
+                
+                diagnostics = json.loads(result)
+                
+                if diagnostics.get('has_errors'):
+                    issues = diagnostics.get('diagnostics', [])
+                    # Filter critical errors only
+                    critical_errors = [
+                        d for d in issues 
+                        if d.get('severity') == 'Error' and 
+                        'expected' not in d.get('message', '').lower()
+                    ]
+                    
+                    if critical_errors:
+                        error_msg = f"\n⚠️ LSP detected {len(critical_errors)} critical issues:\n"
+                        for i, diag in enumerate(critical_errors[:3], 1):
+                            line = diag.get('line', 0)
+                            msg = diag.get('message', '')
+                            error_msg += f"{i}. Line {line}: {msg}\n"
+                        error_msg += "Please fix these issues before continuing.\n"
+                        return error_msg
+                        
+            except Exception as e:
+                logger.debug(f"LSP check failed for {code_file}: {e}")
+                
+            return None
     
     async def on_task_end(self, messages: List[Message]):
         """Programmer task end - cleanup managed by last Programmer or CodingAgent"""
@@ -367,7 +380,7 @@ class Programmer(LLMAgent):
                             feedback_msg += 'line_number:corrected code\n'
                             feedback_msg += '</fix_line>\n'
                             messages.append(Message(role='user', content=feedback_msg))
-                            response = self.llm.generate(messages)
+                            response = self.llm.generate(messages, stream=False)
                             content = response.content
                             fix_pattern = r'<fix_line>\s*([\s\S]*?)\s*</fix_line>'
                             fix_matches = re.findall(fix_pattern, content)

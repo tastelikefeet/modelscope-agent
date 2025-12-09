@@ -220,20 +220,20 @@ class LSPServer:
         
         # Try to read any pending diagnostics messages
         diagnostics = []
-        try:
-            # Set a short timeout to read available messages
-            for _ in range(5):
-                try:
-                    msg = await asyncio.wait_for(self._read_message(), timeout=0.2)
-                    if msg.get("method") == "textDocument/publishDiagnostics":
-                        if msg.get("params", {}).get("uri") == file_uri:
-                            diagnostics = msg.get("params", {}).get("diagnostics", [])
-                            break
-                except asyncio.TimeoutError:
-                    break
-        except Exception as e:
-            logger.debug(f"No diagnostics available: {e}")
-            
+        found_diagnostics = False
+        for _ in range(60):
+            try:
+                msg = await asyncio.wait_for(self._read_message(), timeout=2.0)
+                if msg.get("method") == "textDocument/publishDiagnostics":
+                    if msg.get("params", {}).get("uri") == file_uri:
+                        diagnostics = msg.get("params", {}).get("diagnostics", [])
+                        found_diagnostics = True
+                        break
+            except asyncio.TimeoutError as e:
+                raise e
+        if not found_diagnostics:
+            raise RuntimeError("Could not find a diagnostics message")
+        diagnostics = [d for d in diagnostics if not isinstance(d['code'], str) or 'unused' not in d['code'].lower()]
         return diagnostics
 
 
@@ -588,7 +588,7 @@ class LSPCodeServer(ToolBase):
                 
             # Determine file extensions
             if language.lower() in ["typescript", "javascript"]:
-                extensions = [".ts", ".tsx", ".js", ".jsx"]
+                extensions = [".ts", ".tsx", ".js", ".jsx", ".mjs", ".cjs", ".vue"]
                 lang_id = "typescript"
             elif language.lower() in ["python"]:
                 extensions = [".py"]
