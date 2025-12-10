@@ -35,10 +35,11 @@ prompt:
       * 当你编写http、rpc client端代码时，你需要调用`api_search---url_search`工具来确认协议细节，该工具可以传入keywords来搜索url找到你可能会用到的api列表
       对文件import的要求：
       * 不要使用动态引用或局部方法引用，所有import都应该在文件顶部完成
-      * 重要:python中所有的import应当以当前编写的文件的相对路径为准，例如：
+      * python编写中，所有包import均使用相对导入，不要使用绝对导入，例如：
       ```python
       from .model import ...
       from ..utils import ...
+      from .main import ...
       ```
   
     6. 如果你发现依赖的任一底层代码文件不存在，你应当创建这个代码文件

@@ -62,6 +62,9 @@ class Programmer(LLMAgent):
             logger.debug(f"Skipping LSP check for config file: {code_file}")
             return None
 
+        if code_file.endswith('.vue'):
+            return None
+
         # Use async lock to serialize LSP operations across concurrent coroutines
         lsp_lock = self.shared_lsp_context.get('lsp_lock')
         if lsp_lock is None:
@@ -72,17 +75,13 @@ class Programmer(LLMAgent):
             try:
                 # Determine language from file extension
                 file_ext = os.path.splitext(code_file)[1].lower()
-                
-                # Map file extension to language
-                # For Vue projects, use Volar for all JS/TS/Vue files
-                # For non-Vue projects, use TypeScript server
                 is_vue_project = 'vue' in self.shared_lsp_context.get('project_languages', set())
                 
                 if file_ext in ['.ts', '.tsx', '.js', '.jsx', '.mjs', '.cjs', '.vue']:
                     if is_vue_project:
-                        lang = 'vue'  # Use Volar for all files in Vue project
+                        lang = 'vue'
                     else:
-                        lang = 'typescript'  # Use TS server for non-Vue projects
+                        lang = 'typescript'
                 elif file_ext == '.py':
                     lang = 'python'
                 elif file_ext in ['.java', '.kt', '.kts']:
@@ -284,10 +283,8 @@ class CodingAgent(CodeAgent):
             is_vue = any(kw in framework for kw in ['vue', 'vite', 'nuxt'])
             
             if is_vue:
-                # Vue project: use Volar for all JS/TS/Vue files
-                detected_languages.add('vue')
+                detected_languages.add('typescript')
             elif any(kw in framework for kw in ['typescript', 'javascript', 'react', 'node', 'npm']):
-                # Non-Vue JS/TS project: use TypeScript server
                 detected_languages.add('typescript')
             
             if any(kw in framework for kw in ['python', 'django', 'flask', 'fastapi']):

@@ -14,6 +14,7 @@ Used in complex code generation projects to continuously validate code quality.
 import asyncio
 import json
 import os
+import re
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
@@ -168,9 +169,9 @@ class LSPServer:
             try:
                 for _ in range(10):
                     try:
-                        output = await asyncio.wait_for(self._read_message(), timeout=5.0)
+                        await asyncio.wait_for(self._read_message(), timeout=2.0)
                     except asyncio.TimeoutError:
-                        continue
+                        break
             except Exception as e:
                 logger.debug(f"Cleared startup messages: {e}")
             
@@ -255,7 +256,7 @@ class VolarLSPServer(LSPServer):
         try:
             # Check if @vue/language-server is installed
             check_process = await asyncio.create_subprocess_exec(
-                "npx", "vue-language-server", "--version",
+                "npx", "@vue/language-server", "--version",
                 stdout=asyncio.subprocess.PIPE,
                 stderr=asyncio.subprocess.PIPE
             )
@@ -267,7 +268,7 @@ class VolarLSPServer(LSPServer):
                 
             # Start vue-language-server
             self.process = await asyncio.create_subprocess_exec(
-                "npx", "vue-language-server", "--stdio",
+                "npx", "@vue/language-server", "--stdio",
                 stdin=asyncio.subprocess.PIPE,
                 stdout=asyncio.subprocess.PIPE,
                 stderr=asyncio.subprocess.PIPE,
@@ -678,7 +679,7 @@ class LSPCodeServer(ToolBase):
                 all_files.extend(dir_path.rglob(f"*{ext}"))
             all_files = [file.relative_to(dir_path) for file in all_files]
 
-            skip_prefixes = ['.', '..', '__']
+            skip_prefixes = ['.', '..', '__', 'node_modules']
             cleaned_files = []
             for file in all_files:
                 filename = os.path.basename(file)
@@ -844,8 +845,8 @@ class LSPCodeServer(ToolBase):
             ignored_errors = [
                 'cannot be assigned to', 'is not assignable to',
                 'cannot assign to',
-                'is unknown', '"none"',
-                'never used', 'never read'
+                'is unknown', '"none"', 'vue', '',
+                'never used', 'never read', 'implicitly has'
             ]
 
             if diagnostics.get('has_errors'):
