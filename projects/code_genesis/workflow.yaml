@@ -4,13 +4,13 @@ user_story:
     kwargs:
       code_file: workflow/user_story.py
   next:
-    - architecture
+    - architect
 
-architecture:
-  agent_config: architecture.yaml
+architect:
+  agent_config: architect.yaml
   agent:
     kwargs:
-      code_file: workflow/architecture.py
+      code_file: workflow/architect.py
   next:
     - file_design
 

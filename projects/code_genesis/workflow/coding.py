@@ -37,7 +37,7 @@ class Programmer(LLMAgent):
         self.lock_dir = os.path.join(self.output_dir, DEFAULT_LOCK_DIR)
         self.code_condenser = CodeCondenser(config)
         self.refine_condenser = RefineCondenser(config)
-        
+        self.code_files = []
         # LSP incremental checking - lazy creation, shared across Programmers
         self.shared_lsp_context = kwargs.get('shared_lsp_context', {})
         self.unchecked_files = set()
@@ -52,7 +52,6 @@ class Programmer(LLMAgent):
         self.code_files = [self.code_file]
     
     async def _incremental_lsp_check(self, code_file: str, partial_code: str) -> Optional[str]:
-        """Incrementally check code quality using appropriate LSP server"""
         lsp_servers = self.shared_lsp_context.get('lsp_servers', {})
         if not lsp_servers:
             return None
@@ -65,56 +64,35 @@ class Programmer(LLMAgent):
         if code_file.endswith('.vue'):
             return None
 
-        # Use async lock to serialize LSP operations across concurrent coroutines
         lsp_lock = self.shared_lsp_context.get('lsp_lock')
         if lsp_lock is None:
             lsp_lock = asyncio.Lock()
             self.shared_lsp_context['lsp_lock'] = lsp_lock
             
         async with lsp_lock:
-            try:
-                # Determine language from file extension
-                file_ext = os.path.splitext(code_file)[1].lower()
-                is_vue_project = 'vue' in self.shared_lsp_context.get('project_languages', set())
-                
-                if file_ext in ['.ts', '.tsx', '.js', '.jsx', '.mjs', '.cjs', '.vue']:
-                    if is_vue_project:
-                        lang = 'vue'
-                    else:
-                        lang = 'typescript'
-                elif file_ext == '.py':
-                    lang = 'python'
-                elif file_ext in ['.java', '.kt', '.kts']:
-                    lang = 'java'
-                else:
-                    logger.debug(f"Unsupported file extension: {file_ext}")
-                    return None
-                
-                # Get LSP server for this language
-                lsp_server = lsp_servers.get(lang)
-                if not lsp_server:
-                    logger.debug(f"No LSP server initialized for {lang}")
-                    return None
-                    
-                return await lsp_server.call_tool(
-                    "lsp_code_server",
-                    tool_name="update_and_check",
-                    tool_args={
-                        "file_path": code_file,
-                        "content": partial_code,
-                        "language": lang
-                    }
-                )
-                        
-            except Exception as e:
-                logger.debug(f"LSP check failed for {code_file}: {e}")
-                
-            return None
-    
-    async def on_task_end(self, messages: List[Message]):
-        """Programmer task end - cleanup managed by last Programmer or CodingAgent"""
-        # Only cleanup if this is the last programmer (optional, can be managed by CodingAgent)
-        pass
+            file_ext = os.path.splitext(code_file)[1].lower()
+            for key, value in LSPCodeServer.language_mapping.items():
+                if file_ext in value:
+                    lang = key
+                    break
+
+            if lang is None:
+                return None
+
+            lsp_server = lsp_servers.get(lang)
+            if not lsp_server:
+                logger.debug(f"No LSP server initialized for {lang}")
+                return None
+
+            return await lsp_server.call_tool(
+                "lsp_code_server",
+                tool_name="update_and_check",
+                tool_args={
+                    "file_path": code_file,
+                    "content": partial_code,
+                    "language": lang
+                }
+            )
 
     def filter_code_files(self):
         code_files = []
@@ -123,7 +101,8 @@ class Programmer(LLMAgent):
                 code_files.append(code_file)
         self.code_files = code_files
 
-    def find_all_read_files(self, messages):
+    @staticmethod
+    def find_all_read_files(messages):
         files = []
         for message in messages:
             if message.tool_calls:
@@ -163,7 +142,6 @@ class Programmer(LLMAgent):
 
                     lock_dir = os.path.join(self.output_dir, DEFAULT_LOCK_DIR)
 
-                    # Check and write file with lock
                     with file_lock(lock_dir, r['filename']):
                         new_file = not os.path.exists(path)
                         if new_file:
@@ -187,8 +165,9 @@ class Programmer(LLMAgent):
                     _code = f.read()
                 lsp_feedback = await self._incremental_lsp_check(uncheck_file, _code)
                 if lsp_feedback:
-                    all_issues.append(f'Issues in {uncheck_file}:' + lsp_feedback)
+                    all_issues.append(f'❎Issues in {uncheck_file}:' + lsp_feedback)
                 else:
+                    logger.info(f'✅No issues found in {uncheck_file}.')
                     self.unchecked_files.remove(uncheck_file)
 
             if all_issues:
@@ -246,125 +225,74 @@ class CodingAgent(CodeAgent):
         # Shared LSP context across all Programmers
         self.shared_lsp_context = {}
     
-    def _cleanup_lsp_index_dirs(self):
-        """Clean up LSP index directories to prevent stale indexes"""
-        cleanup_dirs = [
-            os.path.join(self.output_dir, '.jdtls_workspace'),      # Java LSP
-            os.path.join(self.output_dir, '.pyright'),              # Python LSP (if exists)
-            os.path.join(self.output_dir, 'node_modules', '.cache'), # TypeScript LSP cache
-        ]
-        
-        for dir_path in cleanup_dirs:
-            if os.path.exists(dir_path):
-                try:
-                    shutil.rmtree(dir_path)
-                    logger.info(f"Cleaned up old LSP index: {dir_path}")
-                except Exception as e:
-                    logger.warning(f"Failed to clean LSP index {dir_path}: {e}")
-    
     async def _init_lsp_servers(self):
-        """Initialize LSP servers based on framework.txt before creating Programmers"""
-        try:
-            # Clean up old LSP index directories
-            self._cleanup_lsp_index_dirs()
-            
-            framework_file = os.path.join(self.output_dir, 'framework.txt')
-            if not os.path.exists(framework_file):
-                logger.info("framework.txt not found, skipping LSP initialization")
-                return
-                
-            with open(framework_file, 'r') as f:
-                framework = f.read().lower()
-            
-            # Detect all languages in the project
-            detected_languages = set()
-            
-            # Check if it's a Vue project
-            is_vue = any(kw in framework for kw in ['vue', 'vite', 'nuxt'])
-            
-            if is_vue:
-                detected_languages.add('typescript')
-            elif any(kw in framework for kw in ['typescript', 'javascript', 'react', 'node', 'npm']):
-                detected_languages.add('typescript')
-            
-            if any(kw in framework for kw in ['python', 'django', 'flask', 'fastapi']):
-                detected_languages.add('python')
-            
-            if any(kw in framework for kw in ['java ', 'java\n', 'spring', 'maven', 'gradle']):
-                detected_languages.add('java')
-            
-            if not detected_languages:
-                logger.info("No supported languages detected in framework.txt")
-                return
-            
-            logger.info(f"Initializing LSP servers for languages: {', '.join(detected_languages)}")
-            
-            # Initialize LSP server for each detected language
-            lsp_config = DictConfig({
-                'workspace_dir': self.output_dir,
-                'output_dir': self.output_dir
-            })
-            
-            lsp_servers = {}
-            for lang in detected_languages:
-                try:
-                    lsp_server = LSPCodeServer(lsp_config)
-                    await lsp_server.connect()
-                    lsp_servers[lang] = lsp_server
-                    logger.info(f"LSP Code Server created for {lang}")
-                except Exception as e:
-                    logger.warning(f"Failed to create LSP server for {lang}: {e}")
-            
-            # Load existing files into LSP index using check_directory
-            # This triggers the actual LSP server process initialization
-            for lang, lsp_server in lsp_servers.items():
-                logger.info(f"Building LSP index for {lang}...")
-                await lsp_server.call_tool(
-                    "lsp_code_server",
-                    tool_name="check_directory",
-                    tool_args={
-                        "directory": '',
-                        "language": lang
-                    }
-                )
-                logger.info(f"LSP index built for {lang}")
-            
-            # Store in shared context for all Programmers to use
-            self.shared_lsp_context['lsp_servers'] = lsp_servers
-            self.shared_lsp_context['project_languages'] = detected_languages
-            logger.info(f"LSP servers ready for use")
-                    
-        except Exception as e:
-            logger.warning(f"Failed to initialize LSP servers: {e}")
-            self.shared_lsp_context['lsp_servers'] = {}
+        framework_file = os.path.join(self.output_dir, 'framework.txt')
+        if not os.path.exists(framework_file):
+            logger.info("framework.txt not found, skipping LSP initialization")
+            return
+
+        with open(framework_file, 'r') as f:
+            framework = f.read().lower()
+
+        # Detect all languages in the project
+        detected_languages = set()
+
+        if any(kw in framework for kw in ['typescript', 'javascript', 'react', 'node', 'npm', 'html']):
+            detected_languages.add('typescript')
+
+        if any(kw in framework for kw in ['python', 'django', 'flask', 'fastapi']):
+            detected_languages.add('python')
+
+        if any(kw in framework for kw in ['java ', 'java\n', 'spring', 'maven', 'gradle']):
+            detected_languages.add('java')
+
+        if not detected_languages:
+            logger.info("No supported languages detected in framework.txt")
+            return
+
+        logger.info(f"Initializing LSP servers for languages: {', '.join(detected_languages)}")
+
+        # Initialize LSP server for each detected language
+        lsp_config = DictConfig({
+            'workspace_dir': self.output_dir,
+            'output_dir': self.output_dir
+        })
+
+        lsp_servers = {}
+        for lang in detected_languages:
+            lsp_server = LSPCodeServer(lsp_config)
+            await lsp_server.connect()
+            lsp_servers[lang] = lsp_server
+            logger.info(f"LSP Code Server created for {lang}")
+
+        for lang, lsp_server in lsp_servers.items():
+            logger.info(f"Building LSP index for {lang}...")
+            await lsp_server.call_tool(
+                "lsp_code_server",
+                tool_name="check_directory",
+                tool_args={
+                    "directory": '',
+                    "language": lang
+                }
+            )
+            logger.info(f"LSP index built for {lang}")
+
+        self.shared_lsp_context['lsp_servers'] = lsp_servers
+        self.shared_lsp_context['project_languages'] = detected_languages
+        logger.info(f"LSP servers ready for use")
     
     async def _cleanup_lsp_servers(self):
-        """Clean up all LSP servers at the end"""
         lsp_servers = self.shared_lsp_context.get('lsp_servers', {})
         if lsp_servers:
             for lang, lsp_server in lsp_servers.items():
                 try:
                     await lsp_server.cleanup()
-                    logger.info(f"LSP server for {lang} cleaned up")
-                except Exception as e:
-                    logger.warning(f"Error cleaning up LSP server for {lang}: {e}")
-        
-        # Also clean up index directories
-        cleanup_dirs = [
-            os.path.join(self.output_dir, '.jdtls_workspace'),
-            os.path.join(self.output_dir, '.pyright'),
-            os.path.join(self.output_dir, 'node_modules', '.cache'),
-        ]
-        for dir_path in cleanup_dirs:
-            if os.path.exists(dir_path):
-                try:
-                    shutil.rmtree(dir_path)
-                    logger.info(f"Cleaned up LSP index: {dir_path}")
-                except Exception as e:
-                    logger.warning(f"Failed to clean LSP index {dir_path}: {e}")
+                    lsp_server.cleanup_lsp_index_dirs()
+                except Exception: # noqa
+                    pass
 
     async def write_code(self, topic, user_story, framework, protocol, name,
-                         description, fast_fail):
+                         description, index, last_batch, siblings, next_batch):
         logger.info(f'Writing {name}')
         _config = deepcopy(self.config)
         messages = [
@@ -372,10 +300,15 @@ class CodingAgent(CodeAgent):
             Message(
                 role='user',
                 content=f'原始需求(topic.txt): {topic}\n'
-                f'LLM规划的用户故事(user_story.txt): {user_story}\n'
-                f'技术栈(framework.txt): {framework}\n'
-                f'通讯协议(protocol.txt): {protocol}\n'
-                f'你需要编写的文件: {name}\n文件描述: {description}\n'),
+                        f'LLM规划的用户故事(user_story.txt): {user_story}\n'
+                        f'技术栈(framework.txt): {framework}\n'
+                        f'通讯协议(protocol.txt): {protocol}\n'
+                        f'你需要编写的文件: {name}\n'
+                        f'文件编写index: {index}\n'
+                        f'文件描述: {description}\n'
+                        f'上一批编写的代码:{last_batch}\n'
+                        f'和你并行编写的代码:{siblings}\n'
+                        f'下一批编写的代码:{next_batch}\n'),
         ]
 
         _config = deepcopy(self.config)
@@ -390,9 +323,7 @@ class CodingAgent(CodeAgent):
         await programmer.run(messages)
 
     async def execute_code(self, inputs, **kwargs):
-        # Initialize LSP servers before starting code generation
         await self._init_lsp_servers()
-        
         with open(os.path.join(self.output_dir, 'topic.txt')) as f:
             topic = f.read()
         with open(os.path.join(self.output_dir, 'user_story.txt')) as f:
@@ -405,10 +336,9 @@ class CodingAgent(CodeAgent):
         file_orders = self.construct_file_orders()
         file_relation = OrderedDict()
         self.refresh_file_status(file_relation)
-        lock_dir = os.path.join(self.output_dir, 'locks')
-        shutil.rmtree(lock_dir, ignore_errors=True)
+        shutil.rmtree(os.path.join(self.output_dir, 'locks'), ignore_errors=True)
 
-        for files in file_orders:
+        for idx, files in enumerate(file_orders):
             while True:
                 files = self.filter_done_files(files)
                 files = self.find_description(files)
@@ -416,8 +346,17 @@ class CodingAgent(CodeAgent):
                 if not files:
                     break
 
-                # Use asyncio.gather for concurrent execution in the same event loop
-                # This ensures LSP servers work correctly across all tasks
+                siblings = '\n'.join(set(files))
+                if idx == 0:
+                    last_batch = 'You are the first batch.'
+                    next_batch = '\n'.join(file_orders[idx + 1])
+                if idx == len(file_orders) - 1:
+                    last_batch = '\n'.join(file_orders[idx - 1])
+                    next_batch = 'You are the last batch.'
+                else:
+                    last_batch = '\n'.join(file_orders[idx - 1])
+                    next_batch = '\n'.join(file_orders[idx + 1])
+
                 tasks = [
                     self.write_code(
                         topic,
@@ -426,24 +365,21 @@ class CodingAgent(CodeAgent):
                         protocol,
                         name,
                         description,
-                        fast_fail=False)
+                        index=idx,
+                        last_batch=last_batch,
+                        siblings='\n'.join(set(siblings)-{name}),
+                        next_batch=next_batch)
                     for name, description in files.items()
                 ]
-                
-                try:
-                    #for task in tasks:
-                    #    await task
-                    await asyncio.gather(*tasks, return_exceptions=True)
-                except Exception as e:
-                    logger.error(f'Error writing code: {e}')
+
+                #for task in tasks:
+                #    await task
+                await asyncio.gather(*tasks, return_exceptions=True)
 
             self.refresh_file_status(file_relation)
 
         self.construct_file_information(file_relation)
-        
-        # Clean up LSP servers after all files are generated
         await self._cleanup_lsp_servers()
-        
         return inputs
 
     def construct_file_orders(self):
