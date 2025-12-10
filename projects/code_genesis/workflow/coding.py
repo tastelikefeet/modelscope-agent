@@ -308,7 +308,7 @@ class CodingAgent(CodeAgent):
                         f'文件编写index: {index}\n'
                         f'文件描述: {description}\n'
                         f'上一批编写的代码:{last_batch}\n'
-                        f'和你并行编写的代码:{siblings}\n'
+                        f'其他workers在并行编写:{siblings}\n'
                         f'下一批编写的代码:{next_batch}\n'),
         ]
 
