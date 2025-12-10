@@ -118,7 +118,7 @@ class FileSystemTool(ToolBase):
                                     'type': 'string'
                                 },
                                 'description':
-                                    'List of relative file path(s) to read',
+                                    'List of relative file path(s) to read, format: {"paths": ["file1", "file2"]}"]}',
                             },
                         },
                         'required': ['paths'],
@@ -139,7 +139,7 @@ class FileSystemTool(ToolBase):
                                     'type': 'string'
                                 },
                                 'description':
-                                'List of relative file path(s) to read',
+                                'List of relative file path(s) to read, format: {"paths": ["file1", "file2"]}"]}',
                             },
                             'start_line': {
                                 'type':
