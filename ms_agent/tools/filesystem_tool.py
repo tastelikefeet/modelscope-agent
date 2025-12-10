@@ -3,6 +3,7 @@ import fnmatch
 import os
 import shutil
 from concurrent.futures import ThreadPoolExecutor, as_completed
+from pathlib import Path
 from typing import Optional
 
 import json
@@ -21,7 +22,7 @@ class FileSystemTool(ToolBase):
 
     # Directories to exclude from file operations
     EXCLUDED_DIRS = {
-        'node_modules', 'dist', 'venv'
+        'node_modules', 'dist', '.git', '__pycache__', '.venv', 'venv'
     }
     # File prefixes to exclude
     EXCLUDED_FILE_PREFIXES = ('.', '..', '__')
@@ -705,6 +706,10 @@ class FileSystemTool(ToolBase):
         Returns:
             String containing all matches with file path, line number, and context
         """
+        if parent_path.startswith('.' + os.sep):
+            parent_path = parent_path[len('.' + os.sep):]
+        if parent_path == '.':
+            parent_path = ''
         target_path_real = self.get_real_path(parent_path)
         if target_path_real is None:
             return f'<{parent_path}> is out of the valid project path: {self.output_dir}'
@@ -800,17 +805,20 @@ class FileSystemTool(ToolBase):
             The file names concatenated as a string
         """
         file_paths = []
-        if not path:
+        if not path or path == '.':
             path = self.output_dir
         else:
             path = os.path.join(self.output_dir, path)
+        if path.startswith('.' + os.sep):
+            path = path[len('.' + os.sep):]
         try:
             for root, dirs, files in os.walk(path):
+                test_dir = Path(root).relative_to(self.output_dir)
                 for file in files:
                     # Skip excluded directories and files
                     if any(excluded_dir in root
                            for excluded_dir in self.EXCLUDED_DIRS
-                           ) or file.startswith(self.EXCLUDED_FILE_PREFIXES) or root.startswith(self.EXCLUDED_FILE_PREFIXES):
+                           ) or file.startswith(self.EXCLUDED_FILE_PREFIXES) or str(test_dir).startswith(self.EXCLUDED_FILE_PREFIXES):
                         continue
                     absolute_path = os.path.join(root, file)
                     relative_path = os.path.relpath(absolute_path, path)

@@ -45,6 +45,28 @@ prompt:
       * 你不需要创建缩略文件，该文件会后续自动生成
     7. 在编写文件完成后，为节省token不要做任何总结文字
     
+    你的两种代码编辑工具：
+    
+    a. 彻底重写文件或新建文件：
+    
+    Output your code with this format:
+
+    <result>type: filename
+    code here
+    </result>
+
+    for example:
+    <result>javascript: frontend/index.js
+    your code here
+    </result>
+
+    The `frontend/index.js` will be used to saving. Therefore, you must generate it strictly in this format.
+    
+    b. 修复问题更新文件：
+    调用`replace_file_contents`工具
+    
+    a/b两个工具在同一个问题中选择一个即可。
+    
     你的优化目标：
     1. 【优先】一次性输出最准确的代码实现，无幻觉和错误引用
     2. 【其次】使用尽量少的token数量

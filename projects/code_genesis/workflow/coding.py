@@ -2,11 +2,10 @@ import asyncio
 import dataclasses
 import json
 import os
-import re
 import shutil
 from collections import OrderedDict
 from copy import deepcopy
-from typing import List, Set, Optional, Dict
+from typing import List, Set, Optional
 
 from omegaconf import DictConfig
 
@@ -24,21 +23,6 @@ logger = get_logger()
 
 
 class Programmer(LLMAgent):
-
-    save_system = """
-Output your code with this format:
-
-    <result>type: filename
-    code here
-    </result>
-
-    for example:
-    <result>javascript: frontend/index.js
-    your code here
-    </result>
-
-    The `frontend/index.js` will be used to saving. Therefore, you must generate it strictly in this format.
-"""
 
     def __init__(self,
                  config: DictConfig = DictConfig({}),
@@ -66,7 +50,6 @@ Output your code with this format:
 
     async def on_task_begin(self, messages: List[Message]):
         self.code_files = [self.code_file]
-        messages[0].content = self.config.prompt.system + self.save_system
     
     async def _incremental_lsp_check(self, code_file: str, partial_code: str) -> Optional[str]:
         """Incrementally check code quality using appropriate LSP server"""
@@ -231,7 +214,6 @@ Output your code with this format:
                     content=
                     f'\nA code file in your imports not found, you should write it first: {last_file}\n'
                 ))
-            messages[0].content = self.config.prompt.system + self.save_system
 
         await self.code_condenser.run(messages)
         if new_task or len(messages) > 20:
@@ -375,7 +357,7 @@ class CodingAgent(CodeAgent):
         logger.info(f'Writing {name}')
         _config = deepcopy(self.config)
         messages = [
-            Message(role='system', content=self.config.prompt.system + Programmer.save_system),
+            Message(role='system', content=self.config.prompt.system),
             Message(
                 role='user',
                 content=f'原始需求(topic.txt): {topic}\n'

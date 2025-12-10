@@ -231,7 +231,7 @@ class LSPServer:
         # Try to read any pending diagnostics messages
         diagnostics = []
         found_diagnostics = False
-        for _ in range(30):
+        for _ in range(60):
             try:
                 msg = await asyncio.wait_for(self._read_message(), timeout=3.0)
                 if msg.get("method") == "textDocument/publishDiagnostics":
