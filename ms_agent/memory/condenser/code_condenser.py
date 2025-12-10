@@ -13,16 +13,16 @@ logger = get_logger()
 
 class CodeCondenser(Memory):
 
-    system = """你是一个帮我简化代码并返回缩略的机器人。你缩略的文件会给与另一个LLM用来编写代码，因此你生成的缩略文件需要具有充足的供其他文件依赖的信息。
+    system = """你是一个帮我简化代码并返回缩略信息的机器人。你缩略的文件会给与另一个LLM用来编写代码，因此你生成的缩略文件需要具有充足的供其他文件依赖的信息。
 
 需要保留的信息：
-1. 代码框架：类名、方法名、方法参数类型，返回值类型
+1. 代码框架：类名、方法名、方法参数类型，返回值类型，类型定义的文件
     * 如果无法找到参数和返回值类型，则分析函数实现，给出该参数或输出结构需要/具有哪些字段
 2. 导入信息：imports依赖
 3. 输出信息：exports导出及导出类型，注意不要忽略`default`这类关键字，注意命名导出或默认导出方式
 4. 结构体信息：不要缩略任何类或数据结构的名称、字段，如果一个文件包含很多数据结构定义，全部保留
 5. 样式信息：如果是css样式代码，保留每个样式名称
-6. json格式：如果是json，保留结构即可
+6. json格式：保留结构即可
 7. http等RPC协议定义信息
 8. **以json格式**返回满足要求的缩略信息，不要返回下面结构之外的其他额外信息
 
@@ -102,6 +102,7 @@ class CodeCondenser(Memory):
         self.code_wrapper = getattr(mem_config, 'code_wrapper', DEFAULT_OUTPUT_WRAPPER)
 
     def condense_code(self, message: Message):
+        prefix = 'Your generated code was replaced by a index version:\n'
         if message.role == 'assistant':
             if message.tool_calls:
                 for tool_call in message.tool_calls:
@@ -112,12 +113,12 @@ class CodeCondenser(Memory):
                         code_file = arguments['path']
                         content = arguments['content']
                         index_content = self.generate_index_file(code_file, content)
-                        arguments['content'] = f'Your generated code was replaced by a index version:\n{index_content}'
+                        arguments['content'] = f'{prefix}{index_content}'
                         tool_call['arguments'] = json.dumps(arguments, ensure_ascii=False)
             elif self.code_wrapper[0] in message.content and self.code_wrapper[1] in message.content:
                 result, remaining_text = extract_code_blocks(message.content, file_wrapper=self.code_wrapper)
                 if result:
-                    final_content = remaining_text + 'Your generated code was replaced by a index version:\n'
+                    final_content = remaining_text + prefix
                     for code_block in result:
                         code_file = code_block['filename']
                         content = code_block['code']
@@ -147,7 +148,7 @@ class CodeCondenser(Memory):
                 with open(source_file_path, 'r') as f:
                     file_content = f.read()
 
-            query = f'原始代码文件 {file}:\n{file_content}'
+            query = f'The original source file {file}:\n{file_content}'
             messages = [
                 Message(role='system', content=self.system),
                 Message(role='user', content=query),
@@ -164,10 +165,10 @@ class CodeCondenser(Memory):
                     os.makedirs(os.path.dirname(index_file), exist_ok=True)
                     with open(index_file, 'w') as f:
                         f.write(content)
-                    json.loads(content)
+                    json.loads(content) # try to load once to ensure the json format is ok
                     break
                 except Exception as e:
-                    logger.info(f'Code index file generate failed because of {e}')
+                    logger.error(f'Code index file generate failed because of {e}')
             return content
 
 

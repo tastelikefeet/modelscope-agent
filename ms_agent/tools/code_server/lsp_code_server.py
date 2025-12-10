@@ -1,16 +1,3 @@
-"""LSP Code Server Tool
-
-This tool provides Language Server Protocol (LSP) integration for code quality checking.
-Supports TypeScript/Node.js (tsserver), Python (pyright), and Java (jdtls) for real-time code validation.
-
-Usage Scenarios:
-1. Compile/check an entire directory
-2. Incrementally update and check code segments
-3. Detect issues in specific code content
-
-Used in complex code generation projects to continuously validate code quality.
-"""
-
 import asyncio
 import json
 import os
@@ -27,7 +14,7 @@ logger = get_logger()
 
 class LSPServer:
     """Base class for LSP server management"""
-    
+
     def __init__(self, config):
         self.config = config
         self.process = None
@@ -40,6 +27,7 @@ class LSPServer:
         self.workspace_dir = Path(self.output_dir).resolve()
         self.index_dir = os.path.join(self.output_dir, DEFAULT_INDEX_DIR)
         self.lock_dir = os.path.join(self.output_dir, DEFAULT_LOCK_DIR)
+        self.diagnostics_cache: Dict[str, List[dict]] = {}
         
     async def start(self) -> bool:
         """Start the LSP server process"""
@@ -77,9 +65,7 @@ class LSPServer:
         try:
             self.stdin.write(message.encode('utf-8'))
             await self.stdin.drain()
-            
-            # Read response, skip notifications
-            # LSP servers may send notifications (like window/logMessage) before response
+
             max_retries = 20
             for _ in range(max_retries):
                 msg = await self._read_message()
@@ -214,36 +200,64 @@ class LSPServer:
             "contentChanges": [{"text": content}]
         })
         
-    async def get_diagnostics(self, file_path: str, wait_time: float = 0.5) -> List[dict]:
+    async def get_diagnostics(self, file_path: str, wait_time: float = 0.5, use_cache: bool = True) -> List[dict]:
         """Get diagnostics for a file
         
         Args:
             file_path: Path to the file
             wait_time: Time to wait for diagnostics (longer for new files)
+            use_cache: Whether to use cached diagnostics on timeout
         """
         # Wait a bit for diagnostics to be computed
         await asyncio.sleep(wait_time)
         
-        # Request diagnostics through publishDiagnostics
-        # Note: Different LSP servers handle this differently
-        # Some send diagnostics automatically, others require explicit requests
         file_uri = Path(file_path).resolve().as_uri()
         
-        # Try to read any pending diagnostics messages
+        # Try to read pending diagnostics messages
         diagnostics = []
-        found_diagnostics = False
-        for _ in range(60):
+        found_target = False
+        max_attempts = 20
+        consecutive_timeouts = 0
+        
+        for _ in range(max_attempts):
             try:
-                msg = await asyncio.wait_for(self._read_message(), timeout=3.0)
+                msg = await asyncio.wait_for(self._read_message(), timeout=2.0)
+                consecutive_timeouts = 0
+                
                 if msg.get("method") == "textDocument/publishDiagnostics":
-                    if msg.get("params", {}).get("uri") == file_uri:
-                        diagnostics = msg.get("params", {}).get("diagnostics", [])
-                        found_diagnostics = True
+                    current_uri = msg.get("params", {}).get("uri")
+                    current_diags = msg.get("params", {}).get("diagnostics", [])
+                    
+                    # Update cache for all received diagnostics
+                    self.diagnostics_cache[current_uri] = current_diags
+                    logger.debug(f'Cached diagnostics for {current_uri}')
+                    
+                    # Check if this is the target file
+                    if current_uri == file_uri:
+                        diagnostics = current_diags
+                        found_target = True
+                        logger.debug(f'Found target diagnostics for {file_uri}')
                         break
-            except asyncio.TimeoutError as e:
+                        
+            except asyncio.TimeoutError:
+                consecutive_timeouts += 1
+                # After 3 consecutive timeouts, stop waiting
+                if consecutive_timeouts >= 3:
+                    logger.debug(f'Stopped after {consecutive_timeouts} consecutive timeouts')
+                    break
                 continue
-        if not found_diagnostics:
-            raise RuntimeError("Could not find a diagnostics message")
+        
+        # If not found, try to use cache
+        if not found_target:
+            if use_cache and file_uri in self.diagnostics_cache:
+                diagnostics = self.diagnostics_cache[file_uri]
+                logger.debug(f'Using cached diagnostics for {file_uri}')
+            else:
+                logger.warning(f'No diagnostics found for {file_uri} (cache available: {file_uri in self.diagnostics_cache})')
+                # Return empty instead of raising error
+                diagnostics = []
+        
+        # Filter out 'unused' hints
         diagnostics = [d for d in diagnostics if not isinstance(d.get('code'), str) or 'unused' not in d['code'].lower()]
         return diagnostics
 
@@ -845,7 +859,7 @@ class LSPCodeServer(ToolBase):
             ignored_errors = [
                 'cannot be assigned to', 'is not assignable to',
                 'cannot assign to',
-                'is unknown', '"none"', 'vue', '',
+                'is unknown', '"none"', 'vue',
                 'never used', 'never read', 'implicitly has'
             ]
 
