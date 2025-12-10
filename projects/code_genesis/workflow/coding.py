@@ -71,6 +71,7 @@ class Programmer(LLMAgent):
             
         async with lsp_lock:
             file_ext = os.path.splitext(code_file)[1].lower()
+            lang = None
             for key, value in LSPCodeServer.language_mapping.items():
                 if file_ext in value:
                     lang = key
@@ -346,7 +347,6 @@ class CodingAgent(CodeAgent):
                 if not files:
                     break
 
-                siblings = '\n'.join(set(files))
                 if idx == 0:
                     last_batch = 'You are the first batch.'
                     next_batch = '\n'.join(file_orders[idx + 1])
@@ -367,7 +367,7 @@ class CodingAgent(CodeAgent):
                         description,
                         index=idx,
                         last_batch=last_batch,
-                        siblings='\n'.join(set(siblings)-{name}),
+                        siblings='\n'.join(set(files)-{name}),
                         next_batch=next_batch)
                     for name, description in files.items()
                 ]

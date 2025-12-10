@@ -47,22 +47,21 @@ prompt:
     
     你的两种代码编辑工具：
     
-    a. 彻底重写文件或新建文件：
+    a. 当你需要编写新文件时，使用如下格式编写：
     
-    Output your code with this format:
-
     <result>type: filename
     code here
     </result>
 
-    for example:
+    * 一个具体的例子
+    
     <result>javascript: frontend/index.js
     your code here
     </result>
 
-    The `frontend/index.js` will be used to saving. Therefore, you must generate it strictly in this format.
+    `frontend/index.js`是实际存储的文件名。在你输出完成后，这个文件会自动存储下来。
     
-    b. 修复问题更新文件：
+    b. 修复问题更新文件时：
     调用`replace_file_contents`工具
     
     a/b两个工具在同一个过程中选择一个即可。
