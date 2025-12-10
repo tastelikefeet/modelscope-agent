@@ -815,7 +815,7 @@ class FileSystemTool(ToolBase):
                     absolute_path = os.path.join(root, file)
                     relative_path = os.path.relpath(absolute_path, path)
                     file_paths.append(relative_path)
-            return '\n'.join(file_paths)
+            return '\n'.join(file_paths) or f'No files in path: {path}'
         except Exception as e:
             return f'List files of <{path or "root path"}> failed, error: ' + str(
                 e)

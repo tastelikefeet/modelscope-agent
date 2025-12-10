@@ -190,6 +190,8 @@ Output your code with this format:
                 message.content = _response
                 messages.append(Message(role='user', content=saving_result))
         if not has_tool_call:
+            if not messages[-1].content:
+                messages[-1].content = 'I should continue to solve the problem.'
             all_issues = []
             for uncheck_file in self.unchecked_files.copy():
                 with open(os.path.join(self.output_dir, uncheck_file), 'r') as f:
@@ -232,10 +234,12 @@ Output your code with this format:
             messages[0].content = self.config.prompt.system + self.save_system
 
         await self.code_condenser.run(messages)
-        if new_task or len(messages) > 30:
-            _messages = await self.refine_condenser.run(messages)
+        if new_task or len(messages) > 20:
+            _messages = await self.refine_condenser.run([m for m in messages])
+            assert len(_messages)
             messages.clear()
             messages.extend(_messages)
+
 
 
 @dataclasses.dataclass
@@ -411,8 +415,6 @@ class CodingAgent(CodeAgent):
         lock_dir = os.path.join(self.output_dir, 'locks')
         shutil.rmtree(lock_dir, ignore_errors=True)
 
-        max_workers = 1
-
         for files in file_orders:
             while True:
                 files = self.filter_done_files(files)
@@ -436,9 +438,9 @@ class CodingAgent(CodeAgent):
                 ]
                 
                 try:
-                    for task in tasks:
-                        await task
-                    # await asyncio.gather(*tasks, return_exceptions=True)
+                    #for task in tasks:
+                    #    await task
+                    await asyncio.gather(*tasks, return_exceptions=True)
                 except Exception as e:
                     logger.error(f'Error writing code: {e}')
 

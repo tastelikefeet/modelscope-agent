@@ -797,6 +797,7 @@ class LSPCodeServer(ToolBase):
                 'cannot be assigned to', 'is not assignable to',
                 'cannot assign to',
                 'is unknown', '"none"',
+                'never used', 'never read'
             ]
 
             if diagnostics.get('has_errors'):
