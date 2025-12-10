@@ -168,9 +168,9 @@ class LSPServer:
             try:
                 for _ in range(10):
                     try:
-                        await asyncio.wait_for(self._read_message(), timeout=2.0)
+                        output = await asyncio.wait_for(self._read_message(), timeout=5.0)
                     except asyncio.TimeoutError:
-                        break  # No more messages
+                        continue
             except Exception as e:
                 logger.debug(f"Cleared startup messages: {e}")
             
@@ -245,6 +245,47 @@ class LSPServer:
             raise RuntimeError("Could not find a diagnostics message")
         diagnostics = [d for d in diagnostics if not isinstance(d.get('code'), str) or 'unused' not in d['code'].lower()]
         return diagnostics
+
+
+class VolarLSPServer(LSPServer):
+    """Vue Language Server (Volar)"""
+    
+    async def start(self) -> bool:
+        """Start Volar language server"""
+        try:
+            # Check if @vue/language-server is installed
+            check_process = await asyncio.create_subprocess_exec(
+                "npx", "vue-language-server", "--version",
+                stdout=asyncio.subprocess.PIPE,
+                stderr=asyncio.subprocess.PIPE
+            )
+            await check_process.communicate()
+            
+            if check_process.returncode != 0:
+                logger.warning("Volar not found. Install with: npm install -g @vue/language-server")
+                return False
+                
+            # Start vue-language-server
+            self.process = await asyncio.create_subprocess_exec(
+                "npx", "vue-language-server", "--stdio",
+                stdin=asyncio.subprocess.PIPE,
+                stdout=asyncio.subprocess.PIPE,
+                stderr=asyncio.subprocess.PIPE,
+                cwd=str(self.workspace_dir)
+            )
+            
+            self.stdin = self.process.stdin
+            self.stdout = self.process.stdout
+            
+            # Initialize the server
+            return await self.initialize()
+            
+        except FileNotFoundError:
+            logger.error("vue-language-server not found. Install with: npm install -g @vue/language-server")
+            return False
+        except Exception as e:
+            logger.error(f"Failed to start Volar LSP server: {e}")
+            return False
 
 
 class TypeScriptLSPServer(LSPServer):
@@ -476,8 +517,8 @@ class LSPCodeServer(ToolBase):
                             },
                             "language": {
                                 "type": "string",
-                                "enum": ["typescript", "python", "java"],
-                                "description": "Programming language to check (typescript for JS/TS, python for Python, java for Java)"
+                                "enum": ["typescript", "python", "java", "vue"],
+                                "description": "Programming language to check (typescript for JS/TS, vue for Vue projects, python for Python, java for Java)"
                             }
                         },
                         "required": ["directory", "language"]
@@ -499,7 +540,7 @@ class LSPCodeServer(ToolBase):
                             },
                             "language": {
                                 "type": "string",
-                                "enum": ["typescript", "javascript", "python", "java"],
+                                "enum": ["typescript", "javascript", "python", "java", "vue"],
                                 "description": "Programming language of the code"
                             },
                             "file_path": {
@@ -530,7 +571,7 @@ class LSPCodeServer(ToolBase):
                             },
                             "language": {
                                 "type": "string",
-                                "enum": ["typescript", "javascript", "python", "java"],
+                                "enum": ["typescript", "javascript", "python", "java", "vue"],
                                 "description": "Programming language of the file"
                             }
                         },
@@ -575,6 +616,8 @@ class LSPCodeServer(ToolBase):
             lang_key = "python"
         elif lang_key in ["java"]:
             lang_key = "java"
+        elif lang_key in ["vue"]:
+            lang_key = "vue"
         else:
             return None
             
@@ -585,6 +628,8 @@ class LSPCodeServer(ToolBase):
             server = PythonLSPServer(self.config)
         elif lang_key == "java":
             server = JavaLSPServer(self.config)
+        elif lang_key == "vue":
+            server = VolarLSPServer(self.config)
         else:
             return None
             
@@ -611,8 +656,11 @@ class LSPCodeServer(ToolBase):
                 
             # Determine file extensions
             if language.lower() in ["typescript", "javascript"]:
-                extensions = [".ts", ".tsx", ".js", ".jsx", ".mjs", ".cjs", ".vue"]
+                extensions = [".ts", ".tsx", ".js", ".jsx", ".mjs", ".cjs"]
                 lang_id = "typescript"
+            elif language.lower() in ["vue"]:
+                extensions = [".ts", ".tsx", ".js", ".jsx", ".mjs", ".cjs", ".vue"]
+                lang_id = "vue"
             elif language.lower() in ["python"]:
                 extensions = [".py"]
                 lang_id = "python"

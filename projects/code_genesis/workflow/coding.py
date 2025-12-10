@@ -74,8 +74,15 @@ class Programmer(LLMAgent):
                 file_ext = os.path.splitext(code_file)[1].lower()
                 
                 # Map file extension to language
+                # For Vue projects, use Volar for all JS/TS/Vue files
+                # For non-Vue projects, use TypeScript server
+                is_vue_project = 'vue' in self.shared_lsp_context.get('project_languages', set())
+                
                 if file_ext in ['.ts', '.tsx', '.js', '.jsx', '.mjs', '.cjs', '.vue']:
-                    lang = 'typescript'
+                    if is_vue_project:
+                        lang = 'vue'  # Use Volar for all files in Vue project
+                    else:
+                        lang = 'typescript'  # Use TS server for non-Vue projects
                 elif file_ext == '.py':
                     lang = 'python'
                 elif file_ext in ['.java', '.kt', '.kts']:
@@ -273,7 +280,14 @@ class CodingAgent(CodeAgent):
             # Detect all languages in the project
             detected_languages = set()
             
-            if any(kw in framework for kw in ['typescript', 'javascript', 'react', 'vue', 'node', 'npm']):
+            # Check if it's a Vue project
+            is_vue = any(kw in framework for kw in ['vue', 'vite', 'nuxt'])
+            
+            if is_vue:
+                # Vue project: use Volar for all JS/TS/Vue files
+                detected_languages.add('vue')
+            elif any(kw in framework for kw in ['typescript', 'javascript', 'react', 'node', 'npm']):
+                # Non-Vue JS/TS project: use TypeScript server
                 detected_languages.add('typescript')
             
             if any(kw in framework for kw in ['python', 'django', 'flask', 'fastapi']):
