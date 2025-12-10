@@ -795,22 +795,14 @@ class LSPCodeServer(ToolBase):
                 })
 
             full_path = Path(self.workspace_dir) / file_path
-            file_exists_on_disk = full_path.exists()
 
-            if file_path not in self.file_versions:
-                self.file_versions[file_path] = 1
-                await server.open_document(str(full_path), content, language)
-                self.opened_documents[str(full_path)] = language
-            else:
-                if not file_exists_on_disk:
-                    logger.info(f"File {file_path} was deleted, closing old index")
-                    await server.close_document(str(full_path))
-                    self.file_versions[file_path] = 1
-                    await server.open_document(str(full_path), content, language)
-                    self.opened_documents[str(full_path)] = language
-                else:
-                    self.file_versions[file_path] += 1
-                    await server.update_document(str(full_path), content, self.file_versions[file_path])
+            if file_path in self.file_versions:
+                await server.close_document(str(full_path))
+                await asyncio.sleep(2.0)
+
+            self.file_versions[file_path] = 1
+            await server.open_document(str(full_path), content, language)
+            self.opened_documents[str(full_path)] = language
 
             diagnostics = await server.get_diagnostics(str(full_path))
 

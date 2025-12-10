@@ -372,9 +372,9 @@ class CodingAgent(CodeAgent):
                     for name, description in files.items()
                 ]
 
-                #for task in tasks:
-                #    await task
-                await asyncio.gather(*tasks, return_exceptions=True)
+                for task in tasks:
+                    await task
+                # await asyncio.gather(*tasks, return_exceptions=True)
 
             self.refresh_file_status(file_relation)
 
