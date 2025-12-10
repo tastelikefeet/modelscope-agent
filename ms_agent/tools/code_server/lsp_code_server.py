@@ -190,6 +190,7 @@ class LSPServer:
                 "text": content
             }
         })
+        await asyncio.sleep(3.0)
     
     async def close_document(self, file_path: str):
         """Close a document to clean up old index"""
@@ -211,8 +212,7 @@ class LSPServer:
             "contentChanges": [{"text": content}]
         })
         
-    async def get_diagnostics(self, file_path: str, wait_time: float = 0.5, use_cache: bool = True) -> List[dict]:
-        # Wait a bit for diagnostics to be computed
+    async def get_diagnostics(self, file_path: str, wait_time: float = 2.0, use_cache: bool = True) -> List[dict]:
         await asyncio.sleep(wait_time)
         
         file_uri = Path(file_path).resolve().as_uri()
