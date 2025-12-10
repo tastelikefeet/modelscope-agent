@@ -435,7 +435,7 @@ class LSPCodeServer(ToolBase):
         'java': [".java"],
     }
 
-    skip_prefixes = ['.', '..', '__', 'node_modules']
+    skip_prefixes = ['.', '..', '__pycache__', 'node_modules']
 
     def __init__(self, config):
         super().__init__(config)
@@ -704,7 +704,7 @@ class LSPCodeServer(ToolBase):
         ignored_errors = [
             'cannot be assigned to', 'is not assignable to',
             'cannot assign to',
-            'is unknown', '"none"', 'vue', 'unused',
+            '"none"', 'vue', 'unused',
             'never used', 'never read', 'implicitly has'
         ]
 
