@@ -724,13 +724,17 @@ class FileSystemTool(ToolBase):
         # Collect all files matching the pattern
         files_to_search = []
         for root, dirs, files in os.walk(_parent_path):
-            # Skip excluded directories
+            try:
+                test_dir = str(Path(root).relative_to(self.output_dir))
+            except ValueError:
+                test_dir = str(root)
+
             if any(excluded_dir in root
                    for excluded_dir in self.EXCLUDED_DIRS):
                 continue
             for filename in files:
                 # Skip excluded files
-                if filename.startswith(self.EXCLUDED_FILE_PREFIXES) or root.startswith(self.EXCLUDED_FILE_PREFIXES):
+                if filename.startswith(self.EXCLUDED_FILE_PREFIXES) or test_dir.startswith(self.EXCLUDED_FILE_PREFIXES):
                     continue
                 # Match file pattern
                 if fnmatch.fnmatch(filename, file_pattern):
@@ -813,12 +817,15 @@ class FileSystemTool(ToolBase):
             path = path[len('.' + os.sep):]
         try:
             for root, dirs, files in os.walk(path):
-                test_dir = Path(root).relative_to(self.output_dir)
+                try:
+                    test_dir = str(Path(root).relative_to(self.output_dir))
+                except ValueError:
+                    test_dir = str(root)
                 for file in files:
                     # Skip excluded directories and files
                     if any(excluded_dir in root
                            for excluded_dir in self.EXCLUDED_DIRS
-                           ) or file.startswith(self.EXCLUDED_FILE_PREFIXES) or str(test_dir).startswith(self.EXCLUDED_FILE_PREFIXES):
+                           ) or file.startswith(self.EXCLUDED_FILE_PREFIXES) or test_dir.startswith(self.EXCLUDED_FILE_PREFIXES):
                         continue
                     absolute_path = os.path.join(root, file)
                     relative_path = os.path.relpath(absolute_path, path)
