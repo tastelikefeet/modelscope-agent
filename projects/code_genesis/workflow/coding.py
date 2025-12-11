@@ -17,6 +17,7 @@ from ms_agent.tools.code_server import LSPCodeServer
 from ms_agent.utils import get_logger
 from ms_agent.utils.constants import DEFAULT_TAG, DEFAULT_INDEX_DIR, DEFAULT_LOCK_DIR
 from ms_agent.utils.utils import extract_code_blocks, file_lock
+from .utils import parse_imports, ImportInfo
 
 logger = get_logger()
 
@@ -50,6 +51,83 @@ class Programmer(LLMAgent):
 
     async def on_task_begin(self, messages: List[Message]):
         self.code_files = [self.code_file]
+
+    async def _incremental_check(self, code_file: str, partial_code: str):
+        lsp_result = await self._incremental_lsp_check(code_file, partial_code)
+        import_result = await self._import_check(code_file, partial_code)
+        return (lsp_result or '') + (import_result or '')
+
+
+    async def _import_check(self, code_file: str, partial_code: str) -> Optional[str]:
+        errors = []
+        all_imports: List[ImportInfo] = parse_imports(code_file, partial_code, self.output_dir)
+        
+        for info in all_imports:
+            source_file = info.source_file
+            if not source_file:
+                continue
+
+            if not os.path.isabs(source_file):
+                full_path = os.path.join(self.output_dir, source_file)
+            else:
+                full_path = source_file
+            
+            # 1. Check file existence
+            if not os.path.exists(full_path):
+                if os.path.isdir(full_path):
+                    index_found = False
+                    init_path = os.path.join(full_path, '__init__.py')
+                    if os.path.exists(init_path):
+                        full_path = init_path
+                        index_found = True
+                    else:
+                        for index_file in ['index.ts', 'index.tsx', 'index.js', 'index.jsx', 'index.vue']:
+                            index_path = os.path.join(full_path, index_file)
+                            if os.path.exists(index_path):
+                                full_path = index_path
+                                index_found = True
+                                break
+                    
+                    if not index_found:
+                        errors.append(
+                            f"Import error in {code_file}:\n"
+                            f"  Directory '{source_file}' exists but has no index file (__init__.py, index.ts, etc.)\n"
+                            f"  Statement: {info.raw_statement}\n"
+                        )
+                        continue
+                else:
+                    errors.append(
+                        f"Import error in {code_file}:\n"
+                        f"  File '{source_file}' does not exist\n"
+                        f"  Statement: {info.raw_statement}\n"
+                    )
+                    continue
+            
+            # 2. Check if imported symbols exist in the file
+            # Skip side-effect imports (import './style.css') and wildcard imports (import * as X)
+            if info.import_type == 'side-effect' or info.imported_items == ['*']:
+                continue
+            
+            if not info.imported_items:
+                continue
+
+            with open(full_path, 'r', encoding='utf-8') as f:
+                file_content = f.read()
+
+            missing_items = []
+            for item in info.imported_items:
+                if item not in file_content:
+                    missing_items.append(item)
+
+            if missing_items:
+                errors.append(
+                    f"Import error in {code_file}:\n"
+                    f"  Items {missing_items} not found in '{source_file}'\n"
+                    f"  Statement: {info.raw_statement}\n"
+                )
+        
+        return '\n'.join(errors) if errors else None
+
     
     async def _incremental_lsp_check(self, code_file: str, partial_code: str) -> Optional[str]:
         lsp_servers = self.shared_lsp_context.get('lsp_servers', {})
@@ -176,7 +254,7 @@ class Programmer(LLMAgent):
             for uncheck_file in list(self.unchecked_files.keys()):
                 with open(os.path.join(self.output_dir, uncheck_file), 'r') as f:
                     _code = f.read()
-                lsp_feedback = await self._incremental_lsp_check(uncheck_file, _code)
+                lsp_feedback = await self._incremental_check(uncheck_file, _code)
                 if lsp_feedback:
                     all_issues.append(f'❎Issues in {uncheck_file}:' + lsp_feedback)
                     self.unchecked_issues[uncheck_file] = lsp_feedback
