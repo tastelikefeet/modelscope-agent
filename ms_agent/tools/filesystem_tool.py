@@ -25,7 +25,7 @@ class FileSystemTool(ToolBase):
         'node_modules', 'dist', '.git', '__pycache__', '.venv', 'venv'
     }
     # File prefixes to exclude
-    EXCLUDED_FILE_PREFIXES = ('.', '..', '__')
+    EXCLUDED_FILE_PREFIXES = ('.', '..', '__pycache__')
 
     SYSTEM_FOR_ABBREVIATIONS = """你是一个帮我简化文件信息并返回缩略的机器人，你需要根据输入文件内容来生成压缩过的文件内容。
 

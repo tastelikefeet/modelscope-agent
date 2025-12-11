@@ -1,7 +1,6 @@
 import asyncio
 import json
 import os
-import re
 import shutil
 import sys
 from pathlib import Path
@@ -136,6 +135,7 @@ class LSPServer:
         content_length = int(headers.get('Content-Length', 0))
         if content_length > 0:
             content = await self.stdout.readexactly(content_length)
+            logger.debug('LSP:' + content.decode('utf-8'))
             return json.loads(content.decode('utf-8'))
         return {}
         
@@ -144,6 +144,10 @@ class LSPServer:
         response = await self.send_request("initialize", {
             "processId": os.getpid(),
             "rootUri": self.workspace_dir.as_uri(),
+            "rootPath": str(self.workspace_dir),
+            "workspaceFolders": [
+                {"uri": self.workspace_dir.as_uri(), "name": self.workspace_dir.name}
+            ],
             "capabilities": {
                 "textDocument": {
                     "publishDiagnostics": {},
@@ -167,10 +171,10 @@ class LSPServer:
                 "settings": {
                     "python": {
                         "pythonPath": sys.executable,
-                        "analysis": {
-                            "extraPaths": [str(self.workspace_dir)]
-                        }
-                    }
+                    },
+                    "pyright": {
+                        "extraPaths": [str(self.workspace_dir)]
+                    },
                 }
             })
             
@@ -194,6 +198,10 @@ class LSPServer:
     async def open_document(self, file_path: str, content: str, language_id: str):
         """Open a document in the LSP server"""
         file_uri = Path(file_path).resolve().as_uri()
+        changes = [
+            {"uri": file_uri, "type": 1}  # type 1 = Created
+        ]
+        await self.send_notification("workspace/didChangeWatchedFiles", {"changes": changes})
         await self.send_notification("textDocument/didOpen", {
             "textDocument": {
                 "uri": file_uri,
@@ -223,22 +231,22 @@ class LSPServer:
             },
             "contentChanges": [{"text": content}]
         })
-        
+
     async def get_diagnostics(self, file_path: str, wait_time: float = 2.0, use_cache: bool = True) -> List[dict]:
         await asyncio.sleep(wait_time)
-        
+
         file_uri = Path(file_path).resolve().as_uri()
 
         diagnostics = []
         found_target = False
         max_attempts = 30
         consecutive_timeouts = 0
-        
+
         for _ in range(max_attempts):
             try:
                 msg = await asyncio.wait_for(self._read_message(), timeout=3.0)
                 consecutive_timeouts = 0
-                
+
                 if msg.get("method") == "textDocument/publishDiagnostics":
                     current_uri = msg.get("params", {}).get("uri")
                     current_diags = msg.get("params", {}).get("diagnostics", [])
@@ -347,6 +355,15 @@ class PythonLSPServer(LSPServer):
 
             self.stdin = self.process.stdin
             self.stdout = self.process.stdout
+
+            async def _read_server_stderr(process):
+                while True:
+                    line = await process.stderr.readline()
+                    if not line:
+                        break
+                    logger.error(f"[PYRIGHT] {line.decode(errors='ignore').rstrip()}")
+
+            asyncio.create_task(_read_server_stderr(self.process))
 
             # Initialize the server
             return await self.initialize()
@@ -679,7 +696,7 @@ class LSPCodeServer(ToolBase):
                 try:
                     content = file_path.read_text(encoding='utf-8')
                     rel_path = file_path.relative_to(Path(self.workspace_dir))
-
+                    self.file_versions[str(rel_path)] = 1
                     # Open document
                     await server.open_document(str(file_path), content, language)
 
@@ -806,14 +823,15 @@ class LSPCodeServer(ToolBase):
                 })
 
             full_path = Path(self.workspace_dir) / file_path
+            full_path_str = str(full_path)
 
-            if file_path in self.file_versions:
-                await server.close_document(str(full_path))
-                await asyncio.sleep(2.0)
-
-            self.file_versions[file_path] = 1
-            await server.open_document(str(full_path), content, language)
-            self.opened_documents[str(full_path)] = language
+            if file_path not in self.file_versions:
+                self.file_versions[file_path] = 1
+                await server.open_document(full_path_str, content, language)
+                self.opened_documents[full_path_str] = language
+            else:
+                self.file_versions[file_path] += 1
+                await server.update_document(full_path_str, content, version=self.file_versions[file_path])
 
             diagnostics = await server.get_diagnostics(str(full_path))
 
