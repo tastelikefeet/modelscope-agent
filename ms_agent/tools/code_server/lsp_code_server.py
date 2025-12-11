@@ -202,6 +202,16 @@ class LSPServer:
             {"uri": file_uri, "type": 1}  # type 1 = Created
         ]
         await self.send_notification("workspace/didChangeWatchedFiles", {"changes": changes})
+
+        if file_path.endswith('.tsx'):
+            language_id = 'typescriptreact'
+        elif file_path.endswith('.jsx'):
+            language_id = 'javascriptreact'
+        elif file_path.endswith('.ts'):
+            language_id = 'typescript'
+        elif file_path.endswith('.js'):
+            language_id = 'javascript'
+
         await self.send_notification("textDocument/didOpen", {
             "textDocument": {
                 "uri": file_uri,
