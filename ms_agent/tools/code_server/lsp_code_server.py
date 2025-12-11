@@ -135,7 +135,7 @@ class LSPServer:
         content_length = int(headers.get('Content-Length', 0))
         if content_length > 0:
             content = await self.stdout.readexactly(content_length)
-            logger.debug('LSP:' + content.decode('utf-8'))
+            logger.info('LSP:' + content.decode('utf-8'))
             return json.loads(content.decode('utf-8'))
         return {}
         
@@ -186,7 +186,7 @@ class LSPServer:
                     except asyncio.TimeoutError:
                         break
             except Exception as e:
-                logger.debug(f"Cleared startup messages: {e}")
+                logger.error(f"Cleared startup messages: {e}")
             
             self.initialized = True
             logger.info("LSP server fully initialized and ready")
@@ -210,7 +210,7 @@ class LSPServer:
                 "text": content
             }
         })
-        await asyncio.sleep(3.0)
+        await asyncio.sleep(2.0)
     
     async def close_document(self, file_path: str):
         """Close a document to clean up old index"""
@@ -361,7 +361,7 @@ class PythonLSPServer(LSPServer):
                     line = await process.stderr.readline()
                     if not line:
                         break
-                    logger.error(f"[PYRIGHT] {line.decode(errors='ignore').rstrip()}")
+                    logger.error(f"LSP: {line.decode(errors='ignore').rstrip()}")
 
             asyncio.create_task(_read_server_stderr(self.process))
 
