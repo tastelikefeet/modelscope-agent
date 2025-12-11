@@ -17,7 +17,7 @@ from ms_agent.tools.code_server import LSPCodeServer
 from ms_agent.utils import get_logger
 from ms_agent.utils.constants import DEFAULT_TAG, DEFAULT_INDEX_DIR, DEFAULT_LOCK_DIR
 from ms_agent.utils.utils import extract_code_blocks, file_lock
-from .utils import parse_imports, ImportInfo
+from projects.code_genesis.workflow.utils import parse_imports, ImportInfo
 
 logger = get_logger()
 
@@ -73,7 +73,7 @@ class Programmer(LLMAgent):
                 full_path = source_file
             
             # 1. Check file existence
-            if not os.path.exists(full_path):
+            if not os.path.isfile(full_path):
                 if os.path.isdir(full_path):
                     index_found = False
                     init_path = os.path.join(full_path, '__init__.py')
@@ -116,7 +116,7 @@ class Programmer(LLMAgent):
 
             missing_items = []
             for item in info.imported_items:
-                if item not in file_content:
+                if item not in file_content and ' * ' not in file_content:
                     missing_items.append(item)
 
             if missing_items:

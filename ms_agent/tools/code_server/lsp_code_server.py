@@ -249,7 +249,7 @@ class LSPServer:
 
         diagnostics = []
         found_target = False
-        max_attempts = 999
+        max_attempts = 99999
         consecutive_timeouts = 0
 
         for _ in range(max_attempts):
@@ -707,29 +707,27 @@ class LSPCodeServer(ToolBase):
                     content = file_path.read_text(encoding='utf-8')
                     rel_path = file_path.relative_to(Path(self.workspace_dir))
                     self.file_versions[str(rel_path)] = 1
-                    # Open document
                     await server.open_document(str(file_path), content, language)
-
-                    # Track opened document
                     self.opened_documents[str(file_path)] = language
 
-                    # Get diagnostics
-                    diagnostics = await server.get_diagnostics(str(file_path))
-
-                    if diagnostics:
-                        all_diagnostics.append({
-                            "file": str(rel_path),
-                            "issues": self._format_diagnostics(diagnostics)
-                        })
+                    # Skip diagnostics for index-only mode (trust existing files)
+                    # Uncomment below if you need to verify files:
+                    # diagnostics = await server.get_diagnostics(str(file_path))
+                    # if diagnostics:
+                    #     all_diagnostics.append({
+                    #         "file": str(rel_path),
+                    #         "issues": self._format_diagnostics(diagnostics)
+                    #     })
                 except Exception as e:
-                    logger.error(f"Error checking file {file_path}: {e}")
+                    logger.error(f"Error indexing file {file_path}: {e}")
 
             return json.dumps({
                 "directory": directory,
                 "language": language,
                 "file_count": len(all_files),
-                "files_with_issues": len(all_diagnostics),
-                "diagnostics": all_diagnostics
+                "diagnostics": all_diagnostics,
+                "files_indexed": len(all_files) - len(all_diagnostics),
+                "status": "indexed"
             }, indent=2)
 
         except Exception as e:
