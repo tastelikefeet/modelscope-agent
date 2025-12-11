@@ -28,6 +28,11 @@ file_order:
       code_file: workflow/file_order.py
   agent_config: file_order.yaml
   next:
+    - install
+
+install:
+  agent_config: install.yaml
+  next:
     - coding
 
 coding:

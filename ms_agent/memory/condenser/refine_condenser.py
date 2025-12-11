@@ -12,6 +12,7 @@ Your working scenario is code writing and subsequent debugging. The large langua
 
 1. The model's conversation history may have fixed different issues, or may be deadlocked on the same issue
     * Retain the model's thought process and main trajectory for completing tasks, such as creating files, fixing issues, viewing key information from documentation, etc.
+        - [IMPORTANT] LLM may use <result>ext: file.ext\n...\n</result> to generate code. Mention what files LLM has generated
     * For issues that have been resolved, you can retain fewer tokens or remove them entirely
     * Unresolved issues can retain more tokens
     * Deadlocked issues that remain unresolved after multiple attempts should be marked with additional annotations indicating multiple failed attempts

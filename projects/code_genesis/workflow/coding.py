@@ -40,7 +40,8 @@ class Programmer(LLMAgent):
         self.code_files = []
         # LSP incremental checking - lazy creation, shared across Programmers
         self.shared_lsp_context = kwargs.get('shared_lsp_context', {})
-        self.unchecked_files = set()
+        self.unchecked_files = {}
+        self.unchecked_issues = {}
 
     async def condense_memory(self, messages):
         return messages
@@ -122,6 +123,17 @@ class Programmer(LLMAgent):
         with open(os.path.join(self.index_dir, path), 'r') as f:
             return f.read()
 
+    def add_unchecked_file(self, untrack_file):
+        self.unchecked_files[untrack_file] = 0
+
+    def increment_unchecked_file(self):
+        for key in self.unchecked_files:
+            self.unchecked_files[key] = self.unchecked_files[key] + 1
+            if self.unchecked_files[key] > 3:
+                self.unchecked_files.pop(key)
+                logger.error(f"Unchecked file {key} still have problem:\n{self.unchecked_issues.get('key')}\n"
+                             f"But the checking limit has reached.")
+
     async def after_tool_call(self, messages: List[Message]):
         coding_finish = '<result>' in messages[
             -1].content and '</result>' in messages[-1].content
@@ -149,7 +161,7 @@ class Programmer(LLMAgent):
                             os.makedirs(os.path.dirname(path), exist_ok=True)
                             with open(path, 'w') as f:
                                 f.write(code)
-                            self.unchecked_files.add(r['filename'])
+                            self.add_unchecked_file(r['filename'])
                         else:
                             with open(path, 'r') as f:
                                 code = f.read()
@@ -161,15 +173,18 @@ class Programmer(LLMAgent):
             if not messages[-1].content:
                 messages[-1].content = 'I should continue to solve the problem.'
             all_issues = []
-            for uncheck_file in self.unchecked_files.copy():
+
+            for uncheck_file in self.unchecked_files:
                 with open(os.path.join(self.output_dir, uncheck_file), 'r') as f:
                     _code = f.read()
                 lsp_feedback = await self._incremental_lsp_check(uncheck_file, _code)
                 if lsp_feedback:
                     all_issues.append(f'❎Issues in {uncheck_file}:' + lsp_feedback)
+                    self.unchecked_issues[uncheck_file] = lsp_feedback
                 else:
                     logger.info(f'✅No issues found in {uncheck_file}.')
-                    self.unchecked_files.remove(uncheck_file)
+                    self.unchecked_files.pop(uncheck_file)
+            self.increment_unchecked_file()
 
             if all_issues:
                 all_issues = '\n'.join(all_issues)

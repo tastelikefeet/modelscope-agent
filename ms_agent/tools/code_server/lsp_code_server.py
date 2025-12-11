@@ -3,6 +3,7 @@ import json
 import os
 import re
 import shutil
+import sys
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
@@ -161,6 +162,17 @@ class LSPServer:
             # CRITICAL: Wait for server to be fully ready
             # Read and discard any startup messages
             await asyncio.sleep(1.0)  # Give server time to complete initialization
+
+            await self.send_notification("workspace/didChangeConfiguration", {
+                "settings": {
+                    "python": {
+                        "pythonPath": sys.executable,
+                        "analysis": {
+                            "extraPaths": [str(self.workspace_dir)]
+                        }
+                    }
+                }
+            })
             
             # Consume any pending messages (like "starting" notifications)
             try:
@@ -345,7 +357,6 @@ class PythonLSPServer(LSPServer):
         except Exception as e:
             logger.error(f"Failed to start Python LSP server: {e}")
             return False
-
 
 class JavaLSPServer(LSPServer):
     """Java LSP server (Eclipse JDT Language Server)"""
