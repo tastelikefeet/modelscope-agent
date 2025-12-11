@@ -67,6 +67,12 @@ prompt:
     
     a/b两个工具在同一个过程中选择一个即可。
     
+    你可以使用shell调试问题：
+    
+    例子：
+    # 找到某个类所有的fields
+    execute_single(command='python -c "from module import MyClass; print(vars(MyClass))"')
+    
     你的优化目标：
     1. 【优先】一次性输出最准确的代码实现，无幻觉和错误引用
     2. 【其次】使用尽量少的token数量
@@ -81,10 +87,11 @@ tools:
       - list_files
   plugins:
     - workflow/api_search
+  shell:
+    mcp: false
 
 memory:
   code_condenser:
-  refine_condenser:
 
 max_chat_round: 99
 

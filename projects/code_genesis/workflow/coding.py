@@ -38,7 +38,7 @@ class Programmer(LLMAgent):
         self.index_dir = os.path.join(self.output_dir, index_dir)
         self.lock_dir = os.path.join(self.output_dir, DEFAULT_LOCK_DIR)
         self.code_condenser = CodeCondenser(config)
-        self.refine_condenser = RefineCondenser(config)
+        # self.refine_condenser = RefineCondenser(config)
         self.code_files = []
         # LSP incremental checking - lazy creation, shared across Programmers
         self.shared_lsp_context = kwargs.get('shared_lsp_context', {})
@@ -136,63 +136,6 @@ class Programmer(LLMAgent):
                 logger.error(f"Unchecked file {key} still have problem:\n{self.unchecked_issues.get('key')}\n"
                              f"But the checking limit has reached.")
 
-    async def step(
-            self, messages: List[Message]
-    ):  # type: ignore
-        messages = deepcopy(messages)
-        if (not self.load_cache) or messages[-1].role != 'assistant':
-            messages = await self.condense_memory(messages)
-            await self.on_generate_response(messages)
-            tools = await self.tool_manager.get_tools()
-
-            if self.code_file == 'backend/config/agent_configs.py':
-                with open(os.path.join(self.output_dir, '.tmp', 'agent_configs.py'), 'r') as f:
-                    _response_message = Message(role='assistant', content='<result>py: backend/config/agent_configs.py' + f.read() + '</result>')
-            elif self.code_file == 'backend/config/__init__.py':
-                with open(os.path.join(self.output_dir, '.tmp', '__init__.py'), 'r') as f:
-                    _response_message = Message(role='assistant', content='<result>py: backend/config/__init__.py' + f.read() + '</result>')
-            elif self.stream:
-                self.log_output('[assistant]:')
-                _content = ''
-                is_first = True
-                _response_message = None
-                for _response_message in self.llm.generate(
-                        messages, tools=tools):
-                    if is_first:
-                        messages.append(_response_message)
-                        is_first = False
-                    new_content = _response_message.content[len(_content):]
-                    sys.stdout.write(new_content)
-                    sys.stdout.flush()
-                    _content = _response_message.content
-                    messages[-1] = _response_message
-                    yield messages
-                sys.stdout.write('\n')
-            else:
-                _response_message = self.llm.generate(messages, tools=tools)
-                if _response_message.content:
-                    self.log_output('[assistant]:')
-                    self.log_output(_response_message.content)
-
-            # Response generated
-            self.handle_new_response(messages, _response_message)
-            await self.on_tool_call(messages)
-        else:
-            # Set load_cache to `false` to avoid affect later operations
-            self.load_cache = False
-            # Meaning the latest message is `assistant`, this prevents a different response if there are sub-tasks.
-            _response_message = messages[-1]
-        self.save_history(messages)
-
-        if _response_message.tool_calls:
-            messages = await self.parallel_tool_call(messages)
-
-        await self.after_tool_call(messages)
-        self.log_output(
-            f'[usage] prompt_tokens: {_response_message.prompt_tokens}, '
-            f'completion_tokens: {_response_message.completion_tokens}')
-        yield messages
-
     async def after_tool_call(self, messages: List[Message]):
         coding_finish = '<result>' in messages[
             -1].content and '</result>' in messages[-1].content
@@ -276,11 +219,11 @@ class Programmer(LLMAgent):
                 ))
 
         await self.code_condenser.run(messages)
-        if new_task or len(messages) > 20:
-            _messages = await self.refine_condenser.run([m for m in messages])
-            assert len(_messages)
-            messages.clear()
-            messages.extend(_messages)
+        #if new_task or len(messages) > 20:
+        #    _messages = await self.refine_condenser.run([m for m in messages])
+        #    assert len(_messages)
+        #    messages.clear()
+        #    messages.extend(_messages)
 
 
 
@@ -446,9 +389,9 @@ class CodingAgent(CodeAgent):
                     for name, description in files.items()
                 ]
 
-                for task in tasks:
-                    await task
-                # await asyncio.gather(*tasks, return_exceptions=True)
+                # for task in tasks:
+                #     await task
+                await asyncio.gather(*tasks, return_exceptions=True)
 
             self.refresh_file_status(file_relation)
 
