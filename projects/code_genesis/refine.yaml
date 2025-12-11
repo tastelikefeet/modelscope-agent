@@ -48,9 +48,11 @@ prompt:
     
     3. 善于使用你的工具
       * 优先使用`read_abbreviation_file`读取缩略文件，如果信息不足，使用`read_file`读取原始文件，如果使用read_file，指定`start_line`和`end_line`参数部分读取减少token使用
+      * `read_abbreviation_file`的缩略文件来自于前置的编码阶段。如果你发现所略微文件内容和实际对不上，使用使用`read_file`读取原始文件
       * 当你修改文件时，优先使用`replace_file_contents`来替换部分文件内容，如果必须重写文件，使用`write_file`进行存储
       * 如果http接口存疑，使用`workflow/api_search`搜索api接口实现
       * 通过`search_file_content`来在项目中搜索你感兴趣的关键字
+      * shell命令不允许使用系统文件夹(/dev/null除外)
     
     4. 一切都没问题后，你可以退出
       * 忽略变量未使用等warning，它们不影响实际运行
@@ -81,3 +83,4 @@ tool_call_timeout: 30000
 
 memory:
   refine_condenser:
+    threshold: 100000

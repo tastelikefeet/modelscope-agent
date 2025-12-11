@@ -216,12 +216,6 @@ class Programmer(LLMAgent):
                 ))
 
         await self.code_condenser.run(messages)
-        #if new_task or len(messages) > 20:
-        #    _messages = await self.refine_condenser.run([m for m in messages])
-        #    assert len(_messages)
-        #    messages.clear()
-        #    messages.extend(_messages)
-
 
 
 @dataclasses.dataclass

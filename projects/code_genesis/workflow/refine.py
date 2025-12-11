@@ -1,6 +1,6 @@
 import os
 from typing import List, OrderedDict
-
+import sys
 import json
 
 from omegaconf import DictConfig
@@ -21,19 +21,12 @@ class RefineAgent(LLMAgent):
                  config: DictConfig = DictConfig({}),
                  tag: str = DEFAULT_TAG,
                  trust_remote_code: bool = False,
-                 code_file: str = None,
                  **kwargs):
         super().__init__(config, tag, trust_remote_code, **kwargs)
         self.refine_condenser = RefineCondenser(config)
 
     async def condense_memory(self, messages):
-        if len(messages) > 30:
-            _messages = await self.refine_condenser.run([m for m in messages])
-            assert len(_messages)
-            return _messages
-        else:
-            return messages
-
+        return await self.refine_condenser.run([m for m in messages])
 
     async def run(self, messages, **kwargs):
         with open(os.path.join(self.output_dir, 'topic.txt')) as f:
@@ -53,10 +46,17 @@ class RefineAgent(LLMAgent):
             Message(
                 role='user',
                 content=f'原始需求(topic.txt): {topic}\n'
-                f'技术栈(framework.txt): {framework}\n'
-                f'通讯协议(protocol.txt): {protocol}\n'
-                f'文件列表:{file_info}\n'
-                f'你的shell工具的work_dir（项目输出文件）是{self.output_dir}\n'
-                f'请针对项目进行refine:'),
+                        f'技术栈(framework.txt): {framework}\n'
+                        f'通讯协议(protocol.txt): {protocol}\n'
+                        f'文件列表:{file_info}\n'
+                        f'你的shell工具的work_dir（项目输出文件）是{self.output_dir}\n'
+                        f'python环境是: {sys.executable}\n'
+                        f'请针对项目进行refine:'),
         ]
         return await super().run(messages, **kwargs)
+
+    async def after_tool_call(self, messages: List[Message]):
+        has_tool_call = len(messages[-1].tool_calls) > 0
+        if not has_tool_call:
+            query = input('>>>')
+            messages.append(Message(role='user', content=query))

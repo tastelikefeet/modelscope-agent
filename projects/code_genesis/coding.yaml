@@ -27,7 +27,7 @@ prompt:
     3. 读取你需要的依赖文件
       * 优先使用`read_abbreviation_file`读取缩略文件, 缩略文件为json格式，包含了类、方法、参数信息
       * 尽量不用`read_file`或者`list_files`以减少token用量，如果使用read_file，你必须指定`start_line`和`end_line`参数部分读取减少token使用
-      * 当你编写http、rpc client端代码时，你需要调用`api_search---url_search`工具来确认协议细节，该工具可以传入keywords来搜索url找到你可能会用到的api列表，不要调用不存在的api接口
+      * 编写http等RPC调用代码需要调用`url_search`工具来确认协议细节，该工具可以传入keywords来搜索url找到你可能会用到的api列表，不要调用不存在的api接口
     4. 编写代码
       * 如果你需要编写的组件或功能在文件列表中不存在，你应当在你负责的文件中冗余编写，而不要指定引用一个不存在的其他文件
       * 不允许依赖index大于等于你的其他代码文件

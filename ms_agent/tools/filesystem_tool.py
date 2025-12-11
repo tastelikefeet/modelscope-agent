@@ -1,6 +1,7 @@
 # Copyright (c) Alibaba, Inc. and its affiliates.
 import fnmatch
 import os
+import re
 import shutil
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from pathlib import Path
@@ -196,7 +197,8 @@ class FileSystemTool(ToolBase):
                     tool_name='search_file_content',
                     server_name='file_system',
                     description=
-                    'Search for content in files using wildcard patterns. '
+                    'Search for content in files using literal text or regex patterns. '
+                    'Automatically detects and supports both literal string matching and regex pattern matching. '
                     'Returns matching files with line numbers and surrounding context.',
                     parameters={
                         'type': 'object',
@@ -205,7 +207,8 @@ class FileSystemTool(ToolBase):
                                 'type':
                                 'string',
                                 'description':
-                                'The content/text to search for in files',
+                                'The content/text or regex pattern to search for. '
+                                'Supports both literal strings and regex patterns automatically.',
                             },
                             'parent_path': {
                                 'type':
@@ -696,9 +699,10 @@ class FileSystemTool(ToolBase):
                                   file_pattern: str = '*',
                                   context_lines: int = 2):
         """Search for content in files using thread pool.
+        Supports both literal string matching and regex pattern matching automatically.
 
         Args:
-            content(str): The content to search for
+            content(str): The content or regex pattern to search for (auto-detected)
             parent_path(str): The relative parent path to search in
             file_pattern(str): Wildcard pattern for file names (default: '*' for all files)
             context_lines(int): Number of lines before and after the match to include (default: 2)
@@ -720,6 +724,16 @@ class FileSystemTool(ToolBase):
 
         if not content:
             return 'Error: content parameter is required for search'
+
+        # Try to compile as regex pattern, fallback to literal string matching
+        use_regex = False
+        pattern = None
+        try:
+            pattern = re.compile(content)
+            use_regex = True
+        except re.error:
+            # Not a valid regex, will use literal string matching
+            use_regex = False
 
         # Collect all files matching the pattern
         files_to_search = []
@@ -750,7 +764,14 @@ class FileSystemTool(ToolBase):
                     file_path, 'r', encoding='utf-8') as f:
                 lines = f.readlines()
                 for line_num, line in enumerate(lines, start=1):
-                    if content in line:
+                    # Check for match: regex or literal string
+                    is_match = False
+                    if use_regex:
+                        is_match = pattern.search(line) is not None
+                    else:
+                        is_match = content in line
+                    
+                    if is_match:
                         # Calculate context range
                         start_line = max(0, line_num - context_lines - 1)
                         end_line = min(
