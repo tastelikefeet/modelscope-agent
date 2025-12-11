@@ -125,8 +125,18 @@ class Programmer(LLMAgent):
                     f"  Items {missing_items} not found in '{source_file}'\n"
                     f"  Statement: {info.raw_statement}\n"
                 )
+
+        if errors:
+            errors = '\n'.join(errors)
+            errors = ('Import check failed. This check examines the referenced file path. '
+                      'If the reference is a directory, it looks for files such as '
+                      '__init__.py, index.js, index.jsx, etc. If the path does not exist, '
+                      'the imported item is not found, and the referenced file does not use a wildcard (*), '
+                      'an error is reported. The errors are as follows:\n') + errors
+        else:
+            errors = None
         
-        return '\n'.join(errors) if errors else None
+        return errors
 
     
     async def _incremental_lsp_check(self, code_file: str, partial_code: str) -> Optional[str]:
