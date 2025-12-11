@@ -466,9 +466,11 @@ def _resolve_js_path(import_path, current_dir, output_dir):
         resolved = os.path.join(current_dir, import_path)
         resolved = os.path.normpath(resolved)
 
-    # Try different extensions
+    # Try different extensions (including CSS/SCSS/LESS)
     extensions = [
-        '.ts', '.tsx', '.js', '.jsx', '.vue', '.mjs', '.cjs', '.json', ''
+        '.ts', '.tsx', '.js', '.jsx', '.vue', '.mjs', '.cjs', '.json',
+        '.css', '.scss', '.sass', '.less', '.module.css', '.module.scss',
+        ''
     ]
     for ext in extensions:
         path_with_ext = resolved + ext
@@ -496,9 +498,11 @@ def _resolve_js_path(import_path, current_dir, output_dir):
 
 def _resolve_js_path_from_absolute(resolved_path, output_dir):
     """Resolve JavaScript/TypeScript path from already-resolved absolute path"""
-    # Try different extensions
+    # Try different extensions (including CSS/SCSS/LESS)
     extensions = [
-        '.ts', '.tsx', '.js', '.jsx', '.vue', '.mjs', '.cjs', '.json', ''
+        '.ts', '.tsx', '.js', '.jsx', '.vue', '.mjs', '.cjs', '.json',
+        '.css', '.scss', '.sass', '.less', '.module.css', '.module.scss',
+        ''
     ]
     for ext in extensions:
         path_with_ext = resolved_path + ext
