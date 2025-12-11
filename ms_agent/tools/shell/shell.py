@@ -174,7 +174,7 @@ class Shell(ToolBase):
                 cwd=work_dir,
                 capture_output=True,
                 text=True,
-                timeout=30,
+                timeout=getattr(self.config.tools.shell, 'timeout', 5),
             )
 
             if ret.returncode == 0:
@@ -183,7 +183,7 @@ class Shell(ToolBase):
                 result = f'Command executed failed. return_code={ret.returncode}, error message: {ret.stderr.strip()}'
 
         except subprocess.TimeoutExpired:
-            result = 'Run timed out after 30 seconds.'
+            result = f'Run timed out after {getattr(self.config.tools.shell, "timeout", 5)} seconds.'
         except Exception as e:
             result = f'Run failed with an exception: {e}.'
 

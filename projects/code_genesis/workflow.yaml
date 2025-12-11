@@ -32,6 +32,9 @@ file_order:
 
 install:
   agent_config: install.yaml
+  agent:
+    kwargs:
+      code_file: workflow/install.py
   next:
     - coding
 

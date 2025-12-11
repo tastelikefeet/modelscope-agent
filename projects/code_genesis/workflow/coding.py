@@ -127,7 +127,7 @@ class Programmer(LLMAgent):
         self.unchecked_files[untrack_file] = 0
 
     def increment_unchecked_file(self):
-        for key in self.unchecked_files:
+        for key in self.unchecked_files.keys():
             self.unchecked_files[key] = self.unchecked_files[key] + 1
             if self.unchecked_files[key] > 3:
                 self.unchecked_files.pop(key)
@@ -174,7 +174,7 @@ class Programmer(LLMAgent):
                 messages[-1].content = 'I should continue to solve the problem.'
             all_issues = []
 
-            for uncheck_file in self.unchecked_files:
+            for uncheck_file in self.unchecked_files.keys():
                 with open(os.path.join(self.output_dir, uncheck_file), 'r') as f:
                     _code = f.read()
                 lsp_feedback = await self._incremental_lsp_check(uncheck_file, _code)
