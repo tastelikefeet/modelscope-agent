@@ -249,7 +249,7 @@ class LSPServer:
 
         diagnostics = []
         found_target = False
-        max_attempts = 30
+        max_attempts = 999
         consecutive_timeouts = 0
 
         for _ in range(max_attempts):
