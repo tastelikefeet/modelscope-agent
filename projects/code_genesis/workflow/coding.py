@@ -104,11 +104,10 @@ class Programmer(LLMAgent):
                     continue
             
             # 2. Check if imported symbols exist in the file
-            # Skip side-effect imports (import './style.css') and wildcard imports (import * as X)
-            if info.import_type == 'side-effect' or info.imported_items == ['*']:
+            if info.import_type in ('side-effect', 'default', 'namespace'):
                 continue
             
-            if not info.imported_items:
+            if not info.imported_items or info.imported_items == ['*']:
                 continue
 
             with open(full_path, 'r', encoding='utf-8') as f:
@@ -125,18 +124,8 @@ class Programmer(LLMAgent):
                     f"  Items {missing_items} not found in '{source_file}'\n"
                     f"  Statement: {info.raw_statement}\n"
                 )
-
-        if errors:
-            errors = '\n'.join(errors)
-            errors = ('Import check failed. This check examines the referenced file path. '
-                      'If the reference is a directory, it looks for files such as '
-                      '__init__.py, index.js, index.jsx, etc. If the path does not exist, '
-                      'the imported item is not found, and the referenced file does not use a wildcard (*), '
-                      'an error is reported. The errors are as follows:\n') + errors
-        else:
-            errors = None
         
-        return errors
+        return '\n'.join(errors) if errors else None
 
     
     async def _incremental_lsp_check(self, code_file: str, partial_code: str) -> Optional[str]:
