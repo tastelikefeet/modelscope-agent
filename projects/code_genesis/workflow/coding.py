@@ -6,6 +6,7 @@ import re
 import shutil
 from collections import OrderedDict
 from copy import deepcopy
+from pathlib import Path
 from typing import List, Set, Optional
 
 from omegaconf import DictConfig
@@ -73,12 +74,15 @@ class Programmer(LLMAgent):
         if not self.is_stop_imports():
             return
 
-        pattern = r'<result>[a-zA-Z]*:([^\n\r`]+)\n(.*?)'
-        matches = re.findall(pattern, messages[-1].content, re.DOTALL)
+        content = messages[-1].content
+        pattern = r'<result>[a-zA-Z]*:([^\n\r`]+)\n(.*)'
+        matches = re.findall(pattern, content, re.DOTALL)
         try:
             code_file = next(iter(matches))[0].strip()
+            code = next(iter(matches))[1].strip()
         except StopIteration:
             code_file = ''
+            code = ''
 
         if not code_file:
             return
@@ -106,7 +110,8 @@ class Programmer(LLMAgent):
                 with open(os.path.join(self.output_dir, path), 'r') as f:
                     return f.read()
 
-        contents = messages[-1].content.split('\n')
+
+        contents = content.split('\n')
         comments = ['*', "#", '-', '%', '/']
         contents = [c for c in contents if not any(c.strip().startswith(cm) for cm in comments)]
         all_files = parse_imports(code_file, '\n'.join(contents),
@@ -130,20 +135,21 @@ class Programmer(LLMAgent):
                     all_notes.append(f'Extra file content in imports:\n{read_file(file.source_file)}')
             elif os.path.isdir(filename):
                 index_file_path = self.find_index_file(filename)
-                if index_file_path and index_file_path not in all_read_files:
-                    all_notes.append(f'Extra file content in imports:\n{read_file(index_file_path)}')
+                if index_file_path:
+                    index_file_path = str(Path(index_file_path).relative_to(self.output_dir))
+                    if index_file_path not in all_read_files:
+                        all_notes.append(f'Extra file content in imports:\n{read_file(index_file_path)}')
 
         if all_notes:
             all_notes = '\n'.join(all_notes)
+            user_content = (f'Problems found in your imports:\n'
+                            f'\n{all_notes}\n'
+                            f'Correct the errors and regenerate the code:\n')
+            messages.append(Message(role='user', content=user_content))
         else:
-            all_notes = ''
-        user_content = (f'We break your generation to import more relative information. '
-                f'According to your imports, some extra contents manually given here:\n'
-                f'\n{all_notes or "No extra dependencies needed"}\n'
-                f'Now review your imports in it, correct any error according to the dependencies, '
-                f'if any data structure undefined/not found, you can go on reading any code files you need, '
-                f'then rewrite the full code of {code_file} based on the start lines:\n')
-        messages.append(Message(role='user', content=user_content))
+            messages.pop(-1)
+            user_content = f'Generate the code based on the beginning:\n{code}'
+            messages.append(Message(role='user', content=user_content))
         self.stop_nothing()
 
     async def _incremental_check(self, code_file: str, partial_code: str):
@@ -166,6 +172,10 @@ class Programmer(LLMAgent):
 
     async def _after_import_check(self, code_file: str, partial_code: str) -> Optional[str]:
         errors = []
+        partial_code = partial_code.split('\n')
+        comments = ['*', "#", '-', '%', '/']
+        contents = [c for c in partial_code if not any(c.strip().startswith(cm) for cm in comments)]
+        partial_code = '\n'.join(contents)
         all_imports: List[ImportInfo] = parse_imports(code_file, partial_code, self.output_dir)
         
         for info in all_imports:
