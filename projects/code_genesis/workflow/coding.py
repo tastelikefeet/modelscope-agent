@@ -71,9 +71,6 @@ class Programmer(LLMAgent):
                 self.all_code_files.extend(group['files'])
 
     def _before_import_check(self, messages):
-        if not self.is_stop_imports():
-            return
-
         content = messages[-1].content
         pattern = r'<result>[a-zA-Z]*:([^\n\r`]+)\n(.*)'
         matches = re.findall(pattern, content, re.DOTALL)
@@ -85,6 +82,7 @@ class Programmer(LLMAgent):
             code = ''
 
         if not code_file:
+            self.stop_nothing()
             return
 
         def find_all_read_files():
