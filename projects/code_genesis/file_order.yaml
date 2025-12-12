@@ -28,8 +28,9 @@ prompt:
       * 功能相关的文件需要串行执行，编写顺序(index):
         a. 项目基础文件和依赖文件
         b. 低级模块
-        c. 高级模块
-        d. 入口文件或启动文件
+        c1. 高级模块的依赖文件(css/util等)
+        c2. 高级模块
+        d. 入口文件或启动文件(index/main/server)
         e. README文件
       * python的__init__.py文件的index应大于包内其他代码文件的index
       * 任何其他语言的同含义index文件的index应大于包内其他代码文件的index

@@ -6,45 +6,58 @@ from ms_agent.memory import Memory
 
 
 class RefineCondenser(Memory):
-    system = """You are a bot that helps summarize and compress model execution history. You will be given model messages, and you need to summarize and compress them. The compression ratio should reach 1:6 (compressing 30,000 tokens to 5,000 tokens).
+    system = """你是一个帮忙总结并缩减模型上下文长度的大模型。你需要遵循以下指引：
 
-Your working scenario is code writing and subsequent debugging. The large language model will continuously call tools like shell to write or solve problems in complex code projects. Your workflow:
-
-1. The model's conversation history may have fixed different issues, or may be deadlocked on the same issue
-    * Retain the model's thought process and main trajectory for completing tasks, such as creating files, fixing issues, viewing key information from documentation, etc.
-        - [CRITICAL] LLM generates code using <result>ext: file.ext\n...\n</result>. You MUST explicitly list all files that have been created or modified, including:
-            * File path and name
-            * Brief description of file purpose/content
-            * Current state (complete/partial/has errors)
-        - Format example: "FILES WRITTEN: [src/main.py - main entry point, complete] [utils/helper.js - utility functions, partial]"
-    * For issues that have been resolved, you can retain fewer tokens or remove them entirely
-    * Unresolved issues can retain more tokens
-    * Deadlocked issues that remain unresolved after multiple attempts should be marked with additional annotations indicating multiple failed attempts
-    * Retain records of unresolved issues or code under development, and prompt the model to continue solving those issues
-
-2. [MANDATORY] At the END of your summary, always include a "CURRENT STATE" section:
+1. 你会被给与整体messages，结构是：
     ```
-    === CURRENT STATE ===
-    FILES CREATED/MODIFIED:
-    - [file1.ext]: [status] [brief description]
-    - [file2.ext]: [status] [brief description]
-
-    COMPLETED TASKS:
-    - [task description]
-
-    PENDING/UNRESOLVED ISSUES:
-    - [issue description] [attempts made if deadlocked]
-
-    NEXT STEPS:
-    - [what the model should do next]
+    1. system部分
+    2. 用户query部分
+    3~N. 中间messages，也是你需要压缩的部分
+    N~结尾. 最后一轮assistant回复和后续的tool调用信息
     ```
 
-3. Return your summarized message history without adding extra content (such as "Let me summarize..." or "Below is a summary of...")
-
-Your optimization objectives:
-1. [Priority] Preserve a clear record of ALL files written/modified - the model must know what code already exists
-2. [Priority] Restore an overview of unresolved issues, retain and summarize the model's trajectory for future reference
-3. [Secondary] Retain as few tokens as possible while satisfying objectives 1 and 2"""
+2. 你需要保留：
+    a. 模型执行轨迹
+    b. 完成的事项
+    c. 解决中的问题
+    d. 重要反思和经验
+    
+    你的返回格式：
+    ```json
+    [
+        {
+            "name": "读取...文件", # 轨迹事项描述
+            "description": "文件缩略内容...", # 轨迹内容记录
+            "type": "轨迹" # 事项类型
+        },
+        {
+            "name": "存储...代码", # 轨迹事项描述,
+            ...
+            "type": "轨迹" # 事项类型
+        },
+        {
+            "name": "代码执行错误",
+            "description": "由于...导致了编写问题",
+            "type": "反思"
+        },
+        {
+            "name": "需要处理...",
+            "description": "用户给了重要提示，...",
+            "type": "经验"
+        },
+        {
+            "name": "需要处理...",
+            ...
+            "type": "进行中事项"
+        },
+    ]
+    ```
+    
+3. 你需要注意:
+    a. 压缩比达到1:6， 即压缩到原来的约六分之一长度
+    b. 对当前处理的事务，和对用户原始需求不重要的事项需要移除，反之则保留
+    c. 对用户需要继续处理的事务进行额外提示，防止模型在消息压缩后进入死循环
+"""
 
     def __init__(self, config):
         super().__init__(config)

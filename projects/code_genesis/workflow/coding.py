@@ -163,13 +163,13 @@ class Programmer(LLMAgent):
                                      f'stop importing it.')
             elif os.path.isfile(filename):
                 if file.source_file not in all_read_files:
-                    all_notes.append(f'Extra file content in imports:\n{read_file(file.source_file)}')
+                    all_notes.append(f'Extra file {file.source_file} content in imports:\n{read_file(file.source_file)}')
             elif os.path.isdir(filename):
                 index_file_path = self.find_index_file(filename)
                 if index_file_path:
                     index_file_path = str(Path(index_file_path).relative_to(self.output_dir))
                     if index_file_path not in all_read_files:
-                        all_notes.append(f'Extra file content in imports:\n{read_file(index_file_path)}')
+                        all_notes.append(f'Extra file {index_file_path} content in imports:\n{read_file(index_file_path)}')
 
         if all_notes:
             all_notes = '\n'.join(all_notes)

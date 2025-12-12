@@ -511,7 +511,12 @@ class JavaScriptImportParser(BaseImportParser):
 
         # File doesn't exist - add default extension based on current file type
         if not os.path.exists(abs_resolved):
-            # Infer extension from current_file
+            # Check if path already has an extension (e.g., .css, .json)
+            if '.' in os.path.basename(resolved):
+                # Already has extension, return as-is
+                return to_relative(resolved)
+            
+            # No extension, infer from current_file
             if self.current_file:
                 current_ext = os.path.splitext(self.current_file)[1]
                 if current_ext in ['.ts', '.tsx']:

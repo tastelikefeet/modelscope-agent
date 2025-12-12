@@ -903,6 +903,60 @@ export { default as CommentList } from './CommentList';
         for imp in imports:
             self.assertEqual(imp.imported_items, ['default'])
 
+    def test_css_import_no_extra_extension(self):
+        """Test that CSS imports don't get extra .js extension
+        
+        Regression test for the issue where:
+        - import styles from './index.module.css'
+        - Previously returned: 'index.module.css.js' (WRONG)
+        - Should return: 'index.module.css' (CORRECT)
+        """
+        # Create directory structure
+        pages_dir = os.path.join(self.temp_dir, 'frontend', 'src', 'pages', 'Auth')
+        os.makedirs(pages_dir)
+        
+        # Create Login.jsx file
+        login_file = os.path.join(pages_dir, 'Login.jsx')
+        Path(login_file).touch()
+        
+        # CSS file doesn't exist (common case - CSS might be in different location)
+        # But we still want correct path resolution
+        
+        content = '''import React from 'react';
+import styles from './index.module.css';
+import data from './config.json';
+import icon from './logo.svg';
+'''
+        
+        imports = parse_imports(login_file, content, self.temp_dir)
+        
+        # Should parse 3 imports (React is filtered as external)
+        self.assertEqual(len(imports), 3)
+        
+        # Verify file paths
+        source_files = {imp.source_file.replace('\\', '/') for imp in imports}
+        
+        # CSS should NOT have .js appended
+        css_import = [f for f in source_files if 'module.css' in f][0]
+        self.assertTrue(css_import.endswith('.css'), 
+                       f"CSS import should end with .css, got: {css_import}")
+        self.assertFalse(css_import.endswith('.css.js'),
+                        f"CSS import should NOT have .js appended, got: {css_import}")
+        
+        # JSON should NOT have .js appended
+        json_import = [f for f in source_files if 'config.json' in f][0]
+        self.assertTrue(json_import.endswith('.json'),
+                       f"JSON import should end with .json, got: {json_import}")
+        self.assertFalse(json_import.endswith('.json.js'),
+                        f"JSON import should NOT have .js appended, got: {json_import}")
+        
+        # SVG should NOT have .js appended
+        svg_import = [f for f in source_files if 'logo.svg' in f][0]
+        self.assertTrue(svg_import.endswith('.svg'),
+                       f"SVG import should end with .svg, got: {svg_import}")
+        self.assertFalse(svg_import.endswith('.svg.js'),
+                        f"SVG import should NOT have .js appended, got: {svg_import}")
+
 
 if __name__ == '__main__':
     unittest.main()
