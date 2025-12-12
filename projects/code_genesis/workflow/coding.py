@@ -74,6 +74,7 @@ class Programmer(LLMAgent):
         self.unchecked_issues = {}
         self.stop_words = [stop_words, []]
         self.find_all_files()
+        self.error_counter = 0
 
     async def condense_memory(self, messages):
         return messages
@@ -150,6 +151,8 @@ class Programmer(LLMAgent):
             if file.source_file == code_file:
                 all_notes.append(f'You should not import the file itself: {code_file}')
                 continue
+
+            file.imported_items = [item for item in file.imported_items if item not in ('*', 'default')]
             filename = os.path.join(self.output_dir, file.source_file)
             if not os.path.exists(filename):
                 if file.source_file in self.all_code_files:
@@ -210,6 +213,8 @@ class Programmer(LLMAgent):
             source_file = info.source_file
             if not source_file:
                 continue
+
+            info.imported_items = [item for item in info.imported_items if item not in ('*', 'default')]
 
             if not os.path.isabs(source_file):
                 full_path = os.path.join(self.output_dir, source_file)
@@ -407,6 +412,12 @@ class Programmer(LLMAgent):
 
         if not messages[-1].content:
             messages[-1].content = 'I should continue to solve the problem.'
+            self.error_counter += 1
+        else:
+            self.error_counter = 0
+
+        if self.error_counter > 2:
+            raise RuntimeError('The model does not output any response!')
 
         new_task = is_code_finish and self.code_files and (not self.unchecked_files)
         if new_task:

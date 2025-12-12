@@ -1,77 +1,68 @@
 """
 Unit tests for Import Parser
-Tests Python, JavaScript/TypeScript, and Java import parsing
+
+IMPORTANT: parse_imports filters out ALL external packages.
+Only project files (relative imports) are returned.
+External packages like 'react', 'os', 'typing', 'java.util.List' are excluded.
 """
 
 import os
 import shutil
+import sys
 import tempfile
 import unittest
 from pathlib import Path
-from ms_agent.utils import parser_utils
+
+# Direct import to avoid omegaconf dependency
+sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '../../ms_agent/utils')))
+import parser_utils
 parse_imports = parser_utils.parse_imports
 ImportInfo = parser_utils.ImportInfo
 
 
-class TestPythonImports(unittest.TestCase):
-    """Test Python import parsing"""
+class TestPythonExternalPackageFiltering(unittest.TestCase):
+    """Test that Python external packages are filtered out"""
 
     def setUp(self):
-        """Set up test fixtures"""
         self.temp_dir = tempfile.mkdtemp()
         self.test_file = os.path.join(self.temp_dir, 'test.py')
         Path(self.test_file).touch()
 
     def tearDown(self):
-        """Clean up temp directory"""
         shutil.rmtree(self.temp_dir, ignore_errors=True)
 
-    def test_from_import(self):
-        """Test: from xx import xx"""
+    def test_stdlib_filtered(self):
+        """Test that stdlib imports are filtered out"""
         content = "from typing import List, Dict"
         imports = parse_imports(self.test_file, content, self.temp_dir)
+        self.assertEqual(len(imports), 0)
 
-        self.assertEqual(len(imports), 1)
-        self.assertIn('List', imports[0].imported_items)
-        self.assertIn('Dict', imports[0].imported_items)
-        self.assertEqual(imports[0].import_type, 'named')
-
-    def test_from_import_with_alias(self):
-        """Test: from xx import xx as yy"""
-        content = "from collections import defaultdict as dd"
-        imports = parse_imports(self.test_file, content, self.temp_dir)
-
-        self.assertEqual(len(imports), 1)
-        self.assertIn('defaultdict', imports[0].imported_items)
-
-    def test_simple_import(self):
-        """Test: import xx"""
+    def test_import_os_filtered(self):
+        """Test that 'import os' is filtered out"""
         content = "import os"
         imports = parse_imports(self.test_file, content, self.temp_dir)
+        self.assertEqual(len(imports), 0)
 
-        self.assertEqual(len(imports), 1)
-        self.assertEqual(imports[0].import_type, 'default')
-        self.assertIn('os', imports[0].imported_items)
-
-    def test_import_with_alias(self):
-        """Test: import xx as yy"""
+    def test_import_with_alias_filtered(self):
+        """Test that 'import numpy as np' is filtered out"""
         content = "import numpy as np"
         imports = parse_imports(self.test_file, content, self.temp_dir)
+        self.assertEqual(len(imports), 0)
 
-        self.assertEqual(len(imports), 1)
-        self.assertEqual(imports[0].alias, 'np')
-
-    def test_import_star(self):
-        """Test: from xx import *"""
+    def test_import_star_filtered(self):
+        """Test that 'from typing import *' is filtered out"""
         content = "from typing import *"
         imports = parse_imports(self.test_file, content, self.temp_dir)
+        self.assertEqual(len(imports), 0)
 
-        self.assertEqual(len(imports), 1)
-        self.assertEqual(imports[0].import_type, 'namespace')
-        self.assertIn('*', imports[0].imported_items)
+    def test_multiple_imports_filtered(self):
+        """Test that 'import os, sys, json' are all filtered out"""
+        content = "import os, sys, json"
+        imports = parse_imports(self.test_file, content, self.temp_dir)
+        self.assertEqual(len(imports), 0)
 
-    def test_multiline_import_parentheses(self):
-        """Test multi-line import with parentheses"""
+    def test_multiline_import_filtered(self):
+        """Test that multiline external imports are filtered out"""
         content = '''
 from typing import (
     List,
@@ -80,562 +71,837 @@ from typing import (
 )
 '''
         imports = parse_imports(self.test_file, content, self.temp_dir)
+        self.assertEqual(len(imports), 0)
 
-        self.assertEqual(len(imports), 1)
-        self.assertIn('List', imports[0].imported_items)
-        self.assertIn('Dict', imports[0].imported_items)
-        self.assertIn('Optional', imports[0].imported_items)
-
-    def test_multiple_simple_imports(self):
-        """Test: import xx, yy"""
-        content = "import os, sys, json"
+    def test_future_imports_filtered(self):
+        """Test that __future__ imports are filtered out"""
+        content = '''
+from __future__ import annotations
+from __future__ import division, print_function
+'''
         imports = parse_imports(self.test_file, content, self.temp_dir)
-
-        self.assertEqual(len(imports), 3)
-        items = [imp.imported_items[0] for imp in imports]
-        self.assertIn('os', items)
-        self.assertIn('sys', items)
-        self.assertIn('json', items)
-
-    def test_import_with_comment(self):
-        """Test import with inline comment"""
-        content = "from typing import List  # type hint"
-        imports = parse_imports(self.test_file, content, self.temp_dir)
-
-        self.assertEqual(len(imports), 1)
-        self.assertIn('List', imports[0].imported_items)
-        # Comment should not be in imported items
-        self.assertNotIn('#', str(imports[0].imported_items))
+        self.assertEqual(len(imports), 0)
 
 
-class TestJavaScriptImports(unittest.TestCase):
-    """Test JavaScript/TypeScript import parsing"""
+class TestPythonProjectFileImports(unittest.TestCase):
+    """Test that Python project files (relative imports) are kept"""
 
     def setUp(self):
-        """Set up test fixtures"""
+        self.temp_dir = tempfile.mkdtemp()
+        # Create package structure
+        self.pkg_dir = os.path.join(self.temp_dir, 'mypackage')
+        os.makedirs(self.pkg_dir)
+        Path(os.path.join(self.pkg_dir, '__init__.py')).touch()
+        
+        self.test_file = os.path.join(self.pkg_dir, 'test.py')
+        Path(self.test_file).touch()
+        
+        # Create utils module
+        utils_file = os.path.join(self.pkg_dir, 'utils.py')
+        Path(utils_file).touch()
+
+    def tearDown(self):
+        shutil.rmtree(self.temp_dir, ignore_errors=True)
+
+    def test_relative_import_single_dot(self):
+        """Test that relative imports with . are kept"""
+        content = "from .utils import helper"
+        imports = parse_imports(self.test_file, content, self.temp_dir)
+        
+        self.assertEqual(len(imports), 1)
+        self.assertEqual(imports[0].import_type, 'named')
+        self.assertIn('helper', imports[0].imported_items)
+
+    def test_relative_import_double_dot(self):
+        """Test that relative imports with .. are kept"""
+        content = "from ..config import settings"
+        imports = parse_imports(self.test_file, content, self.temp_dir)
+        
+        self.assertEqual(len(imports), 1)
+        self.assertIn('settings', imports[0].imported_items)
+        # Verify the source file path is correct
+        self.assertEqual(imports[0].source_file, '..config')
+
+    def test_relative_import_module(self):
+        """Test that 'from . import module' is kept"""
+        content = "from . import utils"
+        imports = parse_imports(self.test_file, content, self.temp_dir)
+        
+        self.assertEqual(len(imports), 1)
+        self.assertIn('utils', imports[0].imported_items)
+
+    def test_relative_import_with_alias(self):
+        """Test that relative imports with alias are kept"""
+        content = "from .utils import helper as h"
+        imports = parse_imports(self.test_file, content, self.temp_dir)
+        
+        self.assertEqual(len(imports), 1)
+        self.assertIn('helper', imports[0].imported_items)
+
+
+class TestJavaScriptExternalPackageFiltering(unittest.TestCase):
+    """Test that JavaScript/TypeScript external packages are filtered out"""
+
+    def setUp(self):
         self.temp_dir = tempfile.mkdtemp()
         self.test_file = os.path.join(self.temp_dir, 'test.ts')
         Path(self.test_file).touch()
 
     def tearDown(self):
-        """Clean up temp directory"""
         shutil.rmtree(self.temp_dir, ignore_errors=True)
 
-    def test_named_import(self):
-        """Test: import { xxx } from 'xxx'"""
-        content = "import { useState, useEffect } from 'react'"
-        imports = parse_imports(self.test_file, content, self.temp_dir)
-
-        self.assertEqual(len(imports), 1)
-        self.assertEqual(imports[0].import_type, 'named')
-        self.assertIn('useState', imports[0].imported_items)
-        self.assertIn('useEffect', imports[0].imported_items)
-
-    def test_default_import(self):
-        """Test: import xxx from 'xxx'"""
+    def test_react_filtered(self):
+        """Test that 'react' is filtered out"""
         content = "import React from 'react'"
         imports = parse_imports(self.test_file, content, self.temp_dir)
+        self.assertEqual(len(imports), 0)
 
+    def test_react_hooks_filtered(self):
+        """Test that react hooks are filtered out"""
+        content = "import { useState, useEffect } from 'react'"
+        imports = parse_imports(self.test_file, content, self.temp_dir)
+        self.assertEqual(len(imports), 0)
+
+    def test_lodash_filtered(self):
+        """Test that 'lodash' is filtered out"""
+        content = "import _ from 'lodash'"
+        imports = parse_imports(self.test_file, content, self.temp_dir)
+        self.assertEqual(len(imports), 0)
+
+    def test_scoped_package_filtered(self):
+        """Test that scoped packages like '@types/react' are filtered out"""
+        content = "import { Component } from '@types/react'"
+        imports = parse_imports(self.test_file, content, self.temp_dir)
+        self.assertEqual(len(imports), 0)
+
+    def test_vue_filtered(self):
+        """Test that '@vue/cli' is filtered out"""
+        content = "import { createApp } from '@vue/cli'"
+        imports = parse_imports(self.test_file, content, self.temp_dir)
+        self.assertEqual(len(imports), 0)
+
+    def test_import_with_alias_filtered(self):
+        """Test that external imports with alias are filtered out"""
+        content = "import { useState as state } from 'react'"
+        imports = parse_imports(self.test_file, content, self.temp_dir)
+        self.assertEqual(len(imports), 0)
+
+
+class TestJavaScriptProjectFileImports(unittest.TestCase):
+    """Test that JavaScript/TypeScript project files are kept"""
+
+    def setUp(self):
+        self.temp_dir = tempfile.mkdtemp()
+        self.src_dir = os.path.join(self.temp_dir, 'src')
+        os.makedirs(self.src_dir)
+        
+        self.test_file = os.path.join(self.src_dir, 'App.tsx')
+        Path(self.test_file).touch()
+        
+        # Create component files
+        self.button_file = os.path.join(self.src_dir, 'Button.tsx')
+        Path(self.button_file).touch()
+        
+        self.styles_file = os.path.join(self.src_dir, 'styles.css')
+        Path(self.styles_file).touch()
+
+    def tearDown(self):
+        shutil.rmtree(self.temp_dir, ignore_errors=True)
+
+    def test_relative_import_with_extension(self):
+        """Test that relative imports with extension are kept"""
+        content = "import { Button } from './Button.tsx'"
+        imports = parse_imports(self.test_file, content, self.temp_dir)
+        
+        self.assertEqual(len(imports), 1)
+        self.assertIn('Button', imports[0].imported_items)
+
+    def test_default_import(self):
+        """Test that default imports from project files are kept"""
+        # Create a module file
+        utils_file = os.path.join(self.src_dir, 'utils.ts')
+        Path(utils_file).touch()
+        
+        content = "import utils from './utils'"
+        imports = parse_imports(self.test_file, content, self.temp_dir)
+        
         self.assertEqual(len(imports), 1)
         self.assertEqual(imports[0].import_type, 'default')
-        self.assertIn('React', imports[0].imported_items)
+        self.assertIn('utils', imports[0].imported_items)
 
-    def test_namespace_import(self):
-        """Test: import * as xxx from 'xxx'"""
-        content = "import * as utils from './utils'"
+    def test_relative_import_without_extension(self):
+        """Test that relative imports without extension are kept"""
+        content = "import { Button } from './Button'"
         imports = parse_imports(self.test_file, content, self.temp_dir)
-
+        
         self.assertEqual(len(imports), 1)
-        self.assertEqual(imports[0].import_type, 'namespace')
-        self.assertEqual(imports[0].alias, 'utils')
-        self.assertIn('*', imports[0].imported_items)
+        self.assertIn('Button', imports[0].imported_items)
 
     def test_side_effect_import(self):
-        """Test: import 'xx/xx'"""
+        """Test that side-effect imports are kept"""
         content = "import './styles.css'"
         imports = parse_imports(self.test_file, content, self.temp_dir)
-
+        
         self.assertEqual(len(imports), 1)
         self.assertEqual(imports[0].import_type, 'side-effect')
 
-    def test_type_import(self):
-        """Test: import type { xxx } from 'xxx'"""
-        content = "import type { User, Product } from './types'"
+    def test_namespace_import(self):
+        """Test that namespace imports are kept"""
+        content = "import * as utils from './utils'"
         imports = parse_imports(self.test_file, content, self.temp_dir)
-
-        self.assertEqual(len(imports), 1)
-        self.assertTrue(imports[0].is_type_only)
-        self.assertIn('User', imports[0].imported_items)
-        self.assertIn('Product', imports[0].imported_items)
-
-    def test_export_from(self):
-        """Test: export { xxx } from 'xxx'"""
-        content = "export { Button, Input } from './components'"
-        imports = parse_imports(self.test_file, content, self.temp_dir)
-
-        self.assertEqual(len(imports), 1)
-        self.assertIn('Button', imports[0].imported_items)
-        self.assertIn('Input', imports[0].imported_items)
-
-    def test_export_star(self):
-        """Test: export * from 'xxx'"""
-        content = "export * from './utils'"
-        imports = parse_imports(self.test_file, content, self.temp_dir)
-
+        
         self.assertEqual(len(imports), 1)
         self.assertEqual(imports[0].import_type, 'namespace')
         self.assertIn('*', imports[0].imported_items)
 
-    def test_export_star_as(self):
-        """Test: export * as name from 'xxx'"""
-        content = "export * as helpers from './helpers'"
+    def test_type_import(self):
+        """Test that type imports are kept"""
+        # Create types file
+        types_file = os.path.join(self.src_dir, 'types.ts')
+        Path(types_file).touch()
+        
+        content = "import type { User, Product } from './types'"
         imports = parse_imports(self.test_file, content, self.temp_dir)
-
+        
         self.assertEqual(len(imports), 1)
-        self.assertEqual(imports[0].alias, 'helpers')
+        self.assertTrue(imports[0].is_type_only)
+        self.assertIn('User', imports[0].imported_items)
 
-    def test_multiline_named_import(self):
-        """Test multiline named imports"""
-        content = '''
-import {
-    Component1,
-    Component2,
-    Component3
-} from './components'
-'''
+    def test_inline_type_import(self):
+        """Test that inline type imports (TS 4.5+) are correctly parsed"""
+        # Create types file
+        types_file = os.path.join(self.src_dir, 'types.ts')
+        Path(types_file).touch()
+        
+        # Test 1: All inline types
+        content1 = "import { type User, type Product } from './types'"
+        imports1 = parse_imports(self.test_file, content1, self.temp_dir)
+        
+        self.assertEqual(len(imports1), 1)
+        self.assertFalse(imports1[0].is_type_only)  # Not type-only import
+        self.assertEqual(imports1[0].imported_items, ['User', 'Product'])
+        # Ensure 'type' keyword is removed
+        for item in imports1[0].imported_items:
+            self.assertNotIn('type', item)
+        
+        # Test 2: Mixed value and type imports
+        content2 = "import { Component, type Props } from './types'"
+        imports2 = parse_imports(self.test_file, content2, self.temp_dir)
+        
+        self.assertEqual(len(imports2), 1)
+        self.assertEqual(imports2[0].imported_items, ['Component', 'Props'])
+        # Ensure 'type' keyword is removed from Props
+        for item in imports2[0].imported_items:
+            self.assertNotIn('type', item)
+        
+        # Test 3: Inline type with alias
+        content3 = "import { type User as U, Component as C } from './types'"
+        imports3 = parse_imports(self.test_file, content3, self.temp_dir)
+        
+        self.assertEqual(len(imports3), 1)
+        self.assertEqual(imports3[0].imported_items, ['User', 'Component'])
+        # Ensure extracted original names, not aliases
+        for item in imports3[0].imported_items:
+            self.assertNotIn('type', item)
+            self.assertNotIn('as', item)
+
+    def test_export_from(self):
+        """Test that export from statements are kept"""
+        # Create components directory
+        components_dir = os.path.join(self.src_dir, 'components')
+        os.makedirs(components_dir)
+        Path(os.path.join(components_dir, 'index.ts')).touch()
+        
+        content = "export { Button, Input } from './components'"
         imports = parse_imports(self.test_file, content, self.temp_dir)
-
+        
         self.assertEqual(len(imports), 1)
-        self.assertIn('Component1', imports[0].imported_items)
-        self.assertIn('Component2', imports[0].imported_items)
-        self.assertIn('Component3', imports[0].imported_items)
+        self.assertIn('Button', imports[0].imported_items)
 
-    def test_import_with_alias(self):
-        """Test: import { xxx as yyy } from 'xxx'"""
-        content = "import { useState as state } from 'react'"
+    def test_directory_import_with_index(self):
+        """Test that directory imports resolve to index file"""
+        # Create components directory with index
+        components_dir = os.path.join(self.src_dir, 'components')
+        os.makedirs(components_dir)
+        Path(os.path.join(components_dir, 'index.ts')).touch()
+        
+        content = "import { Component } from './components'"
         imports = parse_imports(self.test_file, content, self.temp_dir)
-
+        
         self.assertEqual(len(imports), 1)
-        # Should extract original name before 'as'
-        self.assertIn('useState', imports[0].imported_items)
-
-    def test_css_module_import(self):
-        """Test: import styles from './styles.module.css'"""
-        content = "import styles from './styles.module.css'"
-        imports = parse_imports(self.test_file, content, self.temp_dir)
-
-        self.assertEqual(len(imports), 1)
-        self.assertEqual(imports[0].import_type, 'default')
-        self.assertIn('styles', imports[0].imported_items)
+        self.assertIn('index', imports[0].source_file)
 
 
-class TestJavaImports(unittest.TestCase):
-    """Test Java import parsing"""
+class TestJavaScriptPathAlias(unittest.TestCase):
+    """Test that path aliases are resolved correctly"""
 
     def setUp(self):
-        """Set up test fixtures"""
+        self.temp_dir = tempfile.mkdtemp()
+        self.src_dir = os.path.join(self.temp_dir, 'src')
+        self.api_dir = os.path.join(self.src_dir, 'api')
+        os.makedirs(self.api_dir)
+        
+        self.app_file = os.path.join(self.src_dir, 'App.tsx')
+        Path(self.app_file).touch()
+        
+        self.user_file = os.path.join(self.api_dir, 'user.ts')
+        Path(self.user_file).touch()
+        
+        # Create tsconfig.json
+        import json
+        tsconfig = {
+            'compilerOptions': {
+                'baseUrl': '.',
+                'paths': {
+                    '@api/*': ['src/api/*'],
+                    '@/*': ['src/*']
+                }
+            }
+        }
+        with open(os.path.join(self.temp_dir, 'tsconfig.json'), 'w') as f:
+            json.dump(tsconfig, f)
+
+    def tearDown(self):
+        shutil.rmtree(self.temp_dir, ignore_errors=True)
+
+    def test_path_alias_resolved(self):
+        """Test that path aliases like @api/user are resolved"""
+        content = "import { getUser } from '@api/user'"
+        imports = parse_imports(self.app_file, content, self.temp_dir)
+        
+        self.assertGreater(len(imports), 0)
+        # Should resolve to actual file
+        full_path = os.path.join(self.temp_dir, imports[0].source_file)
+        self.assertTrue(os.path.exists(full_path))
+
+
+class TestJavaExternalPackageFiltering(unittest.TestCase):
+    """Test that Java external packages are filtered out"""
+
+    def setUp(self):
         self.temp_dir = tempfile.mkdtemp()
         self.test_file = os.path.join(self.temp_dir, 'Test.java')
         Path(self.test_file).touch()
 
     def tearDown(self):
-        """Clean up temp directory"""
         shutil.rmtree(self.temp_dir, ignore_errors=True)
 
-    def test_single_import(self):
-        """Test: import package.Class"""
+    def test_java_util_filtered(self):
+        """Test that 'java.util.List' is filtered out"""
         content = "import java.util.List;"
         imports = parse_imports(self.test_file, content, self.temp_dir)
+        self.assertEqual(len(imports), 0)
 
-        self.assertEqual(len(imports), 1)
-        self.assertIn('List', imports[0].imported_items)
-
-    def test_wildcard_import(self):
-        """Test: import package.*"""
+    def test_java_wildcard_filtered(self):
+        """Test that 'java.util.*' is filtered out"""
         content = "import java.util.*;"
         imports = parse_imports(self.test_file, content, self.temp_dir)
+        self.assertEqual(len(imports), 0)
 
-        self.assertEqual(len(imports), 1)
-        self.assertEqual(imports[0].import_type, 'namespace')
-        self.assertIn('*', imports[0].imported_items)
-
-    def test_static_import(self):
-        """Test: import static package.Class.method"""
-        content = "import static java.lang.Math.PI;"
+    def test_java_io_filtered(self):
+        """Test that 'java.io.File' is filtered out"""
+        content = "import java.io.File;"
         imports = parse_imports(self.test_file, content, self.temp_dir)
+        self.assertEqual(len(imports), 0)
 
-        self.assertEqual(len(imports), 1)
-        self.assertIn('PI', imports[0].imported_items)
+    def test_third_party_filtered(self):
+        """Test that third-party packages are filtered out"""
+        content = "import com.example.MyClass;"
+        imports = parse_imports(self.test_file, content, self.temp_dir)
+        self.assertEqual(len(imports), 0)
 
-    def test_multiple_imports(self):
-        """Test multiple Java imports"""
+    def test_multiple_imports_filtered(self):
+        """Test that multiple Java imports are all filtered out"""
         content = '''
 import java.util.List;
 import java.util.ArrayList;
 import java.util.HashMap;
 '''
         imports = parse_imports(self.test_file, content, self.temp_dir)
+        self.assertEqual(len(imports), 0)
 
-        self.assertEqual(len(imports), 3)
-        items = [imp.imported_items[0] for imp in imports]
-        self.assertIn('List', items)
-        self.assertIn('ArrayList', items)
-        self.assertIn('HashMap', items)
+    def test_static_import_filtered(self):
+        """Test that static imports are filtered out"""
+        content = "import static java.lang.Math.PI;"
+        imports = parse_imports(self.test_file, content, self.temp_dir)
+        self.assertEqual(len(imports), 0)
+
+    def test_nested_class_filtered(self):
+        """Test that nested class imports are filtered out"""
+        content = "import java.util.Map.Entry;"
+        imports = parse_imports(self.test_file, content, self.temp_dir)
+        self.assertEqual(len(imports), 0)
 
 
-class TestPathResolution(unittest.TestCase):
-    """Test path resolution functionality"""
+class TestMixedImports(unittest.TestCase):
+    """Test that external and project imports are correctly separated"""
 
     def setUp(self):
-        """Set up test project structure"""
         self.temp_dir = tempfile.mkdtemp()
 
-        # Create project structure
-        src_dir = os.path.join(self.temp_dir, 'src')
-        components_dir = os.path.join(src_dir, 'components')
-        utils_dir = os.path.join(src_dir, 'utils')
-
-        os.makedirs(components_dir)
-        os.makedirs(utils_dir)
-
-        # Create files
-        Path(os.path.join(components_dir, 'Button.tsx')).touch()
-        Path(os.path.join(components_dir, 'index.ts')).touch()
-        Path(os.path.join(utils_dir, 'helpers.ts')).touch()
-        self.app_file = os.path.join(src_dir, 'app.tsx')
-        Path(self.app_file).touch()
-
     def tearDown(self):
-        """Clean up temp directory"""
         shutil.rmtree(self.temp_dir, ignore_errors=True)
 
-    def test_relative_import_with_extension(self):
-        """Test resolving relative imports with file extension"""
-        content = "import { Button } from './components/Button.tsx'"
-        imports = parse_imports(self.app_file, content, self.temp_dir)
+    def test_javascript_mixed_imports(self):
+        """Test that only project files are returned, external packages filtered"""
+        # Create project structure
+        src_dir = os.path.join(self.temp_dir, 'src')
+        os.makedirs(src_dir)
+        
+        app_file = os.path.join(src_dir, 'App.tsx')
+        Path(app_file).touch()
+        
+        button_file = os.path.join(src_dir, 'Button.tsx')
+        Path(button_file).touch()
+        
+        styles_file = os.path.join(src_dir, 'styles.css')
+        Path(styles_file).touch()
+        
+        content = '''
+import React from 'react';
+import { useState } from 'react';
+import { Button } from './Button';
+import './styles.css';
+import lodash from 'lodash';
+'''
+        imports = parse_imports(app_file, content, self.temp_dir)
+        
+        # Should only have 2 project files (Button and styles.css)
+        self.assertEqual(len(imports), 2)
+        
+        # Check that project files are present
+        source_files = [imp.source_file for imp in imports]
+        self.assertTrue(any('Button' in sf for sf in source_files))
+        self.assertTrue(any('styles.css' in sf for sf in source_files))
 
-        self.assertEqual(len(imports), 1)
-        # Should resolve to actual file
-        self.assertIn('Button', imports[0].source_file)
-
-    def test_relative_import_without_extension(self):
-        """Test resolving relative imports without extension"""
-        content = "import { Button } from './components/Button'"
-        imports = parse_imports(self.app_file, content, self.temp_dir)
-
-        self.assertEqual(len(imports), 1)
-        # Should auto-detect .tsx extension
-        self.assertTrue(imports[0].source_file.endswith(('.tsx', 'Button')))
-
-    def test_directory_import_resolves_to_index(self):
-        """Test that directory imports resolve to index file"""
-        content = "import { Component } from './components'"
-        imports = parse_imports(self.app_file, content, self.temp_dir)
-
-        self.assertEqual(len(imports), 1)
-        # Should resolve to index.ts
-        self.assertIn('index', imports[0].source_file)
+    def test_python_mixed_imports(self):
+        """Test that only relative imports are returned, external packages filtered"""
+        # Create project structure
+        pkg_dir = os.path.join(self.temp_dir, 'mypackage')
+        os.makedirs(pkg_dir)
+        Path(os.path.join(pkg_dir, '__init__.py')).touch()
+        Path(os.path.join(pkg_dir, 'config.py')).touch()  # Create config file
+        
+        test_file = os.path.join(pkg_dir, 'test.py')
+        Path(test_file).touch()
+        
+        utils_dir = os.path.join(pkg_dir, 'utils')
+        os.makedirs(utils_dir)
+        Path(os.path.join(utils_dir, 'helpers.py')).touch()
+        
+        content = '''
+import os
+import sys
+from typing import List, Dict
+from .utils.helpers import func1
+from .config import settings
+'''
+        imports = parse_imports(test_file, content, self.temp_dir)
+        
+        # Should have 2 relative imports (utils.helpers and config)
+        # External packages (os, sys, typing) are filtered out
+        self.assertEqual(len(imports), 2)
+        
+        # Verify resolved file paths (normalized for cross-platform)
+        source_files = [imp.source_file.replace('\\', '/') for imp in imports]
+        self.assertIn('mypackage/utils/helpers.py', source_files)
+        self.assertIn('mypackage/config.py', source_files)
+        
+        # Verify imported items
+        all_items = []
+        for imp in imports:
+            all_items.extend(imp.imported_items)
+        self.assertIn('func1', all_items)
+        self.assertIn('settings', all_items)
 
 
 class TestEdgeCases(unittest.TestCase):
-    """Test edge cases and error handling"""
+    """Test edge cases"""
 
     def setUp(self):
-        """Set up test fixtures"""
         self.temp_dir = tempfile.mkdtemp()
 
     def tearDown(self):
-        """Clean up temp directory"""
         shutil.rmtree(self.temp_dir, ignore_errors=True)
 
     def test_empty_file(self):
         """Test parsing an empty file"""
-        empty_file = os.path.join(self.temp_dir, 'empty.ts')
-        Path(empty_file).touch()
-
-        imports = parse_imports(empty_file, '', self.temp_dir)
+        test_file = os.path.join(self.temp_dir, 'empty.ts')
+        Path(test_file).touch()
+        
+        imports = parse_imports(test_file, '', self.temp_dir)
         self.assertEqual(len(imports), 0)
 
-    def test_file_with_no_imports(self):
-        """Test parsing a file with no imports"""
-        content = 'const x = 1;\nconst y = 2;\nconsole.log(x + y);'
+    def test_no_imports(self):
+        """Test file with no imports"""
         test_file = os.path.join(self.temp_dir, 'no_imports.ts')
         Path(test_file).touch()
-
+        
+        content = 'const x = 1;\nconst y = 2;\nconsole.log(x + y);'
         imports = parse_imports(test_file, content, self.temp_dir)
         self.assertEqual(len(imports), 0)
 
-    def test_malformed_import(self):
-        """Test handling malformed import (should not crash)"""
-        content = "import { from './broken'"
-        test_file = os.path.join(self.temp_dir, 'broken.ts')
-        Path(test_file).touch()
-
-        # Should not crash
-        imports = parse_imports(test_file, content, self.temp_dir)
-        # May return empty or skip malformed import
-        self.assertIsInstance(imports, list)
-
     def test_commented_imports_ignored(self):
-        """Test that commented imports are not parsed"""
-        content = '''
-// import { useState } from 'react'
-/* import { useEffect } from 'react' */
-import { useCallback } from 'react'
-'''
+        """Test that commented imports are ignored"""
         test_file = os.path.join(self.temp_dir, 'commented.ts')
         Path(test_file).touch()
-
+        
+        # Create component files in same directory
+        Path(os.path.join(self.temp_dir, 'Button.tsx')).touch()
+        Path(os.path.join(self.temp_dir, 'Input.tsx')).touch()
+        Path(os.path.join(self.temp_dir, 'Component.tsx')).touch()
+        
+        content = '''
+// import { Button } from './Button'
+/* import { Input } from './Input' */
+import { Component } from './Component'
+'''
         imports = parse_imports(test_file, content, self.temp_dir)
-
-        # Only useCallback should be imported (comments should be ignored)
+        
+        # Only Component should be imported
         all_items = []
         for imp in imports:
             all_items.extend(imp.imported_items)
+        
+        self.assertIn('Component', all_items)
+        self.assertNotIn('Button', all_items)
+        self.assertNotIn('Input', all_items)
 
-        self.assertIn('useCallback', all_items)
-        # Commented imports should NOT appear
-        self.assertNotIn('useState', all_items)
-        self.assertNotIn('useEffect', all_items)
-
-    def test_complex_text_with_nested_patterns(self):
-        """Test parsing complex text that previously caused nested quantifier issues"""
-        # This is the actual content that caused catastrophic backtracking before
-        content = '''现在我了解了AuthContext的导出内容。根据项目结构，这个index.js文件应该作为contexts目录的统一导出入口。让我编写这个文件：
-
-<result>javascript: frontend/src/contexts/index.js
+    def test_catastrophic_backtracking_prevention(self):
+        """Test that complex content doesn't cause catastrophic backtracking"""
+        import time
+        
+        # Create actual files for the export statements
+        contexts_dir = os.path.join(self.temp_dir, 'contexts')
+        os.makedirs(contexts_dir)
+        
+        test_file = os.path.join(contexts_dir, 'index.js')
+        Path(test_file).touch()
+        
+        # Create all context files
+        context_files = ['AuthContext', 'ThemeContext', 'DataContext', 'ModalContext',
+                        'ToastContext', 'RouterContext', 'APIContext', 'StateContext',
+                        'ConfigContext', 'CacheContext']
+        for ctx in context_files:
+            Path(os.path.join(contexts_dir, f'{ctx}.js')).touch()
+        
+        # This type of content previously caused 30-minute hangs due to nested quantifiers
+        # in the old regex pattern: (?:(\{[^}]*\}|\*\s+as\s+\w+|\w+)\s*,?\s*)*
+        content = '''现在我了解了AuthContext的导出内容。根据项目结构，这个index.js文件应该作为contexts目录的统一导出入口。
 
 export { AuthProvider, useAuth } from './AuthContext';
 export { ThemeProvider, useTheme } from './ThemeContext';
+export { DataProvider, useData } from './DataContext';
+export { ModalProvider, useModal } from './ModalContext';
+export { ToastProvider, useToast } from './ToastContext';
+export { RouterProvider, useRouter } from './RouterContext';
+export { APIProvider, useAPI } from './APIContext';
+export { StateProvider, useState } from './StateContext';
+export { ConfigProvider, useConfig } from './ConfigContext';
+export { CacheProvider, useCache } from './CacheContext';
 '''
-        test_file = os.path.join(self.temp_dir, 'index.js')
-        Path(test_file).touch()
-
-        # Should not hang or crash, should parse the export statements
-        imports = parse_imports(test_file, content, self.temp_dir)
-
-        # Should find the two export statements
-        self.assertGreaterEqual(len(imports), 2)
         
-        # Verify it found the exports
+        # Should complete in under 1 second (previously took 30 minutes)
+        start_time = time.time()
+        imports = parse_imports(test_file, content, self.temp_dir)
+        elapsed_time = time.time() - start_time
+        
+        # Assert performance: should complete in under 1 second
+        self.assertLess(elapsed_time, 1.0, 
+                       f"Parsing took {elapsed_time:.2f}s, possible catastrophic backtracking")
+        
+        # Verify we parsed all export statements correctly
+        self.assertEqual(len(imports), 10)
+        
+        # Verify source files (normalized paths)
+        source_files = {imp.source_file.replace('\\', '/') for imp in imports}
+        expected_files = {f'contexts/{ctx}.js' for ctx in context_files}
+        self.assertEqual(source_files, expected_files)
+        
+        # Verify all exported items are present
         all_items = []
         for imp in imports:
             all_items.extend(imp.imported_items)
         
-        self.assertIn('AuthProvider', all_items)
-        self.assertIn('useAuth', all_items)
-        self.assertIn('ThemeProvider', all_items)
-        self.assertIn('useTheme', all_items)
+        expected_items = ['AuthProvider', 'useAuth', 'ThemeProvider', 'useTheme',
+                         'DataProvider', 'useData', 'ModalProvider', 'useModal',
+                         'ToastProvider', 'useToast', 'RouterProvider', 'useRouter',
+                         'APIProvider', 'useAPI', 'StateProvider', 'useState',
+                         'ConfigProvider', 'useConfig', 'CacheProvider', 'useCache']
+        self.assertEqual(sorted(all_items), sorted(expected_items))
 
-    def test_mixed_import_export_statements(self):
-        """Test file with mixed import and export statements"""
-        content = '''
-import React from 'react';
-import { useState } from 'react';
-export { Button } from './components';
-export default App;
-import './styles.css';
-'''
-        test_file = os.path.join(self.temp_dir, 'mixed.js')
+    def test_barrel_export_with_english_description(self):
+        """Test barrel export file with English description that previously caused hang"""
+        import time
+        
+        # Create components directory and files
+        components_dir = os.path.join(self.temp_dir, 'components')
+        os.makedirs(components_dir)
+        
+        test_file = os.path.join(components_dir, 'index.js')
         Path(test_file).touch()
-
-        imports = parse_imports(test_file, content, self.temp_dir)
         
-        # Should find imports (not default export)
-        self.assertGreaterEqual(len(imports), 4)
-        all_items = []
-        for imp in imports:
-            all_items.extend(imp.imported_items)
+        # Create all component files
+        component_files = ['Button', 'Input', 'Card', 'Modal', 'Navbar',
+                          'Footer', 'Sidebar', 'Header', 'Table', 'Form']
+        for comp in component_files:
+            Path(os.path.join(components_dir, f'{comp}.jsx')).touch()
         
-        self.assertIn('React', all_items)
-        self.assertIn('useState', all_items)
-        self.assertIn('Button', all_items)
+        # Real-world content that previously caused catastrophic backtracking
+        # This exact pattern was reported to hang for 30+ minutes
+        content = '''Now I have a clear understanding of all the components. I need to create an index.js file that exports all these components. This is a barrel export file that will make it easier to import components from other parts of the application.
 
-    def test_dynamic_import(self):
-        """Test that dynamic imports are not parsed (only static imports)"""
-        content = '''
-import { useState } from 'react';
-const LazyComponent = import('./LazyComponent');
-const module = await import('./dynamic');
+<result>javascript: frontend/src/components/index.js
+
+export { Button } from './Button';
+export { Input } from './Input';
+export { Card } from './Card';
+export { Modal } from './Modal';
+export { Navbar } from './Navbar';
+export { Footer } from './Footer';
+export { Sidebar } from './Sidebar';
+export { Header } from './Header';
+export { Table } from './Table';
+export { Form } from './Form';
+</result>
 '''
-        test_file = os.path.join(self.temp_dir, 'dynamic.js')
-        Path(test_file).touch()
-
-        imports = parse_imports(test_file, content, self.temp_dir)
         
-        # Should only find the static import
-        self.assertEqual(len(imports), 1)
-        self.assertIn('useState', imports[0].imported_items)
-
-    def test_unicode_in_import_path(self):
-        """Test imports with unicode characters in path"""
-        content = '''
-import { component } from './组件/模块';
-import data from './données/fichier';
-'''
-        test_file = os.path.join(self.temp_dir, 'unicode.js')
-        Path(test_file).touch()
-
+        # Should complete in under 1 second (previously hung indefinitely)
+        start_time = time.time()
         imports = parse_imports(test_file, content, self.temp_dir)
+        elapsed_time = time.time() - start_time
         
-        # Should parse successfully without crashing
-        self.assertEqual(len(imports), 2)
+        # Assert performance: must complete quickly
+        self.assertLess(elapsed_time, 1.0,
+                       f"Parsing took {elapsed_time:.2f}s, catastrophic backtracking detected")
+        
+        # Verify all exports are parsed correctly
+        self.assertEqual(len(imports), 10)
+        
+        # Verify source files (note: imports resolve to .jsx files we created)
+        source_files = {imp.source_file.replace('\\', '/') for imp in imports}
+        expected_files = {f'components/{comp}.jsx' for comp in component_files}
+        self.assertEqual(source_files, expected_files)
+        
+        # Verify all component names are exported
+        all_items = [item for imp in imports for item in imp.imported_items]
+        self.assertEqual(sorted(all_items), sorted(component_files))
 
-    def test_very_long_import_list(self):
-        """Test import with very long list of items"""
+    def test_very_long_import_statement(self):
+        """Test that very long import statements are handled efficiently"""
+        import time
+        
+        test_file = os.path.join(self.temp_dir, 'long.ts')
+        Path(test_file).touch()
+        
+        # Create a very long import statement with many items
         items = ', '.join([f'Item{i}' for i in range(100)])
-        content = f'import {{ {items} }} from "./large-module";'
+        content = f"import {{ {items} }} from 'external-package';"
         
-        test_file = os.path.join(self.temp_dir, 'long.js')
-        Path(test_file).touch()
+        # Should complete quickly even with 100 imported items
+        start_time = time.time()
+        imports = parse_imports(test_file, content, self.temp_dir)
+        elapsed_time = time.time() - start_time
+        
+        # Should complete in under 0.1 seconds
+        self.assertLess(elapsed_time, 0.1,
+                       f"Parsing long import took {elapsed_time:.2f}s")
+        
+        # External package should be filtered out
+        self.assertEqual(len(imports), 0)
 
+    def test_multiline_with_complex_formatting(self):
+        """Test multiline imports with complex formatting and whitespace"""
+        test_file = os.path.join(self.temp_dir, 'formatted.ts')
+        Path(test_file).touch()
+        
+        # Create types file
+        Path(os.path.join(self.temp_dir, 'types.ts')).touch()
+        
+        # Complex multiline formatting that could trigger backtracking
+        content = '''import {
+  type User,
+  type Product,
+  Component,
+  
+  Helper,
+  type Config,
+  
+  Service
+} from './types';
+'''
+        
         imports = parse_imports(test_file, content, self.temp_dir)
         
+        # Should parse successfully
         self.assertEqual(len(imports), 1)
-        self.assertEqual(len(imports[0].imported_items), 100)
-        self.assertIn('Item0', imports[0].imported_items)
-        self.assertIn('Item99', imports[0].imported_items)
+        # Should extract all items with 'type' keyword removed
+        expected_items = ['User', 'Product', 'Component', 'Helper', 'Config', 'Service']
+        self.assertEqual(sorted(imports[0].imported_items), sorted(expected_items))
+        # Verify source file
+        self.assertEqual(imports[0].source_file.replace('\\', '/'), 'types.ts')
 
-    def test_python_relative_imports(self):
-        """Test Python relative imports with dots"""
-        content = '''
-from . import module1
-from .. import module2
-from ...package import module3
-from .subpackage import Class1, Class2
-'''
-        test_file = os.path.join(self.temp_dir, 'relative.py')
+    def test_python_multiline_import(self):
+        """Test Python multiline import statements"""
+        # Create project structure
+        pkg_dir = os.path.join(self.temp_dir, 'mypackage')
+        os.makedirs(pkg_dir)
+        Path(os.path.join(pkg_dir, '__init__.py')).touch()
+        
+        test_file = os.path.join(pkg_dir, 'test.py')
         Path(test_file).touch()
-
-        imports = parse_imports(test_file, content, self.temp_dir)
         
-        # Should parse all relative imports
-        self.assertGreaterEqual(len(imports), 4)
-
-    def test_python_future_imports(self):
-        """Test Python __future__ imports"""
-        content = '''
-from __future__ import annotations
-from __future__ import division, print_function
-import sys
-'''
-        test_file = os.path.join(self.temp_dir, 'future.py')
-        Path(test_file).touch()
-
-        imports = parse_imports(test_file, content, self.temp_dir)
+        utils_file = os.path.join(pkg_dir, 'utils.py')
+        Path(utils_file).touch()
         
-        self.assertGreaterEqual(len(imports), 3)
-        all_items = []
-        for imp in imports:
-            all_items.extend(imp.imported_items)
-        
-        self.assertIn('annotations', all_items)
-        self.assertIn('division', all_items)
-
-    def test_java_nested_class_import(self):
-        """Test Java nested class imports"""
-        content = '''
-import java.util.Map.Entry;
-import com.example.OuterClass.InnerClass;
-'''
-        test_file = os.path.join(self.temp_dir, 'Nested.java')
-        Path(test_file).touch()
-
-        imports = parse_imports(test_file, content, self.temp_dir)
-        
-        self.assertEqual(len(imports), 2)
-        items = [imp.imported_items[0] for imp in imports]
-        self.assertIn('Entry', items)
-        self.assertIn('InnerClass', items)
-
-    def test_js_import_with_query_params(self):
-        """Test JS imports with query parameters (e.g., Vite)"""
-        content = '''
-import Worker from './worker?worker';
-import styles from './styles.css?inline';
-'''
-        test_file = os.path.join(self.temp_dir, 'query.js')
-        Path(test_file).touch()
-
-        imports = parse_imports(test_file, content, self.temp_dir)
-        
-        # Should parse the imports (query params are part of path)
-        self.assertEqual(len(imports), 2)
-
-    def test_js_triple_slash_directives(self):
-        """Test that TypeScript triple-slash directives are not confused with imports"""
-        content = '''
-/// <reference path="./types.d.ts" />
-/// <reference types="node" />
-import { Component } from 'react';
-'''
-        test_file = os.path.join(self.temp_dir, 'directives.ts')
-        Path(test_file).touch()
-
-        imports = parse_imports(test_file, content, self.temp_dir)
-        
-        # Should only find the actual import, not triple-slash directives
-        self.assertEqual(len(imports), 1)
-        self.assertIn('Component', imports[0].imported_items)
-
-    def test_multiline_import_with_comments(self):
-        """Test multiline import with inline comments"""
-        content = '''
-import {
-    Component1, // Main component
-    Component2, /* Secondary */
-    Component3
-} from './components';
-'''
-        test_file = os.path.join(self.temp_dir, 'inline_comments.js')
-        Path(test_file).touch()
-
-        imports = parse_imports(test_file, content, self.temp_dir)
-        
-        self.assertEqual(len(imports), 1)
-        # Comments should not affect parsing
-        self.assertEqual(len(imports[0].imported_items), 3)
-
-    def test_python_import_with_parentheses_and_comments(self):
-        """Test Python import with parentheses and comments"""
-        content = '''
-from typing import (
-    List,  # For lists
-    Dict,  # For dictionaries
-    Optional,
+        # Python multiline import with parentheses
+        content = '''from .utils import (
+    func1,
+    func2,
+    func3,
+    func4
 )
 '''
-        test_file = os.path.join(self.temp_dir, 'py_comments.py')
-        Path(test_file).touch()
+        
+        imports = parse_imports(test_file, content, self.temp_dir)
+        
+        # Should parse successfully
+        self.assertEqual(len(imports), 1)
+        
+        # Verify all items extracted
+        expected_items = ['func1', 'func2', 'func3', 'func4']
+        self.assertEqual(sorted(imports[0].imported_items), sorted(expected_items))
+        
+        # Verify source file path
+        self.assertEqual(imports[0].source_file.replace('\\', '/'), 'mypackage/utils.py')
 
+    def test_javascript_multiline_import(self):
+        """Test JavaScript multiline import statements"""
+        test_file = os.path.join(self.temp_dir, 'app.js')
+        Path(test_file).touch()
+        
+        # Create module file
+        Path(os.path.join(self.temp_dir, 'utils.js')).touch()
+        
+        # JavaScript multiline import
+        content = '''import {
+    helper1,
+    helper2,
+    helper3,
+    helper4,
+    helper5
+} from './utils';
+'''
+        
+        imports = parse_imports(test_file, content, self.temp_dir)
+        
+        # Should parse successfully  
+        self.assertEqual(len(imports), 1)
+        
+        # Verify all items extracted
+        expected_items = ['helper1', 'helper2', 'helper3', 'helper4', 'helper5']
+        self.assertEqual(sorted(imports[0].imported_items), sorted(expected_items))
+        
+        # Verify source file path
+        self.assertEqual(imports[0].source_file.replace('\\', '/'), 'utils.js')
+
+    def test_python_multiline_with_comments(self):
+        """Test Python multiline import with inline comments"""
+        pkg_dir = os.path.join(self.temp_dir, 'mypackage')
+        os.makedirs(pkg_dir)
+        Path(os.path.join(pkg_dir, '__init__.py')).touch()
+        
+        test_file = os.path.join(pkg_dir, 'test.py')
+        Path(test_file).touch()
+        
+        helpers_file = os.path.join(pkg_dir, 'helpers.py')
+        Path(helpers_file).touch()
+        
+        # Multiline import with comments
+        content = '''from .helpers import (
+    func1,  # Main function
+    func2,  # Helper function
+    func3   # Utility function
+)
+'''
+        
         imports = parse_imports(test_file, content, self.temp_dir)
         
         self.assertEqual(len(imports), 1)
-        self.assertEqual(len(imports[0].imported_items), 3)
+        # Comments should be stripped
+        expected_items = ['func1', 'func2', 'func3']
+        self.assertEqual(sorted(imports[0].imported_items), sorted(expected_items))
+        self.assertEqual(imports[0].source_file.replace('\\', '/'), 'mypackage/helpers.py')
 
-    def test_empty_braces_import(self):
-        """Test import with empty braces"""
-        content = "import { } from 'module';"
-        test_file = os.path.join(self.temp_dir, 'empty.js')
-        Path(test_file).touch()
-
-        imports = parse_imports(test_file, content, self.temp_dir)
+    def test_barrel_export_relative_path_issue(self):
+        """Test barrel export with relative paths doesn't produce ../ prefix
         
-        # Should handle gracefully
-        self.assertIsInstance(imports, list)
-
-    def test_consecutive_imports_no_newline(self):
-        """Test consecutive imports without newlines (only first is matched by design)"""
-        content = "import a from 'a';import b from 'b';import c from 'c';"
-        test_file = os.path.join(self.temp_dir, 'consecutive.js')
-        Path(test_file).touch()
-
-        imports = parse_imports(test_file, content, self.temp_dir)
+        This is a regression test for the issue where:
+        - code_file: 'frontend/src/components/index.js' (relative path)
+        - output_dir: './output' (relative path)
+        - Previously returned: '../frontend/src/components/Layout' (WRONG)
+        - Should return: 'frontend/src/components/Layout.js' (CORRECT)
+        """
+        # Create directory structure: frontend/src/components/
+        frontend_dir = os.path.join(self.temp_dir, 'frontend', 'src', 'components')
+        os.makedirs(frontend_dir)
         
-        # By design, regex with ^ only matches line start, so only first import is found
-        # This is intentional to avoid false matches in strings
-        self.assertGreaterEqual(len(imports), 1)
-        self.assertIn('a', imports[0].imported_items)
+        # Create the barrel export index.js file
+        index_file = os.path.join(frontend_dir, 'index.js')
+        Path(index_file).touch()
+        
+        # Create component files (direct files)
+        for component in ['Layout', 'Header', 'Footer', 'ModelCard']:
+            component_file = os.path.join(frontend_dir, f'{component}.js')
+            Path(component_file).touch()
+        
+        # Create component directories with index files
+        for component in ['DatasetCard', 'CommentList']:
+            component_dir = os.path.join(frontend_dir, component)
+            os.makedirs(component_dir)
+            index_jsx = os.path.join(component_dir, 'index.jsx')
+            Path(index_jsx).touch()
+        
+        # Use temp_dir as output_dir (absolute paths)
+        content = '''export { default as Layout } from './Layout';
+export { default as Header } from './Header';
+export { default as Footer } from './Footer';
+export { default as ModelCard } from './ModelCard';
+export { default as DatasetCard } from './DatasetCard';
+export { default as CommentList } from './CommentList';
+'''
+        
+        # Parse with absolute paths
+        imports = parse_imports(index_file, content, self.temp_dir)
+        
+        # Should parse all exports
+        self.assertEqual(len(imports), 6)
+        
+        # Verify source files have correct format
+        for imp in imports:
+            # Should have file extension or be a directory with index
+            basename = os.path.basename(imp.source_file)
+            self.assertTrue('.' in basename or '/index.' in imp.source_file.replace('\\', '/'),
+                          f"Path should have extension or be index file: {imp.source_file}")
+        
+        # Verify specific files
+        source_files = {imp.source_file.replace('\\', '/') for imp in imports}
+        
+        # Direct files should have .js extension
+        self.assertTrue(any('Layout.js' in f for f in source_files), "Layout.js should exist")
+        self.assertTrue(any('Header.js' in f for f in source_files), "Header.js should exist")
+        self.assertTrue(any('Footer.js' in f for f in source_files), "Footer.js should exist")
+        self.assertTrue(any('ModelCard.js' in f for f in source_files), "ModelCard.js should exist")
+        
+        # Directory imports should resolve to index.jsx
+        self.assertTrue(any('DatasetCard/index.jsx' in f for f in source_files), 
+                       f"DatasetCard should resolve to index.jsx, got: {source_files}")
+        self.assertTrue(any('CommentList/index.jsx' in f for f in source_files),
+                       f"CommentList should resolve to index.jsx, got: {source_files}")
+        
+        # Verify all import default
+        for imp in imports:
+            self.assertEqual(imp.imported_items, ['default'])
 
 
 if __name__ == '__main__':

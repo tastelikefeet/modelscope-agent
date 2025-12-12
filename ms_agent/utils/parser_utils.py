@@ -152,20 +152,64 @@ class PythonImportParser(BaseImportParser):
         return results
 
     def _resolve_python_path(self, module_path: str) -> Optional[str]:
-        """Resolve Python module to file path"""
+        """Resolve Python module to file path
+        
+        For relative imports (starting with .), resolves them relative to current_dir.
+        For absolute imports, tries to resolve from output_dir.
+        
+        Returns path relative to output_dir with file extension.
+        """
+        # Handle relative imports (., .., ...)
+        if module_path.startswith('.'):
+            # Count leading dots
+            dots = 0
+            for char in module_path:
+                if char == '.':
+                    dots += 1
+                else:
+                    break
+            
+            # Get the module part after dots
+            module_part = module_path[dots:]
+            
+            # Calculate the target directory
+            # . means current directory, .. means parent, etc.
+            target_dir = self.current_dir
+            for _ in range(dots - 1):  # -1 because . means current dir
+                target_dir = os.path.dirname(target_dir)
+            
+            # If there's a module part, append it
+            if module_part:
+                module_file_path = module_part.replace('.', os.sep)
+                target_dir = os.path.join(target_dir, module_file_path)
+            
+            # Try as package
+            package_init = os.path.normpath(os.path.join(target_dir, '__init__.py'))
+            if os.path.exists(package_init):
+                return os.path.relpath(package_init, self.output_dir)
+            
+            # Try as module
+            module_file = os.path.normpath(target_dir + '.py')
+            if os.path.exists(module_file):
+                return os.path.relpath(module_file, self.output_dir)
+            
+            # Return None if not found
+            return None
+        
+        # Handle absolute imports
         module_file_path = module_path.replace('.', os.sep)
 
-        # Try as package
+        # Try as package (relative to current file)
         package_init = os.path.normpath(
             os.path.join(self.current_dir, module_file_path, '__init__.py'))
         if os.path.exists(package_init):
-            return package_init
+            return os.path.relpath(package_init, self.output_dir)
 
-        # Try as module
+        # Try as module (relative to current file)
         module_file = os.path.normpath(
             os.path.join(self.current_dir, module_file_path + '.py'))
         if os.path.exists(module_file):
-            return module_file
+            return os.path.relpath(module_file, self.output_dir)
 
         # Try from output_dir (absolute import)
         if self.output_dir:
@@ -252,7 +296,19 @@ class JavaScriptImportParser(BaseImportParser):
         items_str = match.group(2).strip()
         import_path = match.group(3)
 
-        items = [item.split(' as ')[0].strip() for item in items_str.split(',') if item.strip()]
+        # Parse items and remove inline 'type' keyword (TS 4.5+ syntax)
+        items = []
+        for item in items_str.split(','):
+            item = item.strip()
+            if not item:
+                continue
+            # Remove inline 'type' keyword: "type User" -> "User"
+            if item.startswith('type '):
+                item = item[5:].strip()  # Remove 'type '
+            # Extract name before 'as' if aliased
+            item = item.split(' as ')[0].strip()
+            items.append(item)
+        
         resolved_path = self._resolve_js_path(import_path)
         # If not resolved, use import_path as-is (external package)
         if not resolved_path:
@@ -326,7 +382,19 @@ class JavaScriptImportParser(BaseImportParser):
         items_str = match.group(2).strip()
         import_path = match.group(3)
 
-        items = [item.split(' as ')[0].strip() for item in items_str.split(',') if item.strip()]
+        # Parse items and remove inline 'type' keyword (TS 4.5+ syntax)
+        items = []
+        for item in items_str.split(','):
+            item = item.strip()
+            if not item:
+                continue
+            # Remove inline 'type' keyword: "type User" -> "User"
+            if item.startswith('type '):
+                item = item[5:].strip()  # Remove 'type '
+            # Extract name before 'as' if aliased
+            item = item.split(' as ')[0].strip()
+            items.append(item)
+        
         resolved_path = self._resolve_js_path(import_path)
         # If not resolved, use import_path as-is (external package)
         if not resolved_path:
@@ -379,42 +447,95 @@ class JavaScriptImportParser(BaseImportParser):
         )
 
     def _resolve_js_path(self, import_path: str) -> Optional[str]:
-        """Resolve JavaScript/TypeScript import path to file"""
-        # Check for path alias
-        resolved = self._resolve_alias_path(import_path)
-        if resolved:
-            import_path = resolved
-
-        # Handle absolute paths
-        if import_path.startswith('/'):
+        """Resolve JavaScript/TypeScript import path to file
+        
+        Returns path relative to output_dir with file extension.
+        Returns None for external packages.
+        """
+        # Check if it's an external package (doesn't start with . or /)
+        is_external = not import_path.startswith('.') and not import_path.startswith('/')
+        
+        # External packages return None early
+        if is_external:
+            # Check if it might be a path alias
+            alias_resolved = self._resolve_alias_path(import_path)
+            if not alias_resolved:
+                # Not an alias, it's an external package
+                return None
+            resolved = alias_resolved
+        elif import_path.startswith('/'):
             resolved = import_path.lstrip('/')
         else:
+            # Handle relative paths - resolve relative to current_file's directory
             resolved = os.path.join(self.current_dir, import_path)
             resolved = os.path.normpath(resolved)
 
+        # Helper function to convert to relative path from output_dir
+        def to_relative(path):
+            # If output_dir is relative and current_file is also relative,
+            # just return the path as constructed
+            if not os.path.isabs(self.output_dir) and not os.path.isabs(path):
+                # Both are relative paths, return the path as-is
+                return path
+            # Otherwise use relpath
+            return os.path.relpath(path, self.output_dir)
+        
+        # Convert resolved path to absolute for existence checks
+        # resolved is relative to output_dir, so we need to join them
+        if os.path.isabs(resolved):
+            abs_resolved = resolved
+        elif os.path.isabs(self.output_dir):
+            abs_resolved = os.path.join(self.output_dir, resolved)
+        else:
+            # Both are relative, make absolute from current working directory
+            abs_resolved = os.path.abspath(os.path.join(self.output_dir, resolved))
+
         # Try as directory with index file first
-        if os.path.isdir(resolved):
+        if os.path.isdir(abs_resolved):
             for index_file in ['index.ts', 'index.tsx', 'index.js', 'index.jsx']:
-                index_path = os.path.join(resolved, index_file)
+                index_path = os.path.join(abs_resolved, index_file)
                 if os.path.exists(index_path):
-                    return index_path
+                    # Return relative path with index file
+                    return to_relative(os.path.join(resolved, index_file))
+            # Directory exists but no index file - return directory itself
+            return to_relative(resolved)
 
         # Try different extensions
-        extensions = [
-            '.ts', '.tsx', '.js', '.jsx', '.mjs', '.cjs', '.json',
-            '.css', '.scss', '.sass', '.less', '.module.css', '.module.scss',
-        ]
+        extensions = ['.ts', '.tsx', '.js', '.jsx', '.mjs', '.cjs', '.json',
+                     '.css', '.scss', '.sass', '.less', '.module.css', '.module.scss']
 
         for ext in extensions:
-            path_with_ext = resolved + ext
+            path_with_ext = abs_resolved + ext
             if os.path.exists(path_with_ext):
-                return path_with_ext
+                return to_relative(resolved + ext)
 
-        # If path already has an extension or is a known module, return it
-        if os.path.exists(resolved):
-            return resolved
+        # File doesn't exist - add default extension based on current file type
+        if not os.path.exists(abs_resolved):
+            # Infer extension from current_file
+            if self.current_file:
+                current_ext = os.path.splitext(self.current_file)[1]
+                if current_ext in ['.ts', '.tsx']:
+                    return to_relative(resolved + '.tsx')
+                elif current_ext in ['.js', '.jsx', '.mjs']:
+                    return to_relative(resolved + '.js')
+            # Default to .js
+            return to_relative(resolved + '.js')
 
-        return resolved if '.' in resolved[1:] else None
+        # Path exists as-is
+        if os.path.exists(abs_resolved):
+            return to_relative(resolved)
+
+        # File doesn't exist, but has extension
+        if '.' in os.path.basename(resolved):
+            return to_relative(resolved)
+        
+        # Last resort: add default extension
+        default_ext = '.js'
+        if self.current_file:
+            current_ext = os.path.splitext(self.current_file)[1]
+            if current_ext in ['.ts', '.tsx']:
+                default_ext = '.tsx'
+        return to_relative(resolved + default_ext)
 
     def _load_path_aliases(self) -> Dict[str, str]:
         """Load path aliases from tsconfig.json and vite.config"""
@@ -577,6 +698,9 @@ class ImportParserFactory:
 def parse_imports(current_file: str, code_content: str, output_dir: str) -> List[ImportInfo]:
     """
     Parse imports from code content (main entry point for backward compatibility)
+    
+    IMPORTANT: This function filters out external packages and only returns project files.
+    External packages (like 'react', 'os', 'typing', 'java.util.List') are NOT included.
 
     Args:
         current_file: Path to the file being parsed
@@ -584,7 +708,7 @@ def parse_imports(current_file: str, code_content: str, output_dir: str) -> List
         output_dir: Root directory of the project
 
     Returns:
-        List of ImportInfo objects
+        List of ImportInfo objects for project files only (external packages are excluded)
     """
     # Detect file extension
     file_ext = os.path.splitext(current_file)[1].lstrip('.').lower() if current_file else ''
@@ -595,5 +719,52 @@ def parse_imports(current_file: str, code_content: str, output_dir: str) -> List
     if not parser:
         return []
 
-    # Parse imports
-    return parser.parse(code_content)
+    # Parse all imports
+    all_imports = parser.parse(code_content)
+    
+    # Filter out external packages - only keep project files
+    project_imports = []
+    for imp in all_imports:
+        source = imp.source_file
+        if not source:
+            continue
+        
+        # For Python files:
+        # - If source is resolved to a file path (contains / or \), it's a project file
+        # - If source is still a relative import notation (starts with .), check if it was resolved
+        # - Otherwise it's an external package
+        if file_ext in ('py', 'pyw'):
+            # If it contains path separators or file extension, it's been resolved to a file
+            if '/' in source or os.sep in source or source.endswith('.py'):
+                project_imports.append(imp)
+            # If it starts with . but wasn't resolved (no path sep), it's still relative notation
+            elif source.startswith('.'):
+                project_imports.append(imp)
+            # Otherwise it's an external package (os, sys, typing, numpy, etc.)
+            continue
+        
+        # For JavaScript/TypeScript/Java: filter external packages
+        # External packages: 'react', 'lodash', '@types/react', '@vue/cli', 'java.util.List'
+        # They don't start with '.', '/', or contain path separators (except scoped packages)
+        
+        # Check if it's a scoped package (starts with @ but file doesn't exist)
+        is_scoped_package = source.startswith('@') and not os.path.exists(os.path.join(output_dir, source))
+        
+        # Check if it's a project file (exists in output_dir)
+        full_path = os.path.join(output_dir, source) if not os.path.isabs(source) else source
+        is_project_file = os.path.exists(full_path)
+        
+        # Check if it's an external package (package name without path separators)
+        is_external = (
+            is_scoped_package or
+            (not is_project_file and 
+             not source.startswith('.') and 
+             not source.startswith('/') and 
+             '/' not in source and 
+             os.sep not in source)
+        )
+        
+        if not is_external:
+            project_imports.append(imp)
+    
+    return project_imports
