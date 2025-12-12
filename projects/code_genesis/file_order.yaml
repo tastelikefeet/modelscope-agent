@@ -29,7 +29,8 @@ prompt:
         a. 项目基础文件和依赖文件
         b. 低级模块
         c. 高级模块
-        d. README文件
+        d. 入口文件或启动文件
+        e. README文件
       * python的__init__.py文件的index应大于包内其他代码文件的index
       * 任何其他语言的同含义index文件的index应大于包内其他代码文件的index
       * 你需要准确分析文件依赖结构，index较大的组可以依赖index较小的，同index或index更大的则不能依赖，后续编写和依赖制定会严格按照你的顺序进行
