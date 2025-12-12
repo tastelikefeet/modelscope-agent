@@ -148,6 +148,8 @@ class Programmer(LLMAgent):
         all_read_files = find_all_read_files()
         all_notes = []
         for file in all_files:
+            if 'react' in file.source_file or 'vue' in file.source_file:
+                continue
             if file.source_file == code_file:
                 all_notes.append(f'You should not import the file itself: {code_file}')
                 continue
@@ -211,7 +213,7 @@ class Programmer(LLMAgent):
         
         for info in all_imports:
             source_file = info.source_file
-            if not source_file:
+            if not source_file or 'react' in source_file or 'vue' in source_file:
                 continue
 
             info.imported_items = [item for item in info.imported_items if item not in ('*', 'default')]
