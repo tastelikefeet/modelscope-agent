@@ -237,8 +237,11 @@ class FileSystemTool(ToolBase):
                     tool_name='search_file_name',
                     server_name='file_system',
                     description=
-                    'Search for files by name. Returns all file paths that contain the search '
-                    'string in their filename.',
+                    'Search for files by name using regex pattern matching. '
+                    'Supports both regex patterns and simple substring matching. '
+                    'If the file parameter is a valid regex pattern, it will be used for regex matching; '
+                    'otherwise, falls back to substring matching. '
+                    'The parent_path can also be a regex pattern to filter directories.',
                     parameters={
                         'type': 'object',
                         'properties': {
@@ -246,13 +249,15 @@ class FileSystemTool(ToolBase):
                                 'type':
                                 'string',
                                 'description':
-                                'The filename or partial filename to search for',
+                                'The filename pattern to search for (supports regex, e.g., r"\\.js$" for .js files, '
+                                'or "service" for substring match).',
                             },
                             'parent_path': {
                                 'type':
                                 'string',
                                 'description':
-                                'The relative parent path to search in (optional, defaults to root)',
+                                'The relative parent path to search in (supports regex for directory filtering, '
+                                'e.g., r"backend.*" to match backend-related directories). Defaults to root if not specified.',
                             },
                         },
                         'required': ['file'],
@@ -675,8 +680,19 @@ class FileSystemTool(ToolBase):
             return f'Path not found: {path}'
 
     async def search_file_name(self,
-                               file: str = None,
-                               parent_path: str = None):
+                               file: str = '',
+                               parent_path: str = ''):
+        """Search for files by name using regex pattern matching.
+        
+        Args:
+            file(str): File name pattern (supports regex). If it's a valid regex pattern,
+                      it will be used for regex matching; otherwise, falls back to substring matching.
+            parent_path(str): Parent path pattern (supports regex for filtering directories).
+                             Can be a simple path or a regex pattern to match directory paths.
+        
+        Returns:
+            String containing all matched file paths
+        """
         parent_path = parent_path or ''
         target_path_real = self.get_real_path(parent_path)
         if target_path_real is None:
@@ -685,13 +701,53 @@ class FileSystemTool(ToolBase):
         assert os.path.isdir(
             _parent_path
         ), f'Parent path <{parent_path}> does not exist, it should be a inner relative path of the project folder.'
+        
+        # Try to compile file pattern as regex
+        file_use_regex = False
+        file_pattern = None
+        if file:
+            try:
+                file_pattern = re.compile(file)
+                file_use_regex = True
+            except re.error:
+                file_use_regex = False
+        
+        # Try to compile parent_path filter as regex (optional)
+        path_use_regex = False
+        path_pattern = None
+        if parent_path:
+            try:
+                path_pattern = re.compile(parent_path)
+                path_use_regex = True
+            except re.error:
+                path_use_regex = False
+        
         all_found_files = []
         for root, dirs, files in os.walk(_parent_path):
+            if path_use_regex and parent_path:
+                relative_root = os.path.relpath(root, self.output_dir)
+                if not path_pattern.search(relative_root):
+                    continue
+            
             for filename in files:
-                if file in filename:
-                    all_found_files.append(os.path.join(root, filename))
+                if file:
+                    if file_use_regex:
+                        is_match = file_pattern.search(filename) is not None
+                    else:
+                        is_match = file in filename
+                else:
+                    is_match = True  # No filter, match all files
+                
+                if is_match:
+                    file_path = os.path.join(root, filename)
+                    relative_path = os.path.relpath(file_path, self.output_dir)
+                    all_found_files.append(relative_path)
+        
+        if not all_found_files:
+            return f'No files found matching pattern <{file or "*"}> in <{parent_path or "root"}>'
+        
         all_found_files = '\n'.join(all_found_files)
-        return f'The filenames containing the file name<{file}>: {all_found_files}'
+        return f'Found {len(all_found_files.splitlines())} file(s) matching <{file or "*"}>:\n{all_found_files}'
 
     async def search_file_content(self,
                                   content: str = None,
