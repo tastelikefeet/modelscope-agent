@@ -19,9 +19,39 @@ from ms_agent.tools.code_server import LSPCodeServer
 from ms_agent.utils import get_logger
 from ms_agent.utils.constants import DEFAULT_TAG, DEFAULT_INDEX_DIR, DEFAULT_LOCK_DIR
 from ms_agent.utils.utils import extract_code_blocks, file_lock
-from projects.code_genesis.workflow.utils import parse_imports, ImportInfo, stop_words
+from ms_agent.utils.parser_utils import ImportInfo, parse_imports
 
 logger = get_logger()
+
+
+stop_words = [
+    '\nclass ',
+    '\ndef ',
+    '\nfunc ',
+    '\nfunction ',
+    '\npub fn ',
+    '\nfn ',
+    '\nstruct ',
+    '\nenum ',
+    '\nexport ',
+    '\ninterface ',
+    '\ntrait ',
+    '\nimpl ',
+    '\nmodule ',
+    '\ntype ',
+    '\npublic class ',
+    '\nprivate class ',
+    '\nprotected class ',
+    '\npublic interface ',
+    '\npublic enum ',
+    '\npublic struct ',
+    '\nabstract class ',
+    '\nconst ',
+    '\nlet ',
+    '\nvar ',
+    '\nasync def ',
+    '\n@',
+]
 
 
 class Programmer(LLMAgent):
