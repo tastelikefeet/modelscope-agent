@@ -407,7 +407,7 @@ pip install ms-agent
 使用以下命令生成完整的 AI 工作空间主页：
 
 ```shell
-PYTHONPATH=. openai_api_key=your-api-key openai_base_url=your-api-url python ms_agent/cli/cli.py run --config projects/code_scratch --query 'Build a comprehensive AI workspace homepage' --trust_remote_code true
+PYTHONPATH=. openai_api_key=your-api-key openai_base_url=your-api-url python ms_agent/cli/cli.py run --config projects/code_genesis --query 'Build a comprehensive AI workspace homepage' --trust_remote_code true
 ```
 
 生成的代码将输出到当前目录的 `output` 文件夹中。

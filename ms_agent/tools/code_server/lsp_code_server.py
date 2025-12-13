@@ -540,8 +540,10 @@ class LSPCodeServer(ToolBase):
             if os.path.exists(dir_path):
                 try:
                     shutil.rmtree(dir_path, ignore_errors=True)
-                except Exception:  # noqa
-                    pass
+                except Exception as e:  # noqa
+                    logger.warning(
+                        f'Failed to cleanup LSP index directory {dir_path}: {e}'
+                    )
 
     async def cleanup(self) -> None:
         """Stop all LSP servers and clear indexes"""
@@ -595,37 +597,6 @@ class LSPCodeServer(ToolBase):
                 }
             }, {
                 'tool_name':
-                'check_code_content',
-                'description':
-                ('Check a specific code segment for errors and issues. '
-                 'Can be used to validate code before writing to file. '
-                 'Returns detailed diagnostics including line numbers and error messages.'
-                 ),
-                'parameters': {
-                    'type': 'object',
-                    'properties': {
-                        'content': {
-                            'type': 'string',
-                            'description': 'The code content to check'
-                        },
-                        'language': {
-                            'type':
-                            'string',
-                            'enum': ['typescript', 'python', 'java'],
-                            'description':
-                            'Programming language to check (typescript for JS/TS, python for Python, java for Java)'
-                        },
-                        'file_path': {
-                            'type':
-                            'string',
-                            'description':
-                            'Optional file path for context (helps with import resolution)'
-                        }
-                    },
-                    'required': ['content', 'language']
-                }
-            }, {
-                'tool_name':
                 'update_and_check',
                 'description':
                 ("Incrementally update a file's content and check for errors. "
@@ -663,10 +634,7 @@ class LSPCodeServer(ToolBase):
         if tool_name == 'check_directory':
             return await self._check_directory(tool_args['directory'],
                                                tool_args['language'])
-        elif tool_name == 'check_code_content':
-            return await self._check_code_content(tool_args['content'],
-                                                  tool_args['language'],
-                                                  tool_args.get('file_path'))
+
         elif tool_name == 'update_and_check':
             return await self._update_and_check(tool_args['file_path'],
                                                 tool_args['content'],
@@ -815,68 +783,6 @@ class LSPCodeServer(ToolBase):
                 return ''
         else:
             return ''
-
-    async def _check_code_content(self,
-                                  content: str,
-                                  language: str,
-                                  file_path: Optional[str] = None) -> str:
-        """Check code content for errors"""
-        temp_file_created = False
-        check_path = None
-        language = language.lower()
-
-        try:
-            server = await self._get_or_create_server(language)
-            if not server:
-                return json.dumps(
-                    {'error': f'Failed to start LSP server for {language}'})
-
-            # Determine language ID and extension
-            if language.lower() == 'typescript':
-                ext = '.ts'
-            elif language.lower() == 'python':
-                ext = '.py'
-            elif language.lower() == 'java':
-                ext = '.java'
-            else:
-                return json.dumps(
-                    {'error': f'Unsupported language: {language}'})
-
-            if file_path:
-                check_path = Path(self.workspace_dir) / file_path
-            else:
-                check_path = Path(
-                    self.workspace_dir) / f'_temp_check_{os.getpid()}{ext}'
-                temp_file_created = True
-
-            # Open document
-            await server.open_document(str(check_path), content, language)
-
-            self.opened_documents[str(check_path)] = language
-            diagnostics = await server.get_diagnostics(str(check_path))
-
-            diagnostics_result = {
-                'language': language,
-                'has_errors': len(diagnostics) > 0,
-                'diagnostic_count': len(diagnostics),
-                'diagnostics': self._format_diagnostics(diagnostics)
-            }
-
-            return self._format_diag_results(diagnostics_result)
-
-        except Exception as e:
-            logger.error(f'Error checking code content: {e}')
-            return json.dumps({'error': str(e)})
-        finally:
-            if temp_file_created and check_path and str(
-                    check_path) in self.opened_documents:
-                try:
-                    lang_key = self.opened_documents.pop(str(check_path), None)
-                    if lang_key and lang_key in self.servers:
-                        await self.servers[lang_key].close_document(
-                            str(check_path))
-                except Exception as e:
-                    logger.debug(f'Error closing temp document: {e}')
 
     async def _update_and_check(self, file_path: str, content: str,
                                 language: str) -> str:

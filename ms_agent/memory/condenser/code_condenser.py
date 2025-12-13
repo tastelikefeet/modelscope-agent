@@ -160,6 +160,8 @@ class CodeCondenser(Memory):
                 Message(role='system', content=self.system),
                 Message(role='user', content=query),
             ]
+            content = None
+            error = None
             for i in range(3):
                 try:
                     response_message = self.llm.generate(
@@ -178,6 +180,9 @@ class CodeCondenser(Memory):
                     )  # try to load once to ensure the json format is ok
                     break
                 except Exception as e:
+                    error = e
                     logger.error(
                         f'Code index file generate failed because of {e}')
+            if content is None:
+                raise error
             return content

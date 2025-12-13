@@ -63,4 +63,4 @@ ms-agent run --config ms-agent/simple_agent --modelscope_api_key xxx
 
 - 一个[更全面的例子](https://github.com/modelscope/ms-agent/tree/main/examples)
 - DeepResearch的[例子](https://github.com/modelscope/ms-agent/tree/main/projects/deep_research)
-- CodeGenesis的[例子](https://github.com/modelscope/ms-agent/blob/main/projects/code_scratch/README.md)
+- CodeGenesis的[例子](https://github.com/modelscope/ms-agent/blob/main/projects/code_genesis/README.md)

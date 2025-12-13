@@ -411,7 +411,7 @@ This project provides a framework for **Code Scratch**, enabling agents to auton
 Generate a complete ai workspace homepage with the following command:
 
 ```shell
-PYTHONPATH=. openai_api_key=your-api-key openai_base_url=your-api-url python ms_agent/cli/cli.py run --config projects/code_scratch --query 'Build a comprehensive AI workspace homepage' --trust_remote_code true
+PYTHONPATH=. openai_api_key=your-api-key openai_base_url=your-api-url python ms_agent/cli/cli.py run --config projects/code_genesis --query 'Build a comprehensive AI workspace homepage' --trust_remote_code true
 ```
 
 The generated code will be output to the `output` folder in the current directory.

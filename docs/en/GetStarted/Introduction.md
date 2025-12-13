@@ -62,4 +62,4 @@ The above two examples have the same effect and both can conduct multi-turn conv
 
 - A [more comprehensive example](https://github.com/modelscope/ms-agent/tree/main/examples)
 - DeepResearch [example](https://github.com/modelscope/ms-agent/tree/main/projects/deep_research)
-- CodeGenesis [example](https://github.com/modelscope/ms-agent/blob/main/projects/code_scratch/README.md)
+- CodeGenesis [example](https://github.com/modelscope/ms-agent/blob/main/projects/code_genesis/README.md)
