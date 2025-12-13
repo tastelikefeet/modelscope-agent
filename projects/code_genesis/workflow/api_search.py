@@ -1,5 +1,6 @@
 import json
 import os
+import re
 from concurrent.futures import as_completed
 from concurrent.futures import ThreadPoolExecutor
 from typing import Dict, Any, List
@@ -30,11 +31,12 @@ class ApiSearch(ToolBase):
                                 '2. You want to check any api problem\n'
                                 '3. You want to know if your api definition will duplicate with others\n'
                                 'Instructions & Examples:\n'
-                                '1. Search user api with `user`\n'
-                                '2. Search create music api with music/create\n'
-                                '3. Split keywords with `,`\n'
-                                '4. If you want all api definitions, pass empty string into `keywords` argument\n'
-                                '5. FOLLOW the definitions of this tool results, you should not use any undefined api. Instead, you need to write missing api to a target file.\n',
+                                '1. Search user api with `user` (substring match)\n'
+                                '2. Search create music api with `music/create`\n'
+                                '3. Split keywords with `,` for multiple substring matches\n'
+                                '4. Use regex pattern like `r"/api/.*user"` for regex matching\n'
+                                '5. If you want all api definitions, pass empty string into `keywords` argument\n'
+                                '6. FOLLOW the definitions of this tool results, you should not use any undefined api. Instead, you need to write missing api to a target file.\n',
                     parameters={
                         'type': 'object',
                         'properties': {
@@ -54,8 +56,32 @@ class ApiSearch(ToolBase):
         return await self.url_search(**tool_args)
 
     async def url_search(self, keywords: str = None):
+        """Search API definitions using keywords with support for regex and substring matching.
+        
+        Args:
+            keywords(str): Search pattern. Supports:
+                - Comma-separated substrings: 'user,admin' (will match URLs containing 'user' OR 'admin')
+                - Regex pattern: Any valid regex pattern for URL matching
+                - Empty/None: Returns all APIs
+        
+        Returns:
+            str: Formatted search results
+        """
+        # Parse keywords and determine matching mode
+        keyword_list = None
+        use_regex = False
+        regex_pattern = None
+        
         if keywords:
-            keywords = keywords.split(',')
+            # Try to compile as regex pattern
+            try:
+                regex_pattern = re.compile(keywords)
+                use_regex = True
+            except re.error:
+                # Not a valid regex, treat as comma-separated keywords
+                keyword_list = [kw.strip() for kw in keywords.split(',') if kw.strip()]
+                use_regex = False
+        
         def search_in_file(file_path):
             matches = []
             try:
@@ -64,12 +90,26 @@ class ApiSearch(ToolBase):
                     if 'protocols' not in content:
                         return []
                     for protocol in content['protocols']:
-                        if not keywords or any([keyword in protocol['url'] for keyword in keywords]):
+                        url = protocol['url']
+                        is_match = False
+                        
+                        if not keywords:
+                            # No filter, match all
+                            is_match = True
+                        elif use_regex:
+                            # Regex matching
+                            is_match = regex_pattern.search(url) is not None
+                        else:
+                            # Substring matching (any keyword matches)
+                            is_match = any(keyword in url for keyword in keyword_list)
+                        
+                        if is_match:
                             matches.append(json.dumps(protocol, ensure_ascii=False))
-            except Exception: # noqa
+            except Exception:  # noqa
                 return []
             if matches:
-                matches.insert(0, f'API{" with keywords: " + str(keywords) if keywords else ""} defined in {file_path}:')
+                match_mode = "(regex)" if use_regex else "(substring)"
+                matches.insert(0, f'API{" with keywords: " + str(keywords) + " " + match_mode if keywords else ""} defined in {file_path}:')
                 matches.append('\n')
             return matches
 
