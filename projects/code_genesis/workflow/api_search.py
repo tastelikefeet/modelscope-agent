@@ -46,7 +46,7 @@ class ApiSearch(ToolBase):
                                 'type':
                                 'string',
                                 'description':
-                                'The keywords in the url to search api of.',
+                                'The keywords/regex in the url to search api of.',
                             }
                         },
                         'required': [],
@@ -98,7 +98,6 @@ class ApiSearch(ToolBase):
                         return []
                     for protocol in content['protocols']:
                         url = protocol['url']
-                        is_match = False
 
                         if not keywords:
                             # No filter, match all

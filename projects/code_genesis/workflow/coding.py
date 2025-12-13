@@ -440,7 +440,7 @@ class Programmer(LLMAgent):
                     logger.warning(f'Compile error in {self.tag}:')
                     logger.warning(all_issues)
                     all_issues = (
-                        f'We check the code with LSP server and regex, here are the issues found:\n'
+                        f'We check the code with LSP server and regex matching, here are the issues found:\n'
                         f'{all_issues}\n'
                         f'You can read related file to find the root cause if needed\n'
                         f'Then fix the file with `replace_file_contents`\n'

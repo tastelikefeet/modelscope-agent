@@ -194,8 +194,12 @@ class PythonImportParser(BaseImportParser):
             if os.path.exists(module_file):
                 return os.path.relpath(module_file, self.output_dir)
 
-            # Return None if not found
-            return None
+            # File doesn't exist - return constructed path
+            # Convert relative import notation to file path
+            # e.g., "..config" -> "../config.py" or "../config/__init__.py"
+            relative_path = os.path.relpath(target_dir, self.output_dir)
+            # Try to guess if it's a package or module (assume module if uncertain)
+            return relative_path + '.py'
 
         # Handle absolute imports
         module_file_path = module_path.replace('.', os.sep)
@@ -240,7 +244,16 @@ class JavaScriptImportParser(BaseImportParser):
     def parse(self, code_content: str) -> List[ImportInfo]:
         imports = []
 
-        # Pattern 1: Named import - import { A, B } from 'path' (supports multiline)
+        # Pattern 1: Mixed import - import Default, { Named } from 'path'
+        # Must come BEFORE Pattern 2 and 3 to avoid partial matches
+        mixed_pattern = r"^\s*import\s+(type\s+)?(\w+)\s*,\s*\{([^}]+)\}\s*from\s+['\"]([^'\"]+)['\"]"
+        for match in re.finditer(mixed_pattern, code_content,
+                                 re.MULTILINE | re.DOTALL):
+            infos = self._extract_mixed_import(match)
+            if infos:
+                imports.extend(infos)
+
+        # Pattern 2: Named import - import { A, B } from 'path' (supports multiline)
         named_pattern = r"^\s*import\s+(type\s+)?\{([^}]+)\}\s*from\s+['\"]([^'\"]+)['\"]"
         for match in re.finditer(named_pattern, code_content,
                                  re.MULTILINE | re.DOTALL):
@@ -248,14 +261,14 @@ class JavaScriptImportParser(BaseImportParser):
             if info:
                 imports.append(info)
 
-        # Pattern 2: Default import - import React from 'path'
+        # Pattern 3: Default import - import React from 'path'
         default_pattern = r"^\s*import\s+(type\s+)?(\w+)\s+from\s+['\"]([^'\"]+)['\"]"
         for match in re.finditer(default_pattern, code_content, re.MULTILINE):
             info = self._extract_default_import(match)
             if info:
                 imports.append(info)
 
-        # Pattern 3: Namespace import - import * as name from 'path'
+        # Pattern 4: Namespace import - import * as name from 'path'
         namespace_pattern = r"^\s*import\s+(type\s+)?\*\s+as\s+(\w+)\s+from\s+['\"]([^'\"]+)['\"]"
         for match in re.finditer(namespace_pattern, code_content,
                                  re.MULTILINE):
@@ -263,7 +276,7 @@ class JavaScriptImportParser(BaseImportParser):
             if info:
                 imports.append(info)
 
-        # Pattern 4: Side-effect import - import 'path'
+        # Pattern 5: Side-effect import - import 'path'
         side_effect_pattern = r"^\s*import\s+['\"]([^'\"]+)['\"]"
         for match in re.finditer(side_effect_pattern, code_content,
                                  re.MULTILINE):
@@ -271,7 +284,7 @@ class JavaScriptImportParser(BaseImportParser):
             if info:
                 imports.append(info)
 
-        # Pattern 5: Named re-export - export { A, B } from 'path' (supports multiline)
+        # Pattern 6: Named re-export - export { A, B } from 'path' (supports multiline)
         export_named_pattern = r"^\s*export\s+(type\s+)?\{([^}]+)\}\s+from\s+['\"]([^'\"]+)['\"]"
         for match in re.finditer(export_named_pattern, code_content,
                                  re.MULTILINE | re.DOTALL):
@@ -279,7 +292,7 @@ class JavaScriptImportParser(BaseImportParser):
             if info:
                 imports.append(info)
 
-        # Pattern 6: Wildcard re-export - export * from 'path'
+        # Pattern 7: Wildcard re-export - export * from 'path'
         export_wildcard_pattern = r"^\s*export\s+(type\s+)?\*\s+from\s+['\"]([^'\"]+)['\"]"
         for match in re.finditer(export_wildcard_pattern, code_content,
                                  re.MULTILINE):
@@ -287,7 +300,7 @@ class JavaScriptImportParser(BaseImportParser):
             if info:
                 imports.append(info)
 
-        # Pattern 7: Named wildcard re-export - export * as name from 'path'
+        # Pattern 8: Named wildcard re-export - export * as name from 'path'
         export_named_wildcard_pattern = r"^\s*export\s+(type\s+)?\*\s+as\s+(\w+)\s+from\s+['\"]([^'\"]+)['\"]"
         for match in re.finditer(export_named_wildcard_pattern, code_content,
                                  re.MULTILINE):
@@ -296,6 +309,58 @@ class JavaScriptImportParser(BaseImportParser):
                 imports.append(info)
 
         return imports
+
+    def _extract_mixed_import(self, match) -> List[ImportInfo]:
+        """Extract: import Default, { Named1, Named2 } from 'path'
+
+        Returns a list of 2 ImportInfo objects:
+        1. Default import
+        2. Named imports
+        """
+        is_type = bool(match.group(1))
+        default_name = match.group(2)
+        named_items_str = match.group(3).strip()
+        import_path = match.group(4)
+
+        # Parse named items and remove inline 'type' keyword
+        named_items = []
+        for item in named_items_str.split(','):
+            item = item.strip()
+            if not item:
+                continue
+            # Remove inline 'type' keyword: "type User" -> "User"
+            if item.startswith('type '):
+                item = item[5:].strip()
+            # Extract name before 'as' if aliased
+            item = item.split(' as ')[0].strip()
+            named_items.append(item)
+
+        resolved_path = self._resolve_js_path(import_path)
+        # If not resolved, use import_path as-is (external package)
+        if not resolved_path:
+            resolved_path = import_path
+
+        results = []
+
+        # Create default import info
+        results.append(
+            ImportInfo(
+                source_file=resolved_path,
+                raw_statement=match.group(0),
+                imported_items=[default_name],
+                import_type='default',
+                is_type_only=is_type))
+
+        # Create named import info
+        results.append(
+            ImportInfo(
+                source_file=resolved_path,
+                raw_statement=match.group(0),
+                imported_items=named_items,
+                import_type='named',
+                is_type_only=is_type))
+
+        return results
 
     def _extract_named_import(self, match) -> Optional[ImportInfo]:
         """Extract: import { A, B } from 'path'"""
@@ -783,12 +848,20 @@ def parse_imports(current_file: str, code_content: str,
             output_dir, source) if not os.path.isabs(source) else source
         is_project_file = os.path.exists(full_path)
 
+        # Check if source has common code file extension
+        # This helps identify resolved file paths vs package names
+        common_extensions = ('.js', '.jsx', '.ts', '.tsx', '.mjs', '.cjs',
+                             '.java', '.py', '.pyw', '.css', '.scss', '.json')
+        has_code_extension = source.endswith(common_extensions)
+
         # Check if it's an external package (package name without path separators)
+        # For Java: java.util.List has dots but no file extension, so it's external
+        # For JS: utils.js has extension, so it's a file
         is_external = (
             is_scoped_package
-            or (not is_project_file and not source.startswith('.')
-                and not source.startswith('/') and '/' not in source
-                and os.sep not in source))
+            or (not is_project_file and not has_code_extension
+                and not source.startswith('.') and not source.startswith('/')
+                and '/' not in source and os.sep not in source))
 
         if not is_external:
             project_imports.append(imp)

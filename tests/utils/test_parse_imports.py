@@ -102,12 +102,23 @@ class TestPythonProjectFileImports(unittest.TestCase):
     def test_relative_import_double_dot(self):
         """Test that relative imports with .. are kept"""
         content = 'from ..config import settings'
+        pkg_dir = os.path.join(self.temp_dir, 'config')
+        os.makedirs(pkg_dir)
+        Path(os.path.join(pkg_dir, '__init__.py')).touch()
+        imports = parse_imports(self.test_file, content, self.temp_dir)
+        self.assertEqual(len(imports), 1)
+        self.assertIn('settings', imports[0].imported_items)
+        self.assertEqual(imports[0].source_file, 'config/__init__.py')
+
+    def test_relative_import_another_package(self):
+        """Test that relative imports with .. are kept"""
+        content = 'from ..config import settings'
+
         imports = parse_imports(self.test_file, content, self.temp_dir)
 
         self.assertEqual(len(imports), 1)
         self.assertIn('settings', imports[0].imported_items)
-        # Verify the source file path is correct
-        self.assertEqual(imports[0].source_file, '..config')
+        self.assertEqual(imports[0].source_file, 'config.py')
 
     def test_relative_import_module(self):
         """Test that 'from . import module' is kept"""
