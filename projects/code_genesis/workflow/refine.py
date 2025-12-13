@@ -38,7 +38,7 @@ class RefineAgent(LLMAgent):
 
         file_relation = OrderedDict()
         CodingAgent.refresh_file_status(self, file_relation)
-        CodingAgent.construct_file_information(self, file_relation, True)
+        CodingAgent.construct_file_information(self, file_relation, False)
         messages = [
             Message(role='system', content=self.config.prompt.system),
             Message(
@@ -47,7 +47,8 @@ class RefineAgent(LLMAgent):
                 f'技术栈(framework.txt): {framework}\n'
                 f'通讯协议(protocol.txt): {protocol}\n'
                 f'文件列表:{file_info}\n'
-                f'你的shell工具的work_dir（项目输出文件）是{self.output_dir}\n'
+                f'你的shell工具的workspace_dir是{self.output_dir},'
+                f'你使用的工具均以该目录作为当前目录.\n'
                 f'python环境是: {sys.executable}\n'
                 f'请针对项目进行refine:'),
         ]

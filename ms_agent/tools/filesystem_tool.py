@@ -811,7 +811,8 @@ class FileSystemTool(ToolBase):
                 test_dir = str(Path(root).relative_to(self.output_dir))
             except ValueError:
                 test_dir = str(root)
-
+            if test_dir == '.':
+                test_dir = ''
             if any(excluded_dir in root
                    for excluded_dir in self.EXCLUDED_DIRS):
                 continue
@@ -910,6 +911,8 @@ class FileSystemTool(ToolBase):
                     test_dir = str(Path(root).relative_to(self.output_dir))
                 except ValueError:
                     test_dir = str(root)
+                if test_dir == '.':
+                    test_dir = ''
                 for file in files:
                     # Skip excluded directories and files
                     root_exclude = any(excluded_dir in root
