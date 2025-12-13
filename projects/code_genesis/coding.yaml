@@ -41,38 +41,38 @@ prompt:
         from ..utils import ...
         from .main import ...
         ```
-  
+
     5. 如果你发现依赖的任一底层代码文件不存在，你应当创建这个代码文件
       * 你不需要创建缩略文件，该文件会后续自动生成
     6. 在编写文件完成后，为节省token不要做任何总结文字
-    
+
     你的两种代码编辑工具：
-    
+
     a. 当你需要编写新文件时，使用如下格式编写：
-    
+
     <result>type: filename
     code here
     </result>
 
     * 一个具体的例子
-    
+
     <result>javascript: frontend/index.js
     your code here
     </result>
 
     `frontend/index.js`是实际存储的文件名。在你输出完成后，这个文件会自动存储下来。
-    
+
     b. 修复问题更新文件时：
     调用`replace_file_contents`工具
-    
+
     a/b两个工具在同一个过程中选择一个即可。
-    
+
     你可以使用shell调试问题：
-    
+
     例子：
     # 找到某个类所有的fields
     execute_single(command='python -c "from module import MyClass; print(vars(MyClass))"')
-    
+
     你的优化目标：
     1. 【优先】一次性输出最准确的代码实现，无幻觉和错误引用
     2. 【其次】使用尽量少的token数量

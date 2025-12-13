@@ -13,13 +13,14 @@ import time
 from contextlib import contextmanager
 from io import BytesIO
 from pathlib import Path
-from typing import List, Optional, Union, Tuple
-from .constants import DEFAULT_MEMORY_DIR
+from typing import List, Optional, Tuple, Union
+
 import json
 import requests
 import yaml
 from omegaconf import DictConfig, OmegaConf
 
+from .constants import DEFAULT_MEMORY_DIR
 from .logger import get_logger
 
 logger = get_logger()
@@ -697,10 +698,11 @@ def valid_repo_id(repo_id: str) -> bool:
     return False
 
 
-def extract_code_blocks(text: str,
-                        target_filename: Optional[str] = None,
-                        file_wrapper: Optional[List[str]] = None,
-                        ) -> Tuple[List, str]:
+def extract_code_blocks(
+    text: str,
+    target_filename: Optional[str] = None,
+    file_wrapper: Optional[List[str]] = None,
+) -> Tuple[List, str]:
     """Extract code blocks from the given text.
 
     <result>py:a.py

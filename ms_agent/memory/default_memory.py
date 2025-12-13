@@ -15,7 +15,8 @@ import json5
 from ms_agent.llm.utils import Message
 from ms_agent.memory import Memory
 from ms_agent.utils import get_fact_retrieval_prompt
-from ms_agent.utils.constants import get_service_config, DEFAULT_USER, DEFAULT_OUTPUT_DIR, DEFAULT_SEARCH_LIMIT
+from ms_agent.utils.constants import (DEFAULT_OUTPUT_DIR, DEFAULT_SEARCH_LIMIT,
+                                      DEFAULT_USER, get_service_config)
 from ms_agent.utils.logger import logger
 from omegaconf import DictConfig, OmegaConf
 
@@ -87,7 +88,9 @@ class DefaultMemory(Memory):
         self.run_id: Optional[str] = getattr(memory_config, 'run_id', None)
         self.compress: Optional[bool] = getattr(config, 'compress', True)
         self.is_retrieve: Optional[bool] = getattr(config, 'is_retrieve', True)
-        self.path: Optional[str] = getattr(memory_config, 'path', os.path.join(DEFAULT_OUTPUT_DIR, '.default_memory'))
+        self.path: Optional[str] = getattr(
+            memory_config, 'path',
+            os.path.join(DEFAULT_OUTPUT_DIR, '.default_memory'))
         self.history_mode = getattr(memory_config, 'history_mode', 'add')
         self.ignore_roles: List[str] = getattr(memory_config, 'ignore_roles',
                                                ['tool', 'system'])

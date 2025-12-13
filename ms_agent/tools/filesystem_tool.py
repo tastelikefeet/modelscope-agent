@@ -8,12 +8,11 @@ from pathlib import Path
 from typing import Optional
 
 import json
-
 from ms_agent.llm import LLM
-from ms_agent.llm.utils import Tool, Message
+from ms_agent.llm.utils import Message, Tool
 from ms_agent.tools.base import ToolBase
 from ms_agent.utils import get_logger
-from ms_agent.utils.constants import DEFAULT_OUTPUT_DIR, DEFAULT_INDEX_DIR
+from ms_agent.utils.constants import DEFAULT_INDEX_DIR, DEFAULT_OUTPUT_DIR
 
 logger = get_logger()
 
@@ -108,18 +107,19 @@ class FileSystemTool(ToolBase):
                     tool_name='read_abbreviation_file',
                     server_name='file_system',
                     description=
-                    'Read the abbreviation content of file(s). If the information is not enough, read the original file by `read_file`',
+                    'Read the abbreviation content of file(s). If the information is not enough, '
+                    'read the original file by `read_file`',
                     parameters={
                         'type': 'object',
                         'properties': {
                             'paths': {
                                 'type':
-                                    'array',
+                                'array',
                                 'items': {
                                     'type': 'string'
                                 },
                                 'description':
-                                    'List of relative file path(s) to read, format: {"paths": ["file1", "file2"]}"]}',
+                                'List of relative file path(s) to read, format: {"paths": ["file1", "file2"]}"]}',
                             },
                         },
                         'required': ['paths'],
@@ -257,7 +257,8 @@ class FileSystemTool(ToolBase):
                                 'string',
                                 'description':
                                 'The relative parent path to search in (supports regex for directory filtering, '
-                                'e.g., r"backend.*" to match backend-related directories). Defaults to root if not specified.',
+                                'e.g., r"backend.*" to match backend-related directories). '
+                                'Defaults to root if not specified.',
                             },
                         },
                         'required': ['file'],
@@ -313,20 +314,25 @@ class FileSystemTool(ToolBase):
                         'type': 'object',
                         'properties': {
                             'path': {
-                                'type': 'string',
-                                'description': 'The relative path of the file to modify',
+                                'type':
+                                'string',
+                                'description':
+                                'The relative path of the file to modify',
                             },
                             'old_content': {
-                                'type': 'string',
+                                'type':
+                                'string',
                                 'description':
                                 'The exact content to find and replace (must match exactly including whitespace)',
                             },
                             'new_content': {
                                 'type': 'string',
-                                'description': 'The new content to replace with',
+                                'description':
+                                'The new content to replace with',
                             },
                             'occurrence': {
-                                'type': 'integer',
+                                'type':
+                                'integer',
                                 'description':
                                 'Which occurrence to replace (1-based). Use -1 to replace all occurrences. '
                                 'Default is -1 (all occurrences).',
@@ -395,17 +401,17 @@ class FileSystemTool(ToolBase):
                                     new_content: str,
                                     occurrence: int = -1):
         """Replace exact content in a file without using line numbers.
-        
+
         This method is safer for parallel operations as it doesn't rely on line numbers
         that might change when multiple agents modify the same file concurrently.
-        
+
         Args:
             path(str): The relative file path to modify
             old_content(str): The exact content to find and replace (must match exactly including whitespace)
             new_content(str): The new content to replace with
             occurrence(int): Which occurrence to replace (1-based). Use -1 to replace all occurrences.
                            Default is -1 (all occurrences).
-        
+
         Returns:
             Success or error message.
         """
@@ -413,25 +419,29 @@ class FileSystemTool(ToolBase):
             target_path_real = self.get_real_path(path)
             if target_path_real is None:
                 return f'<{path}> is out of the valid project path: {self.output_dir}'
-            
+
             # Read file content
             if not os.path.exists(target_path_real):
                 return f'Error: File <{path}> does not exist'
-            
+
             with open(target_path_real, 'r', encoding='utf-8') as f:
                 file_content = f.read()
-            
+
             # Check if old_content exists
             if old_content not in file_content:
-                return f'Error: Could not find the exact content to replace in <{path}>. Make sure the content matches exactly including all whitespace.'
-            
+                return (
+                    f'Error: Could not find the exact content to replace in <{path}>. '
+                    f'Make sure the content matches exactly including all whitespace.'
+                )
+
             # Count occurrences
             count = file_content.count(old_content)
-            
+
             # Replace based on occurrence parameter
             if occurrence == -1:
                 # Replace all occurrences
-                updated_content = file_content.replace(old_content, new_content)
+                updated_content = file_content.replace(old_content,
+                                                       new_content)
                 operation_msg = f'Replaced all {count} occurrence(s)'
             elif occurrence < 1:
                 return f'Error: occurrence must be >= 1 or -1 (for all), got {occurrence}'
@@ -443,15 +453,17 @@ class FileSystemTool(ToolBase):
                 if len(parts) <= occurrence:
                     return f'Error: Could not find occurrence {occurrence} of the content'
                 # Rejoin: first (occurrence-1) parts with old_content, then new_content, then the rest
-                updated_content = old_content.join(parts[:occurrence]) + new_content + old_content.join(parts[occurrence:])
+                updated_content = old_content.join(
+                    parts[:occurrence]) + new_content + old_content.join(
+                        parts[occurrence:])
                 operation_msg = f'Replaced occurrence {occurrence} of {count}'
-            
+
             # Write back to file
             with open(target_path_real, 'w', encoding='utf-8') as f:
                 f.write(updated_content)
-            
+
             return f'{operation_msg} in file <{path}> successfully.'
-            
+
         except Exception as e:
             return f'Replace content in file <{path}> failed, error: ' + str(e)
 
@@ -516,7 +528,8 @@ class FileSystemTool(ToolBase):
                 # Convert to 0-based indices
                 start_idx = start_line - 1
                 # end_line is inclusive (1-based), so we keep lines from end_line onwards (0-based)
-                end_idx = end_line  # Lines to keep start from index end_line (which is the line after end_line in 1-based)
+                end_idx = end_line
+                # Lines to keep start from index end_line (which is the line after end_line in 1-based)
 
                 new_lines = lines[:start_idx] + [content] + lines[end_idx:]
                 operation = f'Replaced lines {start_line}-{end_line}'
@@ -570,7 +583,10 @@ class FileSystemTool(ToolBase):
                 # Use LLM to generate abbreviation
                 messages = [
                     Message(role='system', content=self.system),
-                    Message(role='user', content='The content to be abbreviated:\n\n' + content),
+                    Message(
+                        role='user',
+                        content='The content to be abbreviated:\n\n'
+                        + content),
                 ]
                 response = self.llm.generate(messages=messages, stream=False)
                 os.makedirs(os.path.dirname(index_file), exist_ok=True)
@@ -593,7 +609,6 @@ class FileSystemTool(ToolBase):
                 results[path] = result
 
         return json.dumps(results, indent=2, ensure_ascii=False)
-
 
     async def read_file(self,
                         paths: list[str],
@@ -679,17 +694,15 @@ class FileSystemTool(ToolBase):
         else:
             return f'Path not found: {path}'
 
-    async def search_file_name(self,
-                               file: str = '',
-                               parent_path: str = ''):
+    async def search_file_name(self, file: str = '', parent_path: str = ''):
         """Search for files by name using regex pattern matching.
-        
+
         Args:
             file(str): File name pattern (supports regex). If it's a valid regex pattern,
                       it will be used for regex matching; otherwise, falls back to substring matching.
             parent_path(str): Parent path pattern (supports regex for filtering directories).
                              Can be a simple path or a regex pattern to match directory paths.
-        
+
         Returns:
             String containing all matched file paths
         """
@@ -701,7 +714,7 @@ class FileSystemTool(ToolBase):
         assert os.path.isdir(
             _parent_path
         ), f'Parent path <{parent_path}> does not exist, it should be a inner relative path of the project folder.'
-        
+
         # Try to compile file pattern as regex
         file_use_regex = False
         file_pattern = None
@@ -711,7 +724,7 @@ class FileSystemTool(ToolBase):
                 file_use_regex = True
             except re.error:
                 file_use_regex = False
-        
+
         # Try to compile parent_path filter as regex (optional)
         path_use_regex = False
         path_pattern = None
@@ -721,14 +734,14 @@ class FileSystemTool(ToolBase):
                 path_use_regex = True
             except re.error:
                 path_use_regex = False
-        
+
         all_found_files = []
         for root, dirs, files in os.walk(_parent_path):
             if path_use_regex and parent_path:
                 relative_root = os.path.relpath(root, self.output_dir)
                 if not path_pattern.search(relative_root):
                     continue
-            
+
             for filename in files:
                 if file:
                     if file_use_regex:
@@ -737,15 +750,15 @@ class FileSystemTool(ToolBase):
                         is_match = file in filename
                 else:
                     is_match = True  # No filter, match all files
-                
+
                 if is_match:
                     file_path = os.path.join(root, filename)
                     relative_path = os.path.relpath(file_path, self.output_dir)
                     all_found_files.append(relative_path)
-        
+
         if not all_found_files:
             return f'No files found matching pattern <{file or "*"}> in <{parent_path or "root"}>'
-        
+
         all_found_files = '\n'.join(all_found_files)
         return f'Found {len(all_found_files.splitlines())} file(s) matching <{file or "*"}>:\n{all_found_files}'
 
@@ -804,7 +817,9 @@ class FileSystemTool(ToolBase):
                 continue
             for filename in files:
                 # Skip excluded files
-                if filename.startswith(self.EXCLUDED_FILE_PREFIXES) or test_dir.startswith(self.EXCLUDED_FILE_PREFIXES):
+                if filename.startswith(
+                        self.EXCLUDED_FILE_PREFIXES) or test_dir.startswith(
+                            self.EXCLUDED_FILE_PREFIXES):
                     continue
                 # Match file pattern
                 if fnmatch.fnmatch(filename, file_pattern):
@@ -816,8 +831,7 @@ class FileSystemTool(ToolBase):
         # Function to search in a single file
         def search_in_file(file_path):
             matches = []
-            with open(
-                    file_path, 'r', encoding='utf-8') as f:
+            with open(file_path, 'r', encoding='utf-8') as f:
                 lines = f.readlines()
                 for line_num, line in enumerate(lines, start=1):
                     # Check for match: regex or literal string
@@ -826,20 +840,18 @@ class FileSystemTool(ToolBase):
                         is_match = pattern.search(line) is not None
                     else:
                         is_match = content in line
-                    
+
                     if is_match:
                         # Calculate context range
                         start_line = max(0, line_num - context_lines - 1)
-                        end_line = min(
-                            len(lines), line_num + context_lines)
+                        end_line = min(len(lines), line_num + context_lines)
 
                         # Extract context lines
                         context = []
                         for i in range(start_line, end_line):
                             prefix = '> ' if i == line_num - 1 else '  '
                             context.append(
-                                f'{prefix}{i + 1:4d} | {lines[i].rstrip()}'
-                            )
+                                f'{prefix}{i + 1:4d} | {lines[i].rstrip()}')
 
                         relative_path = os.path.relpath(
                             file_path, self.output_dir)
@@ -900,9 +912,11 @@ class FileSystemTool(ToolBase):
                     test_dir = str(root)
                 for file in files:
                     # Skip excluded directories and files
-                    if any(excluded_dir in root
-                           for excluded_dir in self.EXCLUDED_DIRS
-                           ) or file.startswith(self.EXCLUDED_FILE_PREFIXES) or test_dir.startswith(self.EXCLUDED_FILE_PREFIXES):
+                    root_exclude = any(excluded_dir in root
+                                       for excluded_dir in self.EXCLUDED_DIRS)
+                    if root_exclude or file.startswith(
+                            self.EXCLUDED_FILE_PREFIXES
+                    ) or test_dir.startswith(self.EXCLUDED_FILE_PREFIXES):
                         continue
                     absolute_path = os.path.join(root, file)
                     relative_path = os.path.relpath(absolute_path, path)

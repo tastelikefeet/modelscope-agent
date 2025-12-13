@@ -1,7 +1,7 @@
-import json
 from typing import List
 
-from ms_agent.llm import Message, LLM
+import json
+from ms_agent.llm import LLM, Message
 from ms_agent.memory import Memory
 
 
@@ -21,7 +21,7 @@ class RefineCondenser(Memory):
     b. 完成的事项
     c. 解决中的问题
     d. 重要反思和经验
-    
+
     你的返回格式：
     ```json
     [
@@ -52,7 +52,7 @@ class RefineCondenser(Memory):
         },
     ]
     ```
-    
+
 3. 你需要注意:
     a. 压缩比达到1:6， 即压缩到原来的约六分之一长度
     b. 对当前处理的事务，和对用户原始需求不重要的事项需要移除，反之则保留
@@ -68,9 +68,9 @@ class RefineCondenser(Memory):
         self.threshold = getattr(mem_config, 'threshold', 60000)
 
     async def condense_memory(self, messages):
-        if len(str(messages)) > self.threshold and messages[-1].role in ('user',
-                                                                'tool'):
-            keep_messages = messages[:2] # keep system and user
+        if len(str(messages)) > self.threshold and messages[-1].role in (
+                'user', 'tool'):
+            keep_messages = messages[:2]  # keep system and user
             keep_messages_tail = []
             i = 0
             for i, message in enumerate(reversed(messages)):
@@ -113,9 +113,11 @@ class RefineCondenser(Memory):
                 ))
             messages = keep_messages + list(keep_messages_tail) + [
                 Message(
-                    role='user', content='History messages are compressed due to a long sequence, now '
-                                         'continue solve your problem according to '
-                                         'the messages and the tool calling:\n')
+                    role='user',
+                    content=
+                    'History messages are compressed due to a long sequence, now '
+                    'continue solve your problem according to '
+                    'the messages and the tool calling:\n')
             ]
             return messages
         else:
@@ -123,6 +125,3 @@ class RefineCondenser(Memory):
 
     async def run(self, messages: List[Message]):
         return await self.condense_memory(messages)
-
-
-

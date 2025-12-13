@@ -19,8 +19,7 @@ from ms_agent.rag.base import RAG
 from ms_agent.rag.utils import rag_mapping
 from ms_agent.tools import ToolManager
 from ms_agent.utils import async_retry, read_history, save_history
-from ms_agent.utils.constants import (DEFAULT_TAG,
-                                      DEFAULT_USER)
+from ms_agent.utils.constants import DEFAULT_TAG, DEFAULT_USER
 from ms_agent.utils.logger import logger
 from omegaconf import DictConfig, OmegaConf
 
@@ -335,7 +334,8 @@ class LLMAgent(Agent):
                     f'{mem_instance_type} not in memory_mapping, '
                     f'which supports: {list(memory_mapping.keys())}')
 
-                shared_memory = await SharedMemoryManager.get_shared_memory(self.config, mem_instance_type)
+                shared_memory = await SharedMemoryManager.get_shared_memory(
+                    self.config, mem_instance_type)
                 self.memory_tools.append(shared_memory)
 
     async def prepare_rag(self):

@@ -45,7 +45,7 @@ def get_logger(log_file: Optional[str] = None,
     if log_level is None:
         log_level = os.getenv('LOG_LEVEL', 'INFO').upper()
         log_level = getattr(logging, log_level, logging.INFO)
-    
+
     # Default log file path: current working directory
     if log_file is None:
         log_file = os.path.join(os.getcwd(), 'ms_agent.log')

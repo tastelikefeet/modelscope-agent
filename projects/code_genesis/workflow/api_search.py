@@ -1,10 +1,9 @@
-import json
 import os
 import re
-from concurrent.futures import as_completed
-from concurrent.futures import ThreadPoolExecutor
-from typing import Dict, Any
+from concurrent.futures import ThreadPoolExecutor, as_completed
+from typing import Any, Dict
 
+import json
 from ms_agent.llm.utils import Tool
 from ms_agent.tools.base import ToolBase
 from ms_agent.utils.constants import DEFAULT_INDEX_DIR
@@ -26,23 +25,28 @@ class ApiSearch(ToolBase):
                 Tool(
                     tool_name='url_search',
                     server_name='api_search',
-                    description='Search api definitions with any keywords. These apis are summarized from the code you have written. You need to use this tool when:\n'
-                                '1. You are writing a frontend api interface, which needs the exact http definitions\n'
-                                '2. You want to check any api problem\n'
-                                '3. You want to know if your api definition will duplicate with others\n'
-                                'Instructions & Examples:\n'
-                                '1. Search user api with `user` (substring match)\n'
-                                '2. Search create music api with `music/create`\n'
-                                '3. Split keywords with `,` for multiple substring matches\n'
-                                '4. Use regex pattern like `r"/api/.*user"` for regex matching\n'
-                                '5. If you want all api definitions, pass empty string into `keywords` argument\n'
-                                '6. FOLLOW the definitions of this tool results, you should not use any undefined api. Instead, you need to write missing api to a target file.\n',
+                    description='Search api definitions with any keywords. '
+                    'These apis are summarized from the code you have written. '
+                    'You need to use this tool when:\n'
+                    '1. You are writing a frontend api interface, which needs the exact http definitions\n'
+                    '2. You want to check any api problem\n'
+                    '3. You want to know if your api definition will duplicate with others\n'
+                    'Instructions & Examples:\n'
+                    '1. Search user api with `user` (substring match)\n'
+                    '2. Search create music api with `music/create`\n'
+                    '3. Split keywords with `,` for multiple substring matches\n'
+                    '4. Use regex pattern like `r"/api/.*user"` for regex matching\n'
+                    '5. If you want all api definitions, pass empty string into `keywords` argument\n'
+                    '6. FOLLOW the definitions of this tool results, you should not use any undefined api. '
+                    'Instead, you need to write missing api to a target file.\n',
                     parameters={
                         'type': 'object',
                         'properties': {
                             'keywords': {
-                                'type': 'string',
-                                'description': 'The keywords in the url to search api of.',
+                                'type':
+                                'string',
+                                'description':
+                                'The keywords in the url to search api of.',
                             }
                         },
                         'required': [],
@@ -52,18 +56,19 @@ class ApiSearch(ToolBase):
         }
         return tools
 
-    async def call_tool(self, server_name: str, *, tool_name: str, tool_args: dict) -> str:
+    async def call_tool(self, server_name: str, *, tool_name: str,
+                        tool_args: dict) -> str:
         return await self.url_search(**tool_args)
 
     async def url_search(self, keywords: str = None):
         """Search API definitions using keywords with support for regex and substring matching.
-        
+
         Args:
             keywords(str): Search pattern. Supports:
                 - Comma-separated substrings: 'user,admin' (will match URLs containing 'user' OR 'admin')
                 - Regex pattern: Any valid regex pattern for URL matching
                 - Empty/None: Returns all APIs
-        
+
         Returns:
             str: Formatted search results
         """
@@ -71,7 +76,7 @@ class ApiSearch(ToolBase):
         keyword_list = None
         use_regex = False
         regex_pattern = None
-        
+
         if keywords:
             # Try to compile as regex pattern
             try:
@@ -79,9 +84,11 @@ class ApiSearch(ToolBase):
                 use_regex = True
             except re.error:
                 # Not a valid regex, treat as comma-separated keywords
-                keyword_list = [kw.strip() for kw in keywords.split(',') if kw.strip()]
+                keyword_list = [
+                    kw.strip() for kw in keywords.split(',') if kw.strip()
+                ]
                 use_regex = False
-        
+
         def search_in_file(file_path):
             matches = []
             try:
@@ -92,7 +99,7 @@ class ApiSearch(ToolBase):
                     for protocol in content['protocols']:
                         url = protocol['url']
                         is_match = False
-                        
+
                         if not keywords:
                             # No filter, match all
                             is_match = True
@@ -101,15 +108,20 @@ class ApiSearch(ToolBase):
                             is_match = regex_pattern.search(url) is not None
                         else:
                             # Substring matching (any keyword matches)
-                            is_match = any(keyword in url for keyword in keyword_list)
-                        
+                            is_match = any(keyword in url
+                                           for keyword in keyword_list)
+
                         if is_match:
-                            matches.append(json.dumps(protocol, ensure_ascii=False))
+                            matches.append(
+                                json.dumps(protocol, ensure_ascii=False))
             except Exception:  # noqa
                 return []
             if matches:
-                match_mode = "(regex)" if use_regex else "(substring)"
-                matches.insert(0, f'API{" with keywords: " + str(keywords) + " " + match_mode if keywords else ""} defined in {file_path}:')
+                match_mode = '(regex)' if use_regex else '(substring)'
+                matches.insert(
+                    0,
+                    f'API{" with keywords: " + str(keywords) + " " + match_mode if keywords else ""} defined '
+                    f'in {file_path}:')
                 matches.append('\n')
             return matches
 

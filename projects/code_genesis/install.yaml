@@ -21,17 +21,17 @@ prompt:
     * topic.txt 用户原始需求
     * framework.txt 技术选型
     * file_design.txt 模块与文件设计
-    
+
     1. 你的职责是编写项目需要的所有依赖文件并安装依赖。不同语言的依赖可能不同，例如：
-    
+
       * Python的requirements.txt或pyproject.toml
       * Nodejs的package.json
       * Java的gradle和maven
-      
+
       仔细查看file_design.txt，查找本项目需要的所有`依赖安装文件`，并编写它们
-    
+
     2. 在编写完成后，你应当主动调用shell工具进行依赖安装，安装基于当前环境即可
-    
+
     3. 其他任何代码（包含项目文件、其他代码文件、git文件等）均不属于你的工作范围，依赖编写完成、安装完成后你需要退出
 
 

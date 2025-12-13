@@ -4,9 +4,8 @@ import tempfile
 import unittest
 from pathlib import Path
 
-from omegaconf import DictConfig
-
 from ms_agent.tools.code_server.lsp_code_server import LSPCodeServer
+from omegaconf import DictConfig
 
 
 class TestLSP(unittest.TestCase):
@@ -31,9 +30,7 @@ class TestLSP(unittest.TestCase):
         lsp_server = LSPCodeServer(lsp_config)
         await lsp_server.connect()
 
-        await lsp_server._check_directory(
-            "", "python"
-        )
+        await lsp_server._check_directory('', 'python')
 
         os.makedirs(os.path.join(output_dir, 'pkg1'), exist_ok=True)
 
@@ -41,15 +38,15 @@ class TestLSP(unittest.TestCase):
             f.write('')
 
         result = await lsp_server._update_and_check(
-            os.path.join('pkg1', 'test.py'), '', "python"
-        )
+            os.path.join('pkg1', 'test.py'), '', 'python')
         self.assertTrue(not result)
 
         with open(os.path.join(output_dir, 'pkg1', '__init__.py'), 'w') as f:
             f.write('from .test import *')
 
-        result = await lsp_server._update_and_check(os.path.join('pkg1', '__init__.py'),
-                                                    'from .test import *', "python")
+        result = await lsp_server._update_and_check(
+            os.path.join('pkg1', '__init__.py'), 'from .test import *',
+            'python')
         self.assertTrue(not result)
 
 

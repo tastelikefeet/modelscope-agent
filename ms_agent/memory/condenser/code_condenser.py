@@ -1,12 +1,13 @@
-import json
 import os
 from typing import List
 
-from ms_agent.llm import Message, LLM
+import json
+from ms_agent.llm import LLM, Message
 from ms_agent.memory import Memory
-from ms_agent.utils.constants import DEFAULT_INDEX_DIR, DEFAULT_LOCK_DIR, DEFAULT_OUTPUT_WRAPPER
-from ms_agent.utils.utils import file_lock, extract_code_blocks
 from ms_agent.utils import get_logger
+from ms_agent.utils.constants import (DEFAULT_INDEX_DIR, DEFAULT_LOCK_DIR,
+                                      DEFAULT_OUTPUT_WRAPPER)
+from ms_agent.utils.utils import extract_code_blocks, file_lock
 
 logger = get_logger()
 
@@ -41,7 +42,7 @@ class CodeCondenser(Memory):
     {
         "imports": [xx/xx.js, ..., ...]" # 文件列表
         "classes": [
-            {   
+            {
                 "name": "ClassA", # 类名
                 "functions": [ # 类中的方法列表
                     {
@@ -88,7 +89,7 @@ class CodeCondenser(Memory):
 你的优化目标：
 1. 【优先】保留充足的信息供其它代码使用
 2. 【其次】保留尽量少的token数量
-"""
+""" # noqa
 
     def __init__(self, config):
         super().__init__(config)
@@ -99,7 +100,8 @@ class CodeCondenser(Memory):
         index_dir = getattr(config, 'index_cache_dir', DEFAULT_INDEX_DIR)
         self.index_dir = os.path.join(self.output_dir, index_dir)
         self.lock_dir = os.path.join(self.output_dir, DEFAULT_LOCK_DIR)
-        self.code_wrapper = getattr(mem_config, 'code_wrapper', DEFAULT_OUTPUT_WRAPPER)
+        self.code_wrapper = getattr(mem_config, 'code_wrapper',
+                                    DEFAULT_OUTPUT_WRAPPER)
 
     def condense_code(self, message: Message):
         prefix = 'Your generated code was replaced by a index version:\n'
@@ -112,17 +114,22 @@ class CodeCondenser(Memory):
                             arguments = json.loads(arguments)
                         code_file = arguments['path']
                         content = arguments['content']
-                        index_content = self.generate_index_file(code_file, content)
+                        index_content = self.generate_index_file(
+                            code_file, content)
                         arguments['content'] = f'{prefix}{index_content}'
-                        tool_call['arguments'] = json.dumps(arguments, ensure_ascii=False)
-            elif self.code_wrapper[0] in message.content and self.code_wrapper[1] in message.content:
-                result, remaining_text = extract_code_blocks(message.content, file_wrapper=self.code_wrapper)
+                        tool_call['arguments'] = json.dumps(
+                            arguments, ensure_ascii=False)
+            elif self.code_wrapper[0] in message.content and self.code_wrapper[
+                    1] in message.content:
+                result, remaining_text = extract_code_blocks(
+                    message.content, file_wrapper=self.code_wrapper)
                 if result:
                     final_content = remaining_text + prefix
                     for code_block in result:
                         code_file = code_block['filename']
                         content = code_block['code']
-                        index_content = self.generate_index_file(code_file, content)
+                        index_content = self.generate_index_file(
+                            code_file, content)
                         final_content += index_content + '\n'
                     message.content = final_content
 
@@ -155,7 +162,8 @@ class CodeCondenser(Memory):
             ]
             for i in range(3):
                 try:
-                    response_message = self.llm.generate(messages, stream=False)
+                    response_message = self.llm.generate(
+                        messages, stream=False)
                     content = response_message.content.split('\n')
                     if '```' in content[0]:
                         content = content[1:]
@@ -165,10 +173,11 @@ class CodeCondenser(Memory):
                     os.makedirs(os.path.dirname(index_file), exist_ok=True)
                     with open(index_file, 'w') as f:
                         f.write(content)
-                    json.loads(content) # try to load once to ensure the json format is ok
+                    json.loads(
+                        content
+                    )  # try to load once to ensure the json format is ok
                     break
                 except Exception as e:
-                    logger.error(f'Code index file generate failed because of {e}')
+                    logger.error(
+                        f'Code index file generate failed because of {e}')
             return content
-
-

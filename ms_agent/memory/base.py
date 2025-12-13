@@ -3,9 +3,8 @@ from abc import ABC, abstractmethod
 from typing import List
 
 from ms_agent.llm.utils import Message
-from omegaconf import DictConfig
-
 from ms_agent.utils.constants import DEFAULT_OUTPUT_DIR
+from omegaconf import DictConfig
 
 
 class Memory(ABC):

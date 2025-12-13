@@ -1,9 +1,10 @@
 import os
 import re
-import json
 from abc import ABC, abstractmethod
 from dataclasses import dataclass, field
 from typing import Dict, List, Optional
+
+import json
 
 
 @dataclass
@@ -63,7 +64,8 @@ class PythonImportParser(BaseImportParser):
 
         # Pattern 1: from ... import ...
         from_pattern = r'^\s*from\s+([\w.]+)\s+import\s+(?:\(([^)]+)\)|([^\n]+))'
-        for match in re.finditer(from_pattern, code_content, re.MULTILINE | re.DOTALL):
+        for match in re.finditer(from_pattern, code_content,
+                                 re.MULTILINE | re.DOTALL):
             info = self._extract_from_import(match, code_content)
             if info:
                 imports.append(info)
@@ -76,7 +78,8 @@ class PythonImportParser(BaseImportParser):
 
         return imports
 
-    def _extract_from_import(self, match, code_content) -> Optional[ImportInfo]:
+    def _extract_from_import(self, match,
+                             code_content) -> Optional[ImportInfo]:
         """Extract 'from ... import ...' statement"""
         module_path = match.group(1)
         # Group 2 is parenthesized multi-line imports, group 3 is single-line imports
@@ -115,8 +118,7 @@ class PythonImportParser(BaseImportParser):
             source_file=file_path,
             raw_statement=match.group(0),
             imported_items=imported_items,
-            import_type='namespace' if '*' in imported_items else 'named'
-        )
+            import_type='namespace' if '*' in imported_items else 'named')
 
     def _extract_simple_import(self, match) -> List[ImportInfo]:
         """Extract 'import ...' statement"""
@@ -138,25 +140,23 @@ class PythonImportParser(BaseImportParser):
             # If not found, use module name (could be stdlib)
             if not file_path:
                 file_path = module
-            
+
             results.append(
                 ImportInfo(
                     source_file=file_path,
                     raw_statement=f'import {module}',
                     imported_items=[module.split('.')[-1]],
                     import_type='default',
-                    alias=alias
-                )
-            )
+                    alias=alias))
 
         return results
 
     def _resolve_python_path(self, module_path: str) -> Optional[str]:
         """Resolve Python module to file path
-        
+
         For relative imports (starting with .), resolves them relative to current_dir.
         For absolute imports, tries to resolve from output_dir.
-        
+
         Returns path relative to output_dir with file extension.
         """
         # Handle relative imports (., .., ...)
@@ -168,34 +168,35 @@ class PythonImportParser(BaseImportParser):
                     dots += 1
                 else:
                     break
-            
+
             # Get the module part after dots
             module_part = module_path[dots:]
-            
+
             # Calculate the target directory
             # . means current directory, .. means parent, etc.
             target_dir = self.current_dir
             for _ in range(dots - 1):  # -1 because . means current dir
                 target_dir = os.path.dirname(target_dir)
-            
+
             # If there's a module part, append it
             if module_part:
                 module_file_path = module_part.replace('.', os.sep)
                 target_dir = os.path.join(target_dir, module_file_path)
-            
+
             # Try as package
-            package_init = os.path.normpath(os.path.join(target_dir, '__init__.py'))
+            package_init = os.path.normpath(
+                os.path.join(target_dir, '__init__.py'))
             if os.path.exists(package_init):
                 return os.path.relpath(package_init, self.output_dir)
-            
+
             # Try as module
             module_file = os.path.normpath(target_dir + '.py')
             if os.path.exists(module_file):
                 return os.path.relpath(module_file, self.output_dir)
-            
+
             # Return None if not found
             return None
-        
+
         # Handle absolute imports
         module_file_path = module_path.replace('.', os.sep)
 
@@ -241,7 +242,8 @@ class JavaScriptImportParser(BaseImportParser):
 
         # Pattern 1: Named import - import { A, B } from 'path' (supports multiline)
         named_pattern = r"^\s*import\s+(type\s+)?\{([^}]+)\}\s*from\s+['\"]([^'\"]+)['\"]"
-        for match in re.finditer(named_pattern, code_content, re.MULTILINE | re.DOTALL):
+        for match in re.finditer(named_pattern, code_content,
+                                 re.MULTILINE | re.DOTALL):
             info = self._extract_named_import(match)
             if info:
                 imports.append(info)
@@ -255,35 +257,40 @@ class JavaScriptImportParser(BaseImportParser):
 
         # Pattern 3: Namespace import - import * as name from 'path'
         namespace_pattern = r"^\s*import\s+(type\s+)?\*\s+as\s+(\w+)\s+from\s+['\"]([^'\"]+)['\"]"
-        for match in re.finditer(namespace_pattern, code_content, re.MULTILINE):
+        for match in re.finditer(namespace_pattern, code_content,
+                                 re.MULTILINE):
             info = self._extract_namespace_import(match)
             if info:
                 imports.append(info)
 
         # Pattern 4: Side-effect import - import 'path'
         side_effect_pattern = r"^\s*import\s+['\"]([^'\"]+)['\"]"
-        for match in re.finditer(side_effect_pattern, code_content, re.MULTILINE):
+        for match in re.finditer(side_effect_pattern, code_content,
+                                 re.MULTILINE):
             info = self._extract_side_effect_import(match)
             if info:
                 imports.append(info)
 
         # Pattern 5: Named re-export - export { A, B } from 'path' (supports multiline)
         export_named_pattern = r"^\s*export\s+(type\s+)?\{([^}]+)\}\s+from\s+['\"]([^'\"]+)['\"]"
-        for match in re.finditer(export_named_pattern, code_content, re.MULTILINE | re.DOTALL):
+        for match in re.finditer(export_named_pattern, code_content,
+                                 re.MULTILINE | re.DOTALL):
             info = self._extract_export_named(match)
             if info:
                 imports.append(info)
 
         # Pattern 6: Wildcard re-export - export * from 'path'
         export_wildcard_pattern = r"^\s*export\s+(type\s+)?\*\s+from\s+['\"]([^'\"]+)['\"]"
-        for match in re.finditer(export_wildcard_pattern, code_content, re.MULTILINE):
+        for match in re.finditer(export_wildcard_pattern, code_content,
+                                 re.MULTILINE):
             info = self._extract_export_wildcard(match)
             if info:
                 imports.append(info)
 
         # Pattern 7: Named wildcard re-export - export * as name from 'path'
         export_named_wildcard_pattern = r"^\s*export\s+(type\s+)?\*\s+as\s+(\w+)\s+from\s+['\"]([^'\"]+)['\"]"
-        for match in re.finditer(export_named_wildcard_pattern, code_content, re.MULTILINE):
+        for match in re.finditer(export_named_wildcard_pattern, code_content,
+                                 re.MULTILINE):
             info = self._extract_export_named_wildcard(match)
             if info:
                 imports.append(info)
@@ -308,7 +315,7 @@ class JavaScriptImportParser(BaseImportParser):
             # Extract name before 'as' if aliased
             item = item.split(' as ')[0].strip()
             items.append(item)
-        
+
         resolved_path = self._resolve_js_path(import_path)
         # If not resolved, use import_path as-is (external package)
         if not resolved_path:
@@ -319,8 +326,7 @@ class JavaScriptImportParser(BaseImportParser):
             raw_statement=match.group(0),
             imported_items=items,
             import_type='named',
-            is_type_only=is_type
-        )
+            is_type_only=is_type)
 
     def _extract_default_import(self, match) -> Optional[ImportInfo]:
         """Extract: import React from 'path'"""
@@ -338,8 +344,7 @@ class JavaScriptImportParser(BaseImportParser):
             raw_statement=match.group(0),
             imported_items=[name],
             import_type='default',
-            is_type_only=is_type
-        )
+            is_type_only=is_type)
 
     def _extract_namespace_import(self, match) -> Optional[ImportInfo]:
         """Extract: import * as name from 'path'"""
@@ -358,8 +363,7 @@ class JavaScriptImportParser(BaseImportParser):
             imported_items=['*'],
             import_type='namespace',
             alias=name,
-            is_type_only=is_type
-        )
+            is_type_only=is_type)
 
     def _extract_side_effect_import(self, match) -> Optional[ImportInfo]:
         """Extract: import 'path'"""
@@ -373,8 +377,7 @@ class JavaScriptImportParser(BaseImportParser):
             source_file=resolved_path,
             raw_statement=match.group(0),
             imported_items=[],
-            import_type='side-effect'
-        )
+            import_type='side-effect')
 
     def _extract_export_named(self, match) -> Optional[ImportInfo]:
         """Extract: export { A, B } from 'path'"""
@@ -394,7 +397,7 @@ class JavaScriptImportParser(BaseImportParser):
             # Extract name before 'as' if aliased
             item = item.split(' as ')[0].strip()
             items.append(item)
-        
+
         resolved_path = self._resolve_js_path(import_path)
         # If not resolved, use import_path as-is (external package)
         if not resolved_path:
@@ -405,8 +408,7 @@ class JavaScriptImportParser(BaseImportParser):
             raw_statement=match.group(0),
             imported_items=items,
             import_type='named',
-            is_type_only=is_type
-        )
+            is_type_only=is_type)
 
     def _extract_export_wildcard(self, match) -> Optional[ImportInfo]:
         """Extract: export * from 'path'"""
@@ -423,8 +425,7 @@ class JavaScriptImportParser(BaseImportParser):
             raw_statement=match.group(0),
             imported_items=['*'],
             import_type='namespace',
-            is_type_only=is_type
-        )
+            is_type_only=is_type)
 
     def _extract_export_named_wildcard(self, match) -> Optional[ImportInfo]:
         """Extract: export * as name from 'path'"""
@@ -443,18 +444,18 @@ class JavaScriptImportParser(BaseImportParser):
             imported_items=['*'],
             import_type='namespace',
             alias=name,
-            is_type_only=is_type
-        )
+            is_type_only=is_type)
 
     def _resolve_js_path(self, import_path: str) -> Optional[str]:
         """Resolve JavaScript/TypeScript import path to file
-        
+
         Returns path relative to output_dir with file extension.
         Returns None for external packages.
         """
         # Check if it's an external package (doesn't start with . or /)
-        is_external = not import_path.startswith('.') and not import_path.startswith('/')
-        
+        is_external = not import_path.startswith(
+            '.') and not import_path.startswith('/')
+
         # External packages return None early
         if is_external:
             # Check if it might be a path alias
@@ -479,7 +480,7 @@ class JavaScriptImportParser(BaseImportParser):
                 return path
             # Otherwise use relpath
             return os.path.relpath(path, self.output_dir)
-        
+
         # Convert resolved path to absolute for existence checks
         # resolved is relative to output_dir, so we need to join them
         if os.path.isabs(resolved):
@@ -488,11 +489,14 @@ class JavaScriptImportParser(BaseImportParser):
             abs_resolved = os.path.join(self.output_dir, resolved)
         else:
             # Both are relative, make absolute from current working directory
-            abs_resolved = os.path.abspath(os.path.join(self.output_dir, resolved))
+            abs_resolved = os.path.abspath(
+                os.path.join(self.output_dir, resolved))
 
         # Try as directory with index file first
         if os.path.isdir(abs_resolved):
-            for index_file in ['index.ts', 'index.tsx', 'index.js', 'index.jsx']:
+            for index_file in [
+                    'index.ts', 'index.tsx', 'index.js', 'index.jsx'
+            ]:
                 index_path = os.path.join(abs_resolved, index_file)
                 if os.path.exists(index_path):
                     # Return relative path with index file
@@ -501,8 +505,10 @@ class JavaScriptImportParser(BaseImportParser):
             return to_relative(resolved)
 
         # Try different extensions
-        extensions = ['.ts', '.tsx', '.js', '.jsx', '.mjs', '.cjs', '.json',
-                     '.css', '.scss', '.sass', '.less', '.module.css', '.module.scss']
+        extensions = [
+            '.ts', '.tsx', '.js', '.jsx', '.mjs', '.cjs', '.json', '.css',
+            '.scss', '.sass', '.less', '.module.css', '.module.scss'
+        ]
 
         for ext in extensions:
             path_with_ext = abs_resolved + ext
@@ -515,7 +521,7 @@ class JavaScriptImportParser(BaseImportParser):
             if '.' in os.path.basename(resolved):
                 # Already has extension, return as-is
                 return to_relative(resolved)
-            
+
             # No extension, infer from current_file
             if self.current_file:
                 current_ext = os.path.splitext(self.current_file)[1]
@@ -533,7 +539,7 @@ class JavaScriptImportParser(BaseImportParser):
         # File doesn't exist, but has extension
         if '.' in os.path.basename(resolved):
             return to_relative(resolved)
-        
+
         # Last resort: add default extension
         default_ext = '.js'
         if self.current_file:
@@ -545,7 +551,9 @@ class JavaScriptImportParser(BaseImportParser):
     def _load_path_aliases(self) -> Dict[str, str]:
         """Load path aliases from tsconfig.json and vite.config"""
         aliases = {}
-        excluded_dirs = {'node_modules', 'dist', 'build', '.git', '__pycache__'}
+        excluded_dirs = {
+            'node_modules', 'dist', 'build', '.git', '__pycache__'
+        }
 
         # Search for config files
         for root, dirs, files in os.walk(self.output_dir):
@@ -553,12 +561,16 @@ class JavaScriptImportParser(BaseImportParser):
 
             # tsconfig.json
             if 'tsconfig.json' in files:
-                self._parse_tsconfig_aliases(os.path.join(root, 'tsconfig.json'), root, aliases)
+                self._parse_tsconfig_aliases(
+                    os.path.join(root, 'tsconfig.json'), root, aliases)
 
             # vite.config.*
-            for config_file in ['vite.config.js', 'vite.config.ts', 'vite.config.mjs']:
+            for config_file in [
+                    'vite.config.js', 'vite.config.ts', 'vite.config.mjs'
+            ]:
                 if config_file in files:
-                    self._parse_vite_config_aliases(os.path.join(root, config_file), root, aliases)
+                    self._parse_vite_config_aliases(
+                        os.path.join(root, config_file), root, aliases)
 
         # Default aliases
         if not aliases:
@@ -571,33 +583,41 @@ class JavaScriptImportParser(BaseImportParser):
 
         return aliases
 
-    def _parse_tsconfig_aliases(self, tsconfig_path: str, base_dir: str, aliases: Dict[str, str]):
+    def _parse_tsconfig_aliases(self, tsconfig_path: str, base_dir: str,
+                                aliases: Dict[str, str]):
         """Parse tsconfig.json and extract path aliases"""
         try:
             with open(tsconfig_path, 'r', encoding='utf-8') as f:
                 content = f.read()
                 # Remove comments
-                content = re.sub(r'//.*?\n|/\*.*?\*/', '', content, flags=re.DOTALL)
+                content = re.sub(
+                    r'//.*?\n|/\*.*?\*/', '', content, flags=re.DOTALL)
                 tsconfig = json.loads(content)
 
-                if 'compilerOptions' in tsconfig and 'paths' in tsconfig['compilerOptions']:
+                if 'compilerOptions' in tsconfig and 'paths' in tsconfig[
+                        'compilerOptions']:
                     base_url = tsconfig['compilerOptions'].get('baseUrl', '.')
-                    for alias, paths in tsconfig['compilerOptions']['paths'].items():
+                    for alias, paths in tsconfig['compilerOptions'][
+                            'paths'].items():
                         clean_alias = alias.rstrip('/*')
                         if paths and len(paths) > 0:
                             target = paths[0].rstrip('/*')
-                            resolved_target = os.path.normpath(os.path.join(base_dir, base_url, target))
+                            resolved_target = os.path.normpath(
+                                os.path.join(base_dir, base_url, target))
                             if clean_alias not in aliases:
                                 aliases[clean_alias] = resolved_target
         except (json.JSONDecodeError, IOError, KeyError):
             pass
 
-    def _parse_vite_config_aliases(self, config_path: str, base_dir: str, aliases: Dict[str, str]):
+    def _parse_vite_config_aliases(self, config_path: str, base_dir: str,
+                                   aliases: Dict[str, str]):
         """Parse vite.config and extract path aliases"""
         try:
             with open(config_path, 'r', encoding='utf-8') as f:
                 content = f.read()
-                alias_pattern = r"['\"]([^'\"]+)['\"]\s*:\s*(?:path\.resolve\([^,]+,\s*['\"]([^'\"]+)['\"]\)|['\"]([^'\"]+)['\"])"
+                alias_pattern = (
+                    r"['\"]([^'\"]+)['\"]\s*:\s*(?:path\.resolve\([^,]+,\s*['\"]"
+                    r"([^'\"]+)['\"]\)|['\"]([^'\"]+)['\"])")
                 for match in re.finditer(alias_pattern, content):
                     alias_key = match.group(1)
                     target = match.group(2) or match.group(3)
@@ -640,7 +660,6 @@ class JavaImportParser(BaseImportParser):
 
     def _extract_java_import(self, match) -> Optional[ImportInfo]:
         """Extract Java import statement"""
-        is_static = bool(match.group(1))
         import_path = match.group(2)
 
         # Resolve to file path
@@ -661,8 +680,7 @@ class JavaImportParser(BaseImportParser):
             source_file=file_path,
             raw_statement=match.group(0),
             imported_items=items,
-            import_type=import_type
-        )
+            import_type=import_type)
 
     def _resolve_java_path(self, import_path: str) -> Optional[str]:
         """Resolve Java import to file path"""
@@ -684,7 +702,8 @@ class ImportParserFactory:
     """Factory to get appropriate parser for file type"""
 
     @staticmethod
-    def get_parser(file_ext: str, output_dir: str, current_file: str, current_dir: str) -> Optional[BaseImportParser]:
+    def get_parser(file_ext: str, output_dir: str, current_file: str,
+                   current_dir: str) -> Optional[BaseImportParser]:
         """Get parser instance for given file extension"""
         parsers = [
             PythonImportParser,
@@ -700,10 +719,11 @@ class ImportParserFactory:
         return None
 
 
-def parse_imports(current_file: str, code_content: str, output_dir: str) -> List[ImportInfo]:
+def parse_imports(current_file: str, code_content: str,
+                  output_dir: str) -> List[ImportInfo]:
     """
     Parse imports from code content (main entry point for backward compatibility)
-    
+
     IMPORTANT: This function filters out external packages and only returns project files.
     External packages (like 'react', 'os', 'typing', 'java.util.List') are NOT included.
 
@@ -716,24 +736,26 @@ def parse_imports(current_file: str, code_content: str, output_dir: str) -> List
         List of ImportInfo objects for project files only (external packages are excluded)
     """
     # Detect file extension
-    file_ext = os.path.splitext(current_file)[1].lstrip('.').lower() if current_file else ''
+    file_ext = os.path.splitext(current_file)[1].lstrip(
+        '.').lower() if current_file else ''
     current_dir = os.path.dirname(current_file) if current_file else '.'
 
     # Get appropriate parser
-    parser = ImportParserFactory.get_parser(file_ext, output_dir, current_file, current_dir)
+    parser = ImportParserFactory.get_parser(file_ext, output_dir, current_file,
+                                            current_dir)
     if not parser:
         return []
 
     # Parse all imports
     all_imports = parser.parse(code_content)
-    
+
     # Filter out external packages - only keep project files
     project_imports = []
     for imp in all_imports:
         source = imp.source_file
         if not source:
             continue
-        
+
         # For Python files:
         # - If source is resolved to a file path (contains / or \), it's a project file
         # - If source is still a relative import notation (starts with .), check if it was resolved
@@ -747,29 +769,28 @@ def parse_imports(current_file: str, code_content: str, output_dir: str) -> List
                 project_imports.append(imp)
             # Otherwise it's an external package (os, sys, typing, numpy, etc.)
             continue
-        
+
         # For JavaScript/TypeScript/Java: filter external packages
         # External packages: 'react', 'lodash', '@types/react', '@vue/cli', 'java.util.List'
         # They don't start with '.', '/', or contain path separators (except scoped packages)
-        
+
         # Check if it's a scoped package (starts with @ but file doesn't exist)
-        is_scoped_package = source.startswith('@') and not os.path.exists(os.path.join(output_dir, source))
-        
+        is_scoped_package = source.startswith('@') and not os.path.exists(
+            os.path.join(output_dir, source))
+
         # Check if it's a project file (exists in output_dir)
-        full_path = os.path.join(output_dir, source) if not os.path.isabs(source) else source
+        full_path = os.path.join(
+            output_dir, source) if not os.path.isabs(source) else source
         is_project_file = os.path.exists(full_path)
-        
+
         # Check if it's an external package (package name without path separators)
         is_external = (
-            is_scoped_package or
-            (not is_project_file and 
-             not source.startswith('.') and 
-             not source.startswith('/') and 
-             '/' not in source and 
-             os.sep not in source)
-        )
-        
+            is_scoped_package
+            or (not is_project_file and not source.startswith('.')
+                and not source.startswith('/') and '/' not in source
+                and os.sep not in source))
+
         if not is_external:
             project_imports.append(imp)
-    
+
     return project_imports

@@ -65,11 +65,11 @@ prompt:
     管理员模块
     ...
     ```
-    
+
     你的优化目标：
     1. [优先] 保证你的技术文档清晰完善、无幻觉、描述准确
     2. [其次] 保证使用最少的token
-    
+
 
 max_chat_round: 999
 
@@ -90,4 +90,3 @@ memory:
   diversity:
 
 tool_call_timeout: 30
-

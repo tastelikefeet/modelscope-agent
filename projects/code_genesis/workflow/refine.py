@@ -1,8 +1,6 @@
 import os
-from typing import List, OrderedDict
 import sys
-
-from omegaconf import DictConfig
+from typing import List, OrderedDict
 
 from coding import CodingAgent
 from ms_agent import LLMAgent
@@ -10,6 +8,7 @@ from ms_agent.llm import Message
 from ms_agent.memory.condenser.refine_condenser import RefineCondenser
 from ms_agent.utils import get_logger
 from ms_agent.utils.constants import DEFAULT_TAG
+from omegaconf import DictConfig
 
 logger = get_logger()
 
@@ -45,12 +44,12 @@ class RefineAgent(LLMAgent):
             Message(
                 role='user',
                 content=f'原始需求(topic.txt): {topic}\n'
-                        f'技术栈(framework.txt): {framework}\n'
-                        f'通讯协议(protocol.txt): {protocol}\n'
-                        f'文件列表:{file_info}\n'
-                        f'你的shell工具的work_dir（项目输出文件）是{self.output_dir}\n'
-                        f'python环境是: {sys.executable}\n'
-                        f'请针对项目进行refine:'),
+                f'技术栈(framework.txt): {framework}\n'
+                f'通讯协议(protocol.txt): {protocol}\n'
+                f'文件列表:{file_info}\n'
+                f'你的shell工具的work_dir（项目输出文件）是{self.output_dir}\n'
+                f'python环境是: {sys.executable}\n'
+                f'请针对项目进行refine:'),
         ]
         return await super().run(messages, **kwargs)
 

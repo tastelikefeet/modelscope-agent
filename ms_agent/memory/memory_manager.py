@@ -1,11 +1,10 @@
 # Copyright (c) Alibaba, Inc. and its affiliates.
 from typing import Dict
 
-from omegaconf import DictConfig
-
 from ms_agent.memory import Memory, memory_mapping
 from ms_agent.utils import get_logger
 from ms_agent.utils.constants import DEFAULT_OUTPUT_DIR, DEFAULT_USER
+from omegaconf import DictConfig
 
 logger = get_logger()
 
@@ -15,7 +14,8 @@ class SharedMemoryManager:
     _instances: Dict[str, Memory] = {}
 
     @classmethod
-    async def get_shared_memory(cls, config: DictConfig, mem_instance_type: str) -> Memory:
+    async def get_shared_memory(cls, config: DictConfig,
+                                mem_instance_type: str) -> Memory:
         """Get or create a shared memory instance based on configuration."""
         user_id: str = getattr(config, 'user_id', DEFAULT_USER)
         path: str = getattr(config, 'path', DEFAULT_OUTPUT_DIR)
