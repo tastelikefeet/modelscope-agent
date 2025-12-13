@@ -70,8 +70,8 @@ class CodeCondenser(Memory):
             {
                 "type": "http",
                 "url": "...", # http url信息
-                "params": "...", # http输入参数需求，包含param结构和header需求，如果是类结构，给出结构引用信息（例如UserRequest in api/user.xx）
-                "responses": "..." # http输出结构和错误定义情况
+                "params": "query:str, limit:int", # http输入参数需求，包含param结构和header需求，如果是类结构，给出结构引用信息（例如UserRequest in api/user.xx）
+                "responses": "{data:xxx, errorCode:xxx}, defined in xxx/xxx.js" # http具体输出结构和错误定义, 如果是类结构，给出结构引用信息
             }
         ],
         "structs": [ # 结构信息，包含定义的代码结构或json结构等

@@ -258,7 +258,7 @@ class Programmer(LLMAgent):
 
             missing_items = []
             for item in info.imported_items:
-                if item not in file_content and ' * ' not in file_content:
+                if item not in file_content:
                     missing_items.append(item)
 
             if missing_items:
