@@ -33,6 +33,17 @@ prompt:
       * 不允许依赖index大于等于你的其他代码文件
       * 如果你需要mock初始化数据，除非显示要求，否则不要超过5条
       * 注意命名导出或默认导出方式
+      * 对public方法、export方法和类添加注释，描述输入输出结构:
+        ```
+          def a():
+            """This function/class is used to...
+            Args:
+                param1: int, used to ...
+
+            Returns:
+                A ... struct, contains data:, status: ...
+            """
+        ```
       对文件import的要求：
         * 不要使用动态引用或局部方法引用，所有import都应该在文件顶部完成
         * python编写中，所有包import均使用相对导入，不要使用绝对导入，例如：

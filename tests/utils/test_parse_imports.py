@@ -136,6 +136,63 @@ class TestPythonProjectFileImports(unittest.TestCase):
         self.assertEqual(len(imports), 1)
         self.assertIn('helper', imports[0].imported_items)
 
+    def test_relative_output_dir_no_excessive_parent_dirs(self):
+        """Test that relative output_dir doesn't cause excessive '../' in paths
+
+        This is a regression test for the bug where:
+        - output_dir is relative (e.g., './output')
+        - current_file is absolute (e.g., /tmp/output/backend/app/api/sessions.py)
+        - os.path.relpath(absolute_path, relative_output_dir) uses CWD as base
+        - Results in paths like ../../../../../../../../tmp/output/backend/...
+
+        Additionally tests the macOS symlink issue where:
+        - /var is a symlink to /private/var
+        - os.path.abspath() might return different prefixes
+        - os.path.relpath() treats them as completely different paths
+
+        The fix uses os.path.realpath() to resolve symlinks.
+        """
+        # Create output directory
+        output_dir = './output_test'
+        try:
+            os.makedirs(output_dir)
+
+            # Create directory structure inside output dir: backend/app/api/ and backend/app/models/
+            backend_dir = os.path.join(output_dir, 'backend')
+            api_dir = os.path.join(backend_dir, 'app', 'api')
+            models_dir = os.path.join(backend_dir, 'app', 'models')
+            os.makedirs(api_dir)
+            os.makedirs(models_dir)
+
+            # Create files inside output directory
+            sessions_file = os.path.join(api_dir, 'session.py')
+            session_model_file = os.path.join(models_dir, 'session.py')
+            Path(sessions_file).touch()
+            Path(session_model_file).touch()
+
+            # Import: from ..models.session import SessionCreate
+            content = 'from ..models.session import SessionCreate'
+
+            # Parse with output_dir (absolute path)
+            imports = parse_imports('backend/app/api/session.py', content,
+                                    output_dir)
+
+            self.assertEqual(len(imports), 1)
+
+            source = imports[0].source_file.replace('\\', '/')
+            self.assertEqual(source, 'backend/app/models/session.py')
+
+            output_dir = os.path.abspath(output_dir)
+            imports = parse_imports('backend/app/api/session.py', content,
+                                    output_dir)
+
+            self.assertEqual(len(imports), 1)
+
+            source = imports[0].source_file.replace('\\', '/')
+            self.assertEqual(source, 'backend/app/models/session.py')
+        finally:
+            shutil.rmtree(output_dir, ignore_errors=True)
+
 
 class TestJavaScriptExternalPackageFiltering(unittest.TestCase):
     """Test that JavaScript/TypeScript external packages are filtered out"""
@@ -400,6 +457,75 @@ class TestJavaScriptProjectFileImports(unittest.TestCase):
         # 'Props' should have inline 'type' keyword removed
         self.assertIn('Props', named_type.imported_items)
         self.assertIn('State', named_type.imported_items)
+
+    def test_relative_output_dir_js_no_excessive_parent_dirs(self):
+        """Test that relative output_dir doesn't cause excessive '../' in JS/TS paths
+
+        This is a regression test for the JS/TS bug where:
+        - output_dir is relative (e.g., './output')
+        - current_file is absolute (e.g., /tmp/output/src/components/Button.tsx)
+        - os.path.relpath(absolute_path, relative_output_dir) uses CWD as base
+        - Results in paths like ../../../../../../../../tmp/output/src/...
+
+        Additionally tests the macOS symlink issue where:
+        - /var is a symlink to /private/var
+        - os.path.abspath() might return different prefixes
+        - os.path.relpath() treats them as completely different paths
+
+        The fix uses os.path.realpath() to resolve symlinks.
+        """
+        # Create output directory
+        output_dir = './output_test_js'
+        try:
+            os.makedirs(output_dir)
+
+            # Create directory structure inside output dir: src/components/
+            src_dir = os.path.join(output_dir, 'src')
+            components_dir = os.path.join(src_dir, 'components')
+            os.makedirs(components_dir)
+
+            # Create files inside output directory
+            app_file = os.path.join(src_dir, 'App.tsx')
+            button_file = os.path.join(components_dir, 'Button.tsx')
+            Path(app_file).touch()
+            Path(button_file).touch()
+
+            # Import: import { Button } from './components/Button'
+            content = "import { Button } from './components/Button'"
+
+            # Test 1: Parse with relative output_dir
+            imports = parse_imports('src/App.tsx', content, output_dir)
+
+            self.assertEqual(len(imports), 1)
+
+            source = imports[0].source_file.replace('\\', '/')
+            self.assertEqual(
+                source, 'src/components/Button.tsx',
+                f"Expected 'src/components/Button.tsx', got: {source}")
+
+            # Test 2: Parse with absolute output_dir (should give same result)
+            abs_output_dir = os.path.abspath(output_dir)
+            imports2 = parse_imports('src/App.tsx', content, abs_output_dir)
+
+            self.assertEqual(len(imports2), 1)
+
+            source2 = imports2[0].source_file.replace('\\', '/')
+            self.assertEqual(
+                source2, 'src/components/Button.tsx',
+                f"Expected 'src/components/Button.tsx', got: {source2}")
+
+            os.remove(button_file)
+            content = "import { Button } from './components'"
+            index_file = os.path.join(components_dir, 'index.tsx')
+            Path(index_file).touch()
+            imports3 = parse_imports('src/App.tsx', content, abs_output_dir)
+
+            self.assertEqual(len(imports3), 1)
+
+            source3 = imports3[0].source_file.replace('\\', '/')
+            self.assertEqual(source3, 'src/components/index.tsx')
+        finally:
+            shutil.rmtree(output_dir, ignore_errors=True)
 
 
 class TestJavaScriptPathAlias(unittest.TestCase):

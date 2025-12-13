@@ -159,6 +159,28 @@ class PythonImportParser(BaseImportParser):
 
         Returns path relative to output_dir with file extension.
         """
+
+        # Helper function to safely convert to relative path
+        def safe_relpath(path):
+            """Convert path to relative from output_dir, handling mixed abs/rel paths.
+
+            IMPORTANT: In Python imports, paths should always be absolute (from current_dir).
+            Always convert output_dir to absolute to avoid relpath bugs.
+            Use realpath to resolve symlinks (e.g., /var vs /private/var on macOS).
+            """
+            # Use realpath to resolve symlinks and get canonical paths
+            abs_output_dir = os.path.realpath(os.path.abspath(self.output_dir))
+
+            # Path should be absolute (constructed from absolute current_dir)
+            # If somehow it's relative, make it absolute from output_dir
+            if os.path.isabs(path):
+                abs_path = os.path.realpath(path)
+            else:
+                # This shouldn't happen in Python imports, but handle it anyway
+                abs_path = os.path.realpath(os.path.join(abs_output_dir, path))
+
+            return os.path.relpath(abs_path, abs_output_dir)
+
         # Handle relative imports (., .., ...)
         if module_path.startswith('.'):
             # Count leading dots
@@ -187,17 +209,17 @@ class PythonImportParser(BaseImportParser):
             package_init = os.path.normpath(
                 os.path.join(target_dir, '__init__.py'))
             if os.path.exists(package_init):
-                return os.path.relpath(package_init, self.output_dir)
+                return safe_relpath(package_init)
 
             # Try as module
             module_file = os.path.normpath(target_dir + '.py')
             if os.path.exists(module_file):
-                return os.path.relpath(module_file, self.output_dir)
+                return safe_relpath(module_file)
 
             # File doesn't exist - return constructed path
             # Convert relative import notation to file path
             # e.g., "..config" -> "../config.py" or "../config/__init__.py"
-            relative_path = os.path.relpath(target_dir, self.output_dir)
+            relative_path = safe_relpath(target_dir)
             # Try to guess if it's a package or module (assume module if uncertain)
             return relative_path + '.py'
 
@@ -208,13 +230,13 @@ class PythonImportParser(BaseImportParser):
         package_init = os.path.normpath(
             os.path.join(self.current_dir, module_file_path, '__init__.py'))
         if os.path.exists(package_init):
-            return os.path.relpath(package_init, self.output_dir)
+            return safe_relpath(package_init)
 
         # Try as module (relative to current file)
         module_file = os.path.normpath(
             os.path.join(self.current_dir, module_file_path + '.py'))
         if os.path.exists(module_file):
-            return os.path.relpath(module_file, self.output_dir)
+            return safe_relpath(module_file)
 
         # Try from output_dir (absolute import)
         if self.output_dir:
