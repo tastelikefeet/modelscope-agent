@@ -329,6 +329,78 @@ class TestJavaScriptProjectFileImports(unittest.TestCase):
         self.assertEqual(len(imports), 1)
         self.assertIn('index', imports[0].source_file)
 
+    def test_mixed_default_and_named_import(self):
+        """Test mixed import: import Default, { Named } from 'path'
+
+        This is a common React pattern:
+        import React, { useState, useEffect } from 'react'
+        """
+        # Create utils file
+        utils_file = os.path.join(self.src_dir, 'utils.js')
+        Path(utils_file).touch()
+
+        # Test 1: Mixed import with project file
+        content = "import utils, { useState, useEffect } from './utils'"
+        imports = parse_imports(self.test_file, content, self.temp_dir)
+
+        # Should return 2 separate ImportInfo objects
+        self.assertEqual(len(imports), 2)
+
+        # Find default and named imports
+        default_import = next(
+            (imp for imp in imports if imp.import_type == 'default'), None)
+        named_import = next(
+            (imp for imp in imports if imp.import_type == 'named'), None)
+
+        # Verify default import
+        self.assertIsNotNone(default_import, 'Should have default import')
+        self.assertEqual(default_import.imported_items, ['utils'])
+        self.assertIn('utils.js',
+                      default_import.source_file.replace('\\', '/'))
+
+        # Verify named import
+        self.assertIsNotNone(named_import, 'Should have named import')
+        self.assertEqual(
+            sorted(named_import.imported_items), ['useEffect', 'useState'])
+        self.assertIn('utils.js', named_import.source_file.replace('\\', '/'))
+
+        # Both should point to the same source file
+        self.assertEqual(
+            default_import.source_file.replace('\\', '/'),
+            named_import.source_file.replace('\\', '/'))
+
+        # Test 2: Mixed import with external package (should be filtered)
+        content2 = "import React, { useState } from 'react'"
+        imports2 = parse_imports(self.test_file, content2, self.temp_dir)
+
+        # External package should be filtered out
+        self.assertEqual(
+            len(imports2), 0, "External package 'react' should be filtered")
+
+        # Test 3: Mixed import with type modifier
+        types_file = os.path.join(self.src_dir, 'types.ts')
+        Path(types_file).touch()
+
+        content3 = "import type Component, { type Props, State } from './types'"
+        imports3 = parse_imports(self.test_file, content3, self.temp_dir)
+
+        # Should return 2 imports, both marked as type
+        self.assertEqual(len(imports3), 2)
+        default_type = next(
+            (imp for imp in imports3 if imp.import_type == 'default'), None)
+        named_type = next(
+            (imp for imp in imports3 if imp.import_type == 'named'), None)
+
+        self.assertIsNotNone(default_type)
+        self.assertTrue(default_type.is_type_only)
+        self.assertEqual(default_type.imported_items, ['Component'])
+
+        self.assertIsNotNone(named_type)
+        self.assertTrue(named_type.is_type_only)
+        # 'Props' should have inline 'type' keyword removed
+        self.assertIn('Props', named_type.imported_items)
+        self.assertIn('State', named_type.imported_items)
+
 
 class TestJavaScriptPathAlias(unittest.TestCase):
     """Test that path aliases are resolved correctly"""
