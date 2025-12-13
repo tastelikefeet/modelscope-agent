@@ -538,13 +538,23 @@ class JavaScriptImportParser(BaseImportParser):
 
         # Helper function to convert to relative path from output_dir
         def to_relative(path):
-            # If output_dir is relative and current_file is also relative,
-            # just return the path as constructed
-            if not os.path.isabs(self.output_dir) and not os.path.isabs(path):
-                # Both are relative paths, return the path as-is
-                return path
-            # Otherwise use relpath
-            return os.path.relpath(path, self.output_dir)
+            """Convert path to relative from output_dir.
+
+            IMPORTANT: path must be absolute or will be treated as relative to cwd!
+            Always convert to absolute before calling relpath.
+            """
+            # Convert both to absolute paths first
+            abs_output_dir = os.path.abspath(self.output_dir)
+
+            # If path is already absolute, use it directly
+            if os.path.isabs(path):
+                abs_path = path
+            else:
+                # Path is relative - must be relative to output_dir
+                abs_path = os.path.abspath(os.path.join(self.output_dir, path))
+
+            # Now both are absolute, safe to use relpath
+            return os.path.relpath(abs_path, abs_output_dir)
 
         # Convert resolved path to absolute for existence checks
         # resolved is relative to output_dir, so we need to join them

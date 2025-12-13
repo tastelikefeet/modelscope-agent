@@ -512,6 +512,56 @@ class TestMixedImports(unittest.TestCase):
     def tearDown(self):
         shutil.rmtree(self.temp_dir, ignore_errors=True)
 
+    def test_absolute_output_dir_with_relative_paths(self):
+        """Test that absolute output_dir correctly resolves relative import paths
+
+        This is a regression test for the bug where:
+        - output_dir is absolute (e.g., /tmp/xyz)
+        - resolved path is relative (e.g., src/components/Button)
+        - os.path.relpath(relative, absolute) treats relative as relative to cwd
+        - Results in incorrect paths like ../../../../../../...
+
+        The fix ensures both paths are converted to absolute before relpath.
+        """
+        # Create project structure with absolute output_dir
+        src_dir = os.path.join(self.temp_dir, 'src')
+        components_dir = os.path.join(src_dir, 'components')
+        os.makedirs(components_dir)
+
+        app_file = os.path.join(src_dir, 'App.tsx')
+        Path(app_file).touch()
+
+        button_file = os.path.join(components_dir, 'Button.tsx')
+        Path(button_file).touch()
+
+        # Import with relative path
+        content = "import { Button } from './components/Button'"
+
+        # Parse with absolute output_dir (temp_dir is always absolute)
+        imports = parse_imports(app_file, content, self.temp_dir)
+
+        self.assertEqual(len(imports), 1)
+
+        # Verify the path is correct (relative to output_dir)
+        source = imports[0].source_file.replace('\\', '/')
+
+        # Should be src/components/Button.tsx (relative to output_dir)
+        # NOT ../../../../../../... (which would indicate the bug)
+        self.assertTrue(
+            'src/components/Button.tsx' in source,
+            f'Expected path relative to output_dir, got: {source}')
+
+        # Should NOT contain multiple ../ (sign of the bug)
+        self.assertFalse(
+            source.count('../') > 2,
+            f"Path has too many '../', indicates relpath bug: {source}")
+
+        # Verify the full path exists when joined with output_dir
+        full_path = os.path.join(self.temp_dir, imports[0].source_file)
+        self.assertTrue(
+            os.path.exists(full_path),
+            f'Resolved path should exist: {full_path}')
+
     def test_javascript_mixed_imports(self):
         """Test that only project files are returned, external packages filtered"""
         # Create project structure
