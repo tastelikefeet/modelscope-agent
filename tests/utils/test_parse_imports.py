@@ -1,23 +1,10 @@
-"""
-Unit tests for Import Parser
-
-IMPORTANT: parse_imports filters out ALL external packages.
-Only project files (relative imports) are returned.
-External packages like 'react', 'os', 'typing', 'java.util.List' are excluded.
-"""
-
 import os
 import shutil
-import sys
 import tempfile
 import unittest
 from pathlib import Path
 
-# Direct import to avoid omegaconf dependency
-sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '../../ms_agent/utils')))
-import parser_utils
-parse_imports = parser_utils.parse_imports
-ImportInfo = parser_utils.ImportInfo
+from ms_agent.utils.parser_utils import parse_imports
 
 
 class TestPythonExternalPackageFiltering(unittest.TestCase):

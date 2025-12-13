@@ -1,7 +1,6 @@
 import os
 from typing import List, OrderedDict
 import sys
-import json
 
 from omegaconf import DictConfig
 

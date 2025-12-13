@@ -309,7 +309,7 @@ class TypeScriptLSPServer(LSPServer):
             await check_process.communicate()
             
             if check_process.returncode != 0:
-                logger.warning("TypeScript not found. Install with: npm install -g typescript")
+                logger.error("TypeScript not found. Install with: npm install -g typescript")
                 return False
                 
             # Start typescript-language-server

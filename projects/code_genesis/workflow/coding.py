@@ -65,6 +65,9 @@ class Programmer(LLMAgent):
         super().__init__(config, tag, trust_remote_code, **kwargs)
         self.code_file = code_file
         index_dir: str = getattr(config, 'index_cache_dir', DEFAULT_INDEX_DIR)
+        self.pre_import_check = getattr(config, 'pre_import_check', True)
+        self.post_import_check = getattr(config, 'post_import_check', True)
+        self.lsp_check = getattr(config, 'lsp_check', True)
         self.index_dir = os.path.join(self.output_dir, index_dir)
         self.lock_dir = os.path.join(self.output_dir, DEFAULT_LOCK_DIR)
         self.code_condenser = CodeCondenser(config)
@@ -87,7 +90,10 @@ class Programmer(LLMAgent):
         self.stop_imports()
 
     def stop_imports(self):
-        self.llm.args['extra_body']['stop_sequences'] = self.stop_words[0]
+        if self.pre_import_check:
+            self.llm.args['extra_body']['stop_sequences'] = self.stop_words[0]
+        else:
+            self.llm.args['extra_body']['stop_sequences'] = self.stop_words[1]
 
     def stop_nothing(self):
         self.llm.args['extra_body']['stop_sequences'] = self.stop_words[1]
@@ -186,8 +192,15 @@ class Programmer(LLMAgent):
         self.stop_nothing()
 
     async def _incremental_check(self, code_file: str, partial_code: str):
-        lsp_result = await self._incremental_lsp_check(code_file, partial_code)
-        import_result = await self._after_import_check(code_file, partial_code)
+        if self.lsp_check:
+            lsp_result = await self._incremental_lsp_check(code_file, partial_code)
+        else:
+            lsp_result = None
+
+        if self.post_import_check:
+            import_result = await self._after_import_check(code_file, partial_code)
+        else:
+            import_result = None
         return (lsp_result or '') + '\n' + (import_result or '')
 
     @staticmethod
@@ -323,7 +336,8 @@ class Programmer(LLMAgent):
         self.code_files = code_files
 
     def add_unchecked_file(self, untrack_file):
-        self.unchecked_files[untrack_file] = 0
+        if self.post_import_check or self.lsp_check:
+            self.unchecked_files[untrack_file] = 0
 
     def increment_unchecked_file(self):
         for key in list(self.unchecked_files.keys()):

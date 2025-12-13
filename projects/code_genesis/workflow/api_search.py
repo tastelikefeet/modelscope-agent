@@ -3,7 +3,7 @@ import os
 import re
 from concurrent.futures import as_completed
 from concurrent.futures import ThreadPoolExecutor
-from typing import Dict, Any, List
+from typing import Dict, Any
 
 from ms_agent.llm.utils import Tool
 from ms_agent.tools.base import ToolBase

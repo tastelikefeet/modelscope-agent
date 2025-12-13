@@ -90,6 +90,10 @@ tools:
   shell:
     mcp: false
 
+pre_import_check: true
+post_import_check: true
+lsp_check: true
+
 memory:
   code_condenser:
 
