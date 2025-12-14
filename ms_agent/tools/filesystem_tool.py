@@ -307,9 +307,11 @@ class FileSystemTool(ToolBase):
                     server_name='file_system',
                     description=
                     'Replace exact content in a file without using line numbers. '
-                    'This is safer for parallel operations as line numbers may change when '
-                    'multiple agents modify files concurrently. The old_content must match exactly '
-                    'including all whitespace.',
+                    'You must provide:'
+                    '[Required]path: The relative path of modified file.\n'
+                    '[Required]old_content: The old content to be replaced\n'
+                    '[Required]new_content: The new content to replace the `old_content`\n'
+                    'Do not miss any of these arguments!',
                     parameters={
                         'type': 'object',
                         'properties': {
