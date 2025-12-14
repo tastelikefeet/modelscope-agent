@@ -381,8 +381,10 @@ class Programmer(LLMAgent):
             self.is_stop_imports() and not is_code_finish and not is_prepare
             and '<result>' in messages[-1].content
             and '</result>' not in messages[-1].content)
-        is_check = messages[-1].role == 'assistant' and len(messages[-1].tool_calls or []) == 0 and not is_import
+        is_check = messages[-1].role == 'assistant' and len(
+            messages[-1].tool_calls or []) == 0 and not is_import
         message = messages[-1]
+        all_issues = []
 
         if is_import:
             self._before_import_check(messages)
@@ -419,11 +421,9 @@ class Programmer(LLMAgent):
 
         if is_check:
             # After checking when fix ended or write ended
-            all_issues = []
             for uncheck_file in list(self.unchecked_files.keys()):
-                with open(
-                        os.path.join(self.output_dir, uncheck_file),
-                        'r') as f:
+                with open(os.path.join(self.output_dir, uncheck_file),
+                          'r') as f:
                     _code = f.read()
                 lsp_feedback = await self._incremental_check(
                     uncheck_file, _code)
@@ -454,9 +454,10 @@ class Programmer(LLMAgent):
                 messages.append(Message(role='user', content=all_issues))
                 messages[0].content = self.config.prompt.system
 
-        if is_code_finish:
-            # Code done, stop imports
-            self.stop_imports()
+        # Now only one file
+        # if is_code_finish and not all_issues:
+        # Code done, stop imports
+        #     self.stop_imports()
 
         self.filter_code_files()
         if not self.code_files and not self.unchecked_files:

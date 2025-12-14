@@ -757,9 +757,13 @@ class LSPCodeServer(ToolBase):
     def _format_diag_results(diagnostics_result):
 
         ignored_errors = [
-            'cannot be assigned to', 'is not assignable to',
-            'cannot assign to', '"none"', 'vue', 'unused', 'never used',
-            'never read', 'implicitly has'
+            # 'cannot be assigned to', 'is not assignable to', 'cannot assign to',
+            '"none"',
+            'vue',
+            'unused',
+            'never used',
+            'never read',
+            'implicitly has'
         ]
 
         if diagnostics_result.get('has_errors'):

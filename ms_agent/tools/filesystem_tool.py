@@ -446,8 +446,7 @@ class FileSystemTool(ToolBase):
             # Replace based on occurrence parameter
             if occurrence == -1:
                 # Replace all occurrences
-                updated_content = file_content.replace(source,
-                                                       target)
+                updated_content = file_content.replace(source, target)
                 operation_msg = f'Replaced all {count} occurrence(s)'
             elif occurrence < 1:
                 return f'Error: occurrence must be >= 1 or -1 (for all), got {occurrence}'
