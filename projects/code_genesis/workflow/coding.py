@@ -381,14 +381,15 @@ class Programmer(LLMAgent):
             self.is_stop_imports() and not is_code_finish and not is_prepare
             and '<result>' in messages[-1].content
             and '</result>' not in messages[-1].content)
+        is_check = messages[-1].role == 'assistant' and len(messages[-1].tool_calls or []) == 0 and not is_import
+        message = messages[-1]
 
         if is_import:
             self._before_import_check(messages)
 
         if is_code_finish:
-            message = messages[-1]
 
-            # 1. Saving code
+            # Saving code
             result, remaining_text = extract_code_blocks(message.content)
             if result:
                 _response = remaining_text
@@ -416,41 +417,42 @@ class Programmer(LLMAgent):
                 message.content = _response
                 messages.append(Message(role='user', content=saving_result))
 
-                # 2. After checking
-                all_issues = []
-                for uncheck_file in list(self.unchecked_files.keys()):
-                    with open(
-                            os.path.join(self.output_dir, uncheck_file),
-                            'r') as f:
-                        _code = f.read()
-                    lsp_feedback = await self._incremental_check(
-                        uncheck_file, _code)
-                    lsp_feedback = lsp_feedback.strip()
-                    if lsp_feedback:
-                        all_issues.append(f'❎Issues in {uncheck_file}:'
-                                          + lsp_feedback)
-                        self.unchecked_issues[uncheck_file] = lsp_feedback
-                    else:
-                        logger.info(f'✅No issues found in {uncheck_file}.')
-                        self.unchecked_files.pop(uncheck_file)
-                self.increment_unchecked_file()
+        if is_check:
+            # After checking when fix ended or write ended
+            all_issues = []
+            for uncheck_file in list(self.unchecked_files.keys()):
+                with open(
+                        os.path.join(self.output_dir, uncheck_file),
+                        'r') as f:
+                    _code = f.read()
+                lsp_feedback = await self._incremental_check(
+                    uncheck_file, _code)
+                lsp_feedback = lsp_feedback.strip()
+                if lsp_feedback:
+                    all_issues.append(f'❎Issues in {uncheck_file}:'
+                                      + lsp_feedback)
+                    self.unchecked_issues[uncheck_file] = lsp_feedback
+                else:
+                    logger.info(f'✅No issues found in {uncheck_file}.')
+                    self.unchecked_files.pop(uncheck_file)
+            self.increment_unchecked_file()
 
-                if all_issues:
-                    all_issues = '\n'.join(all_issues)
-                    logger.warning(f'Compile error in {self.tag}:')
-                    logger.warning(all_issues)
-                    all_issues = (
-                        f'We check the code with LSP server and regex matching, here are the issues found:\n'
-                        f'{all_issues}\n'
-                        f'You can read related file to find the root cause if needed\n'
-                        f'Then fix the file with `replace_file_contents`\n'
-                        f'Some tips:\n'
-                        f'1. Check any code file not in your dependencies and not in the `file_design.txt`\n'
-                        f'2. Consider the relative path mistakes to your current writing file location\n'
-                        f'3. Do not rewrite the code with <result></result> after fixing with `replace_file_contents`\n'
-                    )
-                    messages.append(Message(role='user', content=all_issues))
-                    messages[0].content = self.config.prompt.system
+            if all_issues:
+                all_issues = '\n'.join(all_issues)
+                logger.warning(f'Compile error in {self.tag}:')
+                logger.warning(all_issues)
+                all_issues = (
+                    f'We check the code with LSP server and regex matching, here are the issues found:\n'
+                    f'{all_issues}\n'
+                    f'You can read related file to find the root cause if needed\n'
+                    f'Then fix the file with `replace_file_contents`\n'
+                    f'Some tips:\n'
+                    f'1. Check any code file not in your dependencies and not in the `file_design.txt`\n'
+                    f'2. Consider the relative path mistakes to your current writing file location\n'
+                    f'3. Do not rewrite the code with <result></result> after fixing with `replace_file_contents`\n'
+                )
+                messages.append(Message(role='user', content=all_issues))
+                messages[0].content = self.config.prompt.system
 
         if is_code_finish:
             # Code done, stop imports
@@ -460,8 +462,8 @@ class Programmer(LLMAgent):
         if not self.code_files and not self.unchecked_files:
             self.runtime.should_stop = True
 
-        if not messages[-1].content:
-            messages[-1].content = 'I should continue to solve the problem.'
+        if not message.content:
+            message.content = 'I should continue to solve the problem.'
             self.error_counter += 1
         else:
             self.error_counter = 0
