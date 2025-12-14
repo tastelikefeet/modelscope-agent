@@ -167,6 +167,9 @@ class Shell(ToolBase):
     async def execute_shell(self, command: str, work_dir: str):
         try:
             self.check_safe(command, work_dir)
+            if work_dir == '.' or work_dir == '.' + os.sep:
+                work_dir = ''
+            work_dir = os.path.join(self.output_dir, work_dir)
             Path(work_dir).mkdir(parents=True, exist_ok=True)
             ret = subprocess.run(
                 command,

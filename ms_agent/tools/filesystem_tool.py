@@ -309,8 +309,8 @@ class FileSystemTool(ToolBase):
                     'Replace exact content in a file without using line numbers. '
                     'You must provide:'
                     '[Required]path: The relative path of modified file.\n'
-                    '[Required]old_content: The old content to be replaced\n'
-                    '[Required]new_content: The new content to replace the `old_content`\n'
+                    '[Required]source: The old content to be replaced\n'
+                    '[Required]target: The new content to replace the `source`\n'
                     'Do not miss any of these arguments!',
                     parameters={
                         'type': 'object',
@@ -321,13 +321,13 @@ class FileSystemTool(ToolBase):
                                 'description':
                                 'The relative path of the file to modify',
                             },
-                            'old_content': {
+                            'source': {
                                 'type':
                                 'string',
                                 'description':
                                 'The exact content to find and replace (must match exactly including whitespace)',
                             },
-                            'new_content': {
+                            'target': {
                                 'type': 'string',
                                 'description':
                                 'The new content to replace with',
@@ -340,7 +340,7 @@ class FileSystemTool(ToolBase):
                                 'Default is -1 (all occurrences).',
                             },
                         },
-                        'required': ['path', 'old_content', 'new_content'],
+                        'required': ['path', 'source', 'target'],
                         'additionalProperties': False
                     }),
             ]
@@ -399,8 +399,8 @@ class FileSystemTool(ToolBase):
 
     async def replace_file_contents(self,
                                     path: str,
-                                    old_content: str,
-                                    new_content: str,
+                                    source: str = None,
+                                    target: str = None,
                                     occurrence: int = -1):
         """Replace exact content in a file without using line numbers.
 
@@ -409,8 +409,8 @@ class FileSystemTool(ToolBase):
 
         Args:
             path(str): The relative file path to modify
-            old_content(str): The exact content to find and replace (must match exactly including whitespace)
-            new_content(str): The new content to replace with
+            source(str): The exact content to find and replace (must match exactly including whitespace)
+            target(str): The new content to replace with
             occurrence(int): Which occurrence to replace (1-based). Use -1 to replace all occurrences.
                            Default is -1 (all occurrences).
 
@@ -418,6 +418,10 @@ class FileSystemTool(ToolBase):
             Success or error message.
         """
         try:
+            if not source:
+                return 'Error: You MUST provide the `source` parameter to be replaced with the `target`.'
+            if not target:
+                return 'Error: You MUST provide the `target` parameter to replace the `source`'
             target_path_real = self.get_real_path(path)
             if target_path_real is None:
                 return f'<{path}> is out of the valid project path: {self.output_dir}'
@@ -429,21 +433,21 @@ class FileSystemTool(ToolBase):
             with open(target_path_real, 'r', encoding='utf-8') as f:
                 file_content = f.read()
 
-            # Check if old_content exists
-            if old_content not in file_content:
+            # Check if source exists
+            if source not in file_content:
                 return (
                     f'Error: Could not find the exact content to replace in <{path}>. '
                     f'Make sure the content matches exactly including all whitespace.'
                 )
 
             # Count occurrences
-            count = file_content.count(old_content)
+            count = file_content.count(source)
 
             # Replace based on occurrence parameter
             if occurrence == -1:
                 # Replace all occurrences
-                updated_content = file_content.replace(old_content,
-                                                       new_content)
+                updated_content = file_content.replace(source,
+                                                       target)
                 operation_msg = f'Replaced all {count} occurrence(s)'
             elif occurrence < 1:
                 return f'Error: occurrence must be >= 1 or -1 (for all), got {occurrence}'
@@ -451,12 +455,12 @@ class FileSystemTool(ToolBase):
                 return f'Error: occurrence {occurrence} exceeds total occurrences ({count}) of the content'
             else:
                 # Replace specific occurrence
-                parts = file_content.split(old_content, occurrence)
+                parts = file_content.split(source, occurrence)
                 if len(parts) <= occurrence:
                     return f'Error: Could not find occurrence {occurrence} of the content'
-                # Rejoin: first (occurrence-1) parts with old_content, then new_content, then the rest
-                updated_content = old_content.join(
-                    parts[:occurrence]) + new_content + old_content.join(
+                # Rejoin: first (occurrence-1) parts with source, then target, then the rest
+                updated_content = source.join(
+                    parts[:occurrence]) + target + source.join(
                         parts[occurrence:])
                 operation_msg = f'Replaced occurrence {occurrence} of {count}'
 
@@ -540,8 +544,8 @@ class FileSystemTool(ToolBase):
             with open(file_path, 'w', encoding='utf-8') as f:
                 f.writelines(new_lines)
 
-            new_content = '\n'.join(new_lines).split('\n')
-            return f'{operation} in file <{path}> successfully. New file has {len(new_content)} lines.'
+            target = '\n'.join(new_lines).split('\n')
+            return f'{operation} in file <{path}> successfully. New file has {len(target)} lines.'
 
         except Exception as e:
             return f'Replace lines in file <{path}> failed, error: ' + str(e)
