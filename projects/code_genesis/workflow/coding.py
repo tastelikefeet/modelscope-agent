@@ -119,6 +119,7 @@ class Programmer(LLMAgent):
             code = ''
 
         if not code_file:
+            messages.pop(-1)
             self.stop_nothing()
             return
 
@@ -365,7 +366,7 @@ class Programmer(LLMAgent):
     def increment_unchecked_file(self):
         for key in list(self.unchecked_files.keys()):
             self.unchecked_files[key] = self.unchecked_files[key] + 1
-            if self.unchecked_files[key] > 3:
+            if self.unchecked_files[key] > 99:  # no limit
                 self.unchecked_files.pop(key)
                 logger.error(
                     f"Unchecked file {key} still have problem:\n{self.unchecked_issues.get('key')}\n"

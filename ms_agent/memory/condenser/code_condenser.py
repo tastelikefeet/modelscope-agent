@@ -68,6 +68,13 @@ class CodeCondenser(Memory):
             }
         ],
         "functions": [...], # 结构和上面functions相同，用于列举不在类中的方法
+        "styles": [ # css等类型的样式信息，保留所有id的结构、类型和名称
+            {
+                "name": "some-key", # class/id name
+                "type": "component", # usage
+                "description": "..."
+            }
+        ]
         "protocols": [
             {
                 "type": "http",
