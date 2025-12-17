@@ -126,15 +126,12 @@ class Config:
 
     @staticmethod
     def safe_get_config(config: DictConfig, keys: str) -> Any:
-        keys = keys.split('.')
-        value = None
-        for key in keys:
-            if hasattr(config, key):
-                value = getattr(config, key)
-                config = value
-            else:
+        node = config
+        for key in keys.split('.'):
+            if not hasattr(node, key):
                 return None
-        return value
+            node = getattr(node, key)
+        return node
 
     @staticmethod
     def _update_config(config: Union[DictConfig, ListConfig],
