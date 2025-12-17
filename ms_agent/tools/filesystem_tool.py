@@ -8,15 +8,13 @@ from pathlib import Path
 from typing import Optional
 
 import json
-
-from omegaconf import DictConfig
-
 from ms_agent.config import Config
 from ms_agent.llm import LLM
 from ms_agent.llm.utils import Message, Tool
 from ms_agent.tools.base import ToolBase
 from ms_agent.utils import get_logger
 from ms_agent.utils.constants import DEFAULT_INDEX_DIR, DEFAULT_OUTPUT_DIR
+from omegaconf import DictConfig
 
 logger = get_logger()
 
@@ -60,7 +58,8 @@ class FileSystemTool(ToolBase):
         index_dir = getattr(config, 'index_cache_dir', DEFAULT_INDEX_DIR)
         self.index_dir = os.path.join(self.output_dir, index_dir)
         self.system = self.SYSTEM_FOR_ABBREVIATIONS
-        system = Config.safe_get_config(self.config, 'tools.file_system.system_for_abbreviations')
+        system = Config.safe_get_config(
+            self.config, 'tools.file_system.system_for_abbreviations')
         if system:
             self.system = system
 
