@@ -8,6 +8,10 @@ from pathlib import Path
 from typing import Optional
 
 import json
+
+from omegaconf import DictConfig
+
+from ms_agent.config import Config
 from ms_agent.llm import LLM
 from ms_agent.llm.utils import Message, Tool
 from ms_agent.tools.base import ToolBase
@@ -56,8 +60,9 @@ class FileSystemTool(ToolBase):
         index_dir = getattr(config, 'index_cache_dir', DEFAULT_INDEX_DIR)
         self.index_dir = os.path.join(self.output_dir, index_dir)
         self.system = self.SYSTEM_FOR_ABBREVIATIONS
-        if hasattr(self.config.tools.file_system, 'system_for_abbreviations'):
-            self.system = self.config.tools.file_system.system_for_abbreviations
+        system = Config.safe_get_config(self.config, 'tools.file_system.system_for_abbreviations')
+        if system:
+            self.system = system
 
     async def connect(self):
         logger.warning_once(

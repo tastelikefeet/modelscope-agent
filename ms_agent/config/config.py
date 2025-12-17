@@ -125,6 +125,18 @@ class Config:
         return _dict_config
 
     @staticmethod
+    def safe_get_config(config: DictConfig, keys: str) -> Any:
+        keys = keys.split('.')
+        value = None
+        for key in keys:
+            if hasattr(config, key):
+                value = getattr(config, key)
+                config = value
+            else:
+                return None
+        return value
+
+    @staticmethod
     def _update_config(config: Union[DictConfig, ListConfig],
                        extra: Dict[str, str] = None):
         if not extra:
