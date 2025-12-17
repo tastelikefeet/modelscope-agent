@@ -14,7 +14,6 @@ from ms_agent.llm.utils import Message, Tool
 from ms_agent.tools.base import ToolBase
 from ms_agent.utils import get_logger
 from ms_agent.utils.constants import DEFAULT_INDEX_DIR, DEFAULT_OUTPUT_DIR
-from omegaconf import DictConfig
 
 logger = get_logger()
 
