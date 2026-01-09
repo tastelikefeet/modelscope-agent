@@ -34,8 +34,6 @@ class Message:
 
     tool_call_id: Optional[str] = None
 
-    name: Optional[str] = None
-
     # needed for output
     reasoning_content: str = ''
 
