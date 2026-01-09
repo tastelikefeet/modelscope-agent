@@ -34,6 +34,9 @@ class Message:
 
     tool_call_id: Optional[str] = None
 
+    # Also defined in OpenAI message
+    name: Optional[str] = None
+
     # needed for output
     reasoning_content: str = ''
 
