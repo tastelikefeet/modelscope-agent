@@ -114,26 +114,6 @@ class GenerateImages(CodeAgent):
                 img = Image.new('RGB', (2000, 2000), config.background)
                 img.save(output_path)
         else:
-            # Optimize prompt to avoid timeout.
-            # Remove abstract/ambiguous terms without adding concrete details.
-            if prompt:
-                risky_terms = [
-                    'volumetric lighting', '8k quality', 'ultra realistic',
-                    'cinematic medical-tech atmosphere',
-                    'professional clean aesthetic'
-                ]
-                safe_prompt = prompt
-                for term in risky_terms:
-                    safe_prompt = safe_prompt.replace(term, '')
-
-                # Ensure it's not empty, fallback to original if too aggressive
-                if len(safe_prompt.strip()) < 10:
-                    safe_prompt = prompt
-
-                # Update main prompt variable
-                prompt = safe_prompt.strip()
-            # ---------------------------------------------
-
             logger.info(f'Generating image for: {prompt}.')
             img_path = os.path.join(images_dir,
                                     f'illustration_{i + 1}_origin.png')

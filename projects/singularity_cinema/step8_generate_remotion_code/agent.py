@@ -360,223 +360,17 @@ Your goal is to create a visual experience that complements the narration, NOT j
 **Task**: Create a Remotion component
 - Component name: {component_name}
 - Content (Narration): {content}
-- Requirement: {animation_requirement}
 - Duration: {audio_duration} seconds
 - Code language: **TypeScript (React)**
 
-{motion_guide_section}
-
 {image_usage}
 
-**Design & Animation Guidelines (CRITICAL for High-Quality Output):**
-1.  **TRANSPARENT BACKGROUND (CRITICAL)**:
-    *   The root container MUST be transparent. `style={{ backgroundColor: undefined }}`.
-    *   **NEVER** use a solid background color (white/black) for the full screen.
-    *   **NEVER** use a full-screen image as a background. (Background will be composed later.)
-    *   **NEVER** use `staticFile("images/illustration_X_background.png")`.
-    *   **DO NOT** set a solid background color (like white or black)
-        on the main `AbsoluteFill` or container.
-    *   **DO NOT** use `backgroundColor: 'black'` anywhere unless it's a small card.
-    *   The animation will be overlaid on top of a background video/image in post-production.
-    *   Only set background colors for specific UI cards or elements, not the whole screen.
+- 如果图片存在，你需要使用所有的图片，图片需要放置在屏幕显眼的位置，不要放置在角落
+- 你的动画时长需要符合Duration的要求
+- 你的动画需要符合Content原始需求，尽量高雅，不允许使用火柴人
+- 保证所有元素不重叠，不被屏幕边缘切分
+- 你的屏幕是16:9的
 
-2.  **NO VERBATIM TEXT (ABSOLUTELY FORBIDDEN)**:
-    *   **STOP**: Do NOT put the narration text on the screen. I repeat: NO SUBTITLES.
-    *   The audience listens to the audio. Reading the same text is boring.
-    *   **ACTION**: Extract 1-3 keywords only.
-        If the text is "The sky is blue", just show "BLUE".
-    *   **ONLY** display **Keywords**, **Titles**, **Statistics**, or **Short Phrases** (3-5 words max)
-        that reinforce the message.
-    *   If the content is "100 people joined", DO NOT write that whole sentence. Write "100 People".
-    *   **Visual Metaphors**: Translate the content into visuals.
-        If the text mentions "history", show an old scroll or timeline element.
-    *   **MEANINGFUL ANIMATION**: The animation must *tell the story*.
-        If the script is about "growth", show a bar chart rising or a tree growing.
-        If it's about "connection", show lines connecting dots.
-        Don't just fly text in randomly.
-    *   **EXCEPTION (REQUIRED SHORT LABELS)**:
-                - If the **Requirement** or the **Visual Director plan/beats** explicitly demands an on-screen phrase,
-                    you MUST show it.
-        - Treat it as a **Keyword Label**, not a subtitle: keep it short, centered, and stable.
-        - **High contrast only**: black text on an opaque white card. NO gradients for text.
-
-3.  **High-End Motion Logic (Modern UI Style)**:
-    *   **"Alive" Check**: Nothing should be completely static, BUT prevent chaos.
-    *   **Sophisticated In-Place Motion**:
-                - Instead of only flying across the screen, use **subtle 3D rotations** (`rotateY(15deg)`)
-                    or **gentle breathing scales** (1.0 -> 1.02) to emphasize elements.
-                - **Mask Reveals**: Text shouldn't just fade in; it should slide up from an invisible container
-                    (`overflow: hidden`).
-        - **Perspective Tilts**: `transform: perspective(1000px) rotateX(10deg)` adds depth without clutter.
-    *   **Logical Staging**:
-        - Enter elements in hierarchy order: Background -> Container -> Title -> Detail.
-        - Use `sequence` heavily. Don't show everything at frame 0.
-    *   **Camera Feel**: Use `interpolate` for very slow, elegant drifts
-        (e.g., slight pan or zoom over 5 seconds). Not jerky.
-    *   **Physics**: Use `spring` with higher mass/damping for a "weighted", expensive feel.
-    *   **Staggered Animation**: Don't show 3 items at once. Show Item 1, wait 10 frames, Item 2, wait 10 frames...
-
-        *   **EFFECT BUDGET (ANTI-CHAOS RULE)**:
-                - Choose at most **3 motion motifs** for the whole segment and reuse them:
-                    1) reveal (mask/slide), 2) emphasis (scale/pulse), 3) camera drift (subtle scale/position)
-                - Avoid random spins/glitches unless the Visual Director explicitly asked.
-                - Motions must follow the **beats** above (0-25%, 25-80%, 80-100%).
-
-4.  **CODING RULES (STRICT)**:
-    *   **NO TEMPLATE LITERALS FOR TRANSFORMS**: Do NOT use backticks for `transform` properties
-        containing `interpolate`.
-        *   BAD: `transform: \\`translateX(${{interpolate(...)}})px\\``
-        *   GOOD: `transform: 'translateX(' + interpolate(...) + 'px)'`
-        *   This is to prevent build errors with nested braces.
-    *   **Use `interpolate` correctly**:
-        `interpolate(frame, [0, 30], [0, 1], {{extrapolateRight: 'clamp'}})`.
-    *   **Use `spring` correctly**:
-        `const anim = spring({{ frame, fps, config: {{ damping: 200 }} }})`.
-
-    *   **DETERMINISM (CRITICAL)**:
-        - DO NOT use `Math.random()`, `Date.now()`, or any non-deterministic APIs inside render.
-        - If you need pseudo-randomness, precompute it once (e.g., `useMemo`) with a fixed seed.
-
-
-4.  **Clean Layout & Composition (STRICT)**:
-    *   **NO OVERLAPPING (ZERO TOLERANCE)**:
-        - Use `flex` containers or absolute positioning with explicit non-overlapping coordinates.
-                - If using `AbsoluteFill`, define `left: 0, width: '50%'` for one element and
-                    `left: '50%', width: '50%'` for the other.
-                - **NEVER** place text directly on top of a complex image without a semi-transparent backing card
-                    (`backgroundColor: 'rgba(0,0,0,0.7)'`).
-    *   **Visual Hierarchy**: Make the most important element (keyword or main image) the largest.
-    *   **Safe Zones**: Keep important text/images away from the very edges (50px padding).
-    *   **Director's Layout**: Follow the `layout_composition` instruction above.
-
-4.5 **SAFE AREA (CENTRAL 60% RULE, MLLM-CHECKED)**:
-    *   All primary elements (keywords, icons, main shapes) MUST stay inside the central 60% of the frame.
-    *   Implement this deterministically:
-        - Define `const SAFE_PADDING_X = width * 0.2;` and `const SAFE_PADDING_Y = height * 0.2;`
-        - Use a container: `const SAFE = {{ left: SAFE_PADDING_X, top: SAFE_PADDING_Y,
-          width: width - 2*SAFE_PADDING_X, height: height - 2*SAFE_PADDING_Y }};`
-        - Place your main layout inside a div with `position: 'absolute'` and these SAFE bounds.
-    *   Do NOT put any text near edges/corners; do not use vertical text.
-
-5.  **Visual Polish (Light Theme)**:
-    *   **Color Palette**: Use a harmonious, light color scheme (whites, pastels, soft greys)
-        with strong accent colors for text.
-    *   **Shadows**: Add `boxShadow` or `textShadow` to create depth.
-    *   **Gradients**: Use `linear-gradient` for text fills or element backgrounds to look rich.
-    *   **Rounded Corners**: `borderRadius` makes UI elements look modern.
-    *   **Typography**: Use large, bold fonts for titles. Ensure high contrast.
-
-6.  **Code Requirements**:
-    *   Canvas size: 1280x720 (16:9)
-    *   Use `remotion` package components: `AbsoluteFill`, `Sequence`, `Img`, `Audio`, `Video`, `IFrame`.
-    *   Use `remotion` hooks: `useCurrentFrame`, `useVideoConfig`, `spring`, `interpolate`, `measureSpring`.
-    *   Export the component as default.
-    *   The component should take no props or optional props.
-    *   **IMPORTANT**: The output must be a valid React Functional Component.
-    *   **IMPORTANT**: Do not include `Composition` or `registerRoot` in this file. Just the component.
-    *   **IMPORTANT**: Assume images are in `public/images/`.
-        Use `staticFile` from `remotion` to reference them if needed, e.g. `src={{staticFile("images/filename")}}`.
-    *   **CRITICAL CODING RULE**: When using `interpolate`, the `inputRange` array MUST be strictly increasing
-        (e.g., `[0, 10, 20]`). NEVER use unsorted arrays like `[0, 20, 10]`.
-    *   **CRITICAL CODING RULE**: `inputRange` and `outputRange` in `interpolate` MUST have the same length.
-    *   **CRITICAL CODING RULE**: In `interpolate`, `outputRange` values MUST be of the same type and unit.
-        Do NOT mix numbers and strings (e.g., `[0, "10px"]` is INVALID).
-        Do NOT mix units (e.g., `["0px", "10%"]` is INVALID).
-    *   **CRITICAL REACT RULE**: NEVER render an object directly as a child
-        (e.g., `<div>{{myObject}}</div>` will crash).
-        Always render string/number properties (e.g., `<div>{{myObject.text}}</div>`).
-    *   **VISIBILITY RULE**: Ensure all main elements are visible on screen.
-        Avoid `opacity: 0` unless animating.
-        Check `zIndex` to ensure foreground elements are not hidden behind backgrounds.
-    *   **NO FLICKERING**: Do NOT use modulus-based flashing (e.g., `frame % 15`).
-        For pulsing, use `Math.sin(frame / 10)` to create a smooth, high-quality breathing effect.
-
-7.  **OFFLINE / WINDOWS FONT RULES (CRITICAL)**:
-    *   This project runs in an offline Windows environment. **DO NOT** access the public Internet.
-    *   **FORBIDDEN**:
-        - Importing `@remotion/fonts`
-                - Calling `loadFont()`
-                - Any external URLs such as `https://fonts.googleapis.com/...`, `https://fonts.gstatic.com/...`,
-                    or any remote `.woff/.ttf` downloads
-    *   **REQUIRED**: Use system fonts only.
-        - Default Chinese-friendly Windows font stack:
-          `fontFamily: 'Microsoft YaHei, SimHei, SimSun, KaiTi, FangSong, Arial, sans-serif'`
-        - For calligraphy feel, prefer `KaiTi` / `FangSong`.
-    *   You may still use `fontWeight`, `letterSpacing`, `textShadow`, and gradients for visual polish.
-
-8.  **TYPOGRAPHY CONSISTENCY (RECOMMENDED)**:
-    *   For a consistent visual identity across segments, define ONE reusable constant near the top of the file
-        and use it everywhere:
-        - `const CN_FONT_STACK =
-          'Microsoft YaHei, SimHei, SimSun, KaiTi, FangSong, Arial, sans-serif';`
-    *   Then use `fontFamily: CN_FONT_STACK` for all text unless there is a strong reason not to.
-
-**SELF-CORRECTION CHECKLIST (Before you output code)**:
-1.  Did I put the full text on screen? -> If YES, delete it and keep only keywords.
-2.  Did I add a white background? -> If YES, remove it.
-3.  Are elements overlapping? -> If YES, move them apart. **ZERO TOLERANCE**.
-4.  Did I use `display: flex` instead of absolute positioning? -> If NO, rewrite using Flexbox.
-5.  Did I use the foreground images as a background wallpaper? -> If YES, change it to a floating element.
-6.  Did I follow the Visual Director's Layout & Motion Guide? -> If NO, rewrite the animation to match the guide.
-7.  Is the animation meaningful? -> If NO, add visual metaphors related to the script.
-8.  Is it flickering? -> If YES, replace `frame %` with `Math.sin` for a smooth pulse.
-
-**UNIVERSAL COMPONENT TEMPLATE**:
-You SHOULD structure your component like this to prevent layout issues:
-
-```tsx
-import React from 'react';
-import {{
-    AbsoluteFill,
-    useCurrentFrame,
-    useVideoConfig,
-    Img,
-    staticFile,
-    interpolate,
-    spring,
-}} from 'remotion';
-
-export const SegmentX = () => {{
-  const frame = useCurrentFrame();
-  const {{ fps }} = useVideoConfig();
-
-  // 1. Safe Area Container (85% size, Centered)
-  // 2. Flexbox Layout (Column or Row) for Separation
-  return (
-        <AbsoluteFill
-            style={{{{
-                display: 'flex',
-                justifyContent: 'center',
-                alignItems: 'center',
-                backgroundColor: undefined,
-            }}}}
-        >
-       <div style={{{{
-          display: 'flex',
-          flexDirection: 'column', // or 'row'
-          width: '85%',
-          height: '85%',
-          justifyContent: 'space-around', // Distribute space
-          alignItems: 'center',
-          gap: 40
-       }}}}>
-        <div className="text-zone"
-            style={{{{ flex: 1, display: 'flex', justifyContent: 'center', alignItems: 'center' }}}}>
-              {{/* TEXT GOES HERE */}}
-          </div>
-        <div className="visual-zone"
-            style={{{{ flex: 1, display: 'flex', justifyContent: 'center', alignItems: 'center' }}}}>
-              {{/* IMAGES GO HERE */}}
-          </div>
-       </div>
-    </AbsoluteFill>
-  );
-}};
-```
-
-**CRITICAL IMAGE RULE**:
-All `<Img />` tags MUST have this style to prevent overflow:
-`style={{{{ maxWidth: '80%', maxHeight: '50%', objectFit: 'contain' }}}}`
 
 Please create Remotion code that meets the above requirements and creates a visually stunning animation.
 """
@@ -603,6 +397,14 @@ Please create Remotion code that meets the above requirements and creates a visu
                 code = code[idx:]
 
         code = code.strip()
+
+        def fix_easing_syntax(code: str) -> str:
+            pattern = r'Easing\.(\w+)\(Easing\.(\w+)\}\)'
+            replacement = r'Easing.\1(Easing.\2)'
+
+            return re.sub(pattern, replacement, code)
+
+        code = fix_easing_syntax(code)
 
         # Post-process for offline Windows compatibility (deterministic safety net)
         code = GenerateRemotionCode._strip_external_font_loading(code)

@@ -45,32 +45,6 @@ Rules:
 - NO SCENES, no environment, no text.
 """
 
-    # Visual Director plan generator (JSON plan per segment)
-    system_visual_director = """You are a Visual Director and Storyboard Artist for a high-end motion graphics video.
-
-Analyze the given narration segment and its animation requirement.
-Return ONE JSON object ONLY (no markdown fences, no extra text) with the following keys:
-- background_concept: string (describe an abstract/cinematic background concept;
-    keep the CENTER area empty for overlays)
-- foreground_assets: array of 0-1 strings (specific physical objects/props; if none, [])
-- layout_composition: one of [
-    "Center Focus",
-    "Split Screen (Left Text/Right Image)",
-    "Split Screen (Right Text/Left Image)",
-    "Grid Layout",
-    "Asymmetrical Balance"
-]
-- text_placement: string (where short keyword labels should go)
-- visual_metaphor: string (1 sentence mapping meaning -> visuals)
-- beats: array of 3 strings (0-25%, 25-80%, 80-100% story beats)
-- motion_guide: string (simple deterministic motion guidance)
-
-Constraints:
-- Prefer simple, clean composition; no chaos.
-- Beats must be time-ordered.
-- Foregrounds strictly limited to 0 (none) or 1 (focus object).
-"""
-
     def __init__(self,
                  config: DictConfig,
                  tag: str,

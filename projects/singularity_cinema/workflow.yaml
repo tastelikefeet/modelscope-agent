@@ -25,14 +25,14 @@ generate_audio:
     kwargs:
       code_file: step4_generate_audio/agent.py
   next:
-    - visual_director
-
-visual_director:
-  agent:
-    kwargs:
-      code_file: step5_visual_director/agent.py
-  next:
     - generate_illustration_prompts
+
+#visual_director:
+#  agent:
+#    kwargs:
+#      code_file: step5_visual_director/agent.py
+#  next:
+#    - generate_illustration_prompts
 
 generate_illustration_prompts:
   agent:

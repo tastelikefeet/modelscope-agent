@@ -20,7 +20,7 @@ The storyboard needs to meet the following conditions:
 - Each storyboard panel will carry a piece of narration, one {animation_engine} animation(optional),
   one image background, and one subtitle, even one video(optional)
         * Use clear, high-contrast font colors to prevent text from blending with the background
-        * Use a cohesive color palette of 2-4 colors for the entire video.
+        * Use a cohesive color palette of at most 2~4 colors for the entire video.
             Avoid cluttered colors, bright blue, and bright yellow.
             Prefer deep, dark tones
     * Low-quality animations such as stick figures are forbidden

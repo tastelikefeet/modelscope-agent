@@ -359,58 +359,6 @@ class RenderRemotion(CodeAgent):
         return messages
 
     def _update_segment_code(self, i, code):
-        # Enforce transparent output: remove backgrounds before writing.
-        code = self._strip_background_color(code)
-        code = self._strip_background_images(code)
-
-        # Enforce universal bounds safety
-        try:
-            code = self._enforce_image_constraints(code)
-            code = self._enforce_layout_safety(code)
-        except Exception:
-            pass
-
-        # Best-effort TSX sanitizer to prevent bundling failures.
-        try:
-            code = RenderRemotion._auto_fix_template_parens(code)
-            code = RenderRemotion._auto_fix_common_concat_syntax(code)
-
-            # Auto-fix: Convert standard <img> to <Img> and inject imports
-            # 1. Convert <img src="/images/..."> to <Img src={staticFile("images/...")}>
-            if '<img' in code:
-                code = re.sub(
-                    r'<img\s+([^>]*?)src=["\']/images/([^"\']+)["\']([^>]*?)>',
-                    r'<Img \1src={staticFile("images/\2")} \3>', code)
-                code = code.replace('<img ', '<Img ')
-
-            # 2. Ensure staticFile and Img are imported if used
-            needed = []
-            # Check if used but not imported (simple heuristic)
-            if 'staticFile' in code and not re.search(
-                    r'import\s+.*staticFile.*from', code):
-                needed.append('staticFile')
-            if 'Img' in code and not re.search(r'import\s+.*Img.*from', code):
-                needed.append('Img')
-
-            if needed:
-                imports_str = ', '.join(needed)
-                # Try to append to existing Remotion import
-                if re.search(r'import\s+\{.*\}\s+from\s+[\'"]remotion[\'"]',
-                             code):
-                    # Use a function for replacement to handle the string safely
-                    def _add_import(m):
-                        return f', {imports_str} }} from \'remotion\''
-
-                    code = re.sub(
-                        r'\}\s*from\s*[\'"]remotion[\'"]',
-                        _add_import,
-                        code,
-                        count=1)
-                else:
-                    code = f"import {{ {imports_str} }} from 'remotion';\n" + code
-
-        except Exception:
-            pass
         # Update in remotion_code_dir (source of truth)
         src_file = os.path.join(self.remotion_code_dir, f'Segment{i+1}.tsx')
         with open(src_file, 'w', encoding='utf-8') as f:
@@ -497,24 +445,6 @@ class RenderRemotion(CodeAgent):
                 # Sanitize code to reduce common esbuild/TSX syntax failures.
                 with open(src_file, 'r', encoding='utf-8') as f:
                     code = f.read()
-
-                # Apply proactive fixes
-                try:
-                    code = RenderRemotion._auto_fix_template_parens(code)
-                    code = RenderRemotion._auto_fix_common_concat_syntax(code)
-                except Exception:
-                    pass
-
-                # Enforce universal bounds safety and layout on SETUP
-                try:
-                    code = RenderRemotion._enforce_image_constraints(code)
-                    code = RenderRemotion._enforce_layout_safety(code)
-                except Exception:
-                    pass
-
-                # Enforce transparent output: remove full-screen backgrounds.
-                code = self._strip_background_color(code)
-                code = self._strip_background_images(code)
                 with open(dst_file, 'w', encoding='utf-8') as f:
                     f.write(code)
             else:
@@ -688,7 +618,8 @@ class RenderRemotion(CodeAgent):
         # Use a specific version known to work.
         # Link: https://npmmirror.com/mirrors/chrome-for-testing/134.0.6998.35/win64/chrome-headless-shell-win64.zip
         version = '134.0.6998.35'
-        platform_str = 'win64' if os.name == 'nt' else 'linux64'
+        import sys
+        platform_str = 'win64' if os.name == 'nt' else ('mac64' if sys.platform == 'darwin' else 'linux64')
         filename = f'chrome-headless-shell-{platform_str}.zip'
         mirror_url = f'https://npmmirror.com/mirrors/chrome-for-testing/{version}/{platform_str}/{filename}'
 
@@ -1025,35 +956,11 @@ Does this code follow best practices for layout safety (Flexbox) and avoid obvio
         if not code:
             return i, ''
 
-
-# 1. Auto-fix template/parentheses issues.
-        fixed_code = RenderRemotion._auto_fix_template_parens(code)
-        if fixed_code != code:
-            logger.info(f'Auto-fixed template/syntax issues for segment {i+1}')
-            # Continue to use this fixed code, but still check if we need LLM.
-            code = fixed_code
-
-        # 2. Auto-fix common concatenation issues.
-        fixed_code = RenderRemotion._auto_fix_common_concat_syntax(code)
-        if fixed_code != code:
-            logger.info(f'Auto-fixed concatenation syntax for segment {i+1}')
-            # If this was a build failure, this simple fix might be enough.
-            if error_log and ('Module build failed' in error_log
-                              or 'Transform failed' in error_log):
-                return i, fixed_code
-            code = fixed_code
-
         # 3. Use LLM to fix remaining issues.
         llm = LLM.from_config(config)
         logger.info(f'Fixing code for segment {i+1} with LLM...')
         fixed_code = RenderRemotion._fix_code_impl(llm, error_log, code,
                                                    remotion_project_dir)
-
-        # 4. Post-fix cleanup.
-        if fixed_code:
-            fixed_code = RenderRemotion._strip_background_color(fixed_code)
-            fixed_code = RenderRemotion._strip_background_images(fixed_code)
-
         if fixed_code and RenderRemotion._is_valid_segment_component(
                 fixed_code, i + 1):
             return i, fixed_code
@@ -1244,23 +1151,8 @@ Return the full corrected code.
             code = code_match.group(1)
         else:
             code = response
-            if 'import React' in code:
-                idx = code.find('import React')
-                code = code[idx:]
 
         return code.strip()
-
-        # NOTE: `_auto_fix_common_concat_syntax` is implemented further below.
-        code = re.sub(r'\+\s*"\)\)\s*\+\s*"\)', '+ ")"', code)  # Fallback
-
-        # Pattern 2: `+ ')) + '` -> `+ '` (middle of chain)
-        code = re.sub(r"\+\s*'\)\)\s*\+\s*'", "+ '", code)
-        code = re.sub(r'\+\s*"\)\)\s*\+\s*"', '+ "', code)
-
-        # Pattern 3: Stray `+ ')'` at end of transform sometimes if double added?
-        # But be careful not to remove valid ones.
-
-        return code
 
     @staticmethod
     def _auto_fix_template_parens(code: str) -> str:

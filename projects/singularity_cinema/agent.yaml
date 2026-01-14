@@ -120,10 +120,10 @@ video_generator:
   seconds: [4, 8, 12]
 
 image_generator:
-  type: modelscope
-  model: Qwen/Qwen-Image-2512
+  type: dashscope
+  model: gemini-3-pro-image-preview
   api_key:
-  size: '1280x720'
+  ratio: '16:9'
 
 audio_generator:
   type: edge_tts
@@ -271,7 +271,7 @@ animation_render_timeout: 120
 
 output_dir: output_video
 
-slogan: ['知识元气弹', '梯度爆炸']
+slogan: ['']
 
 slogan_subtitle_color: '#000000'
 
