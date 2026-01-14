@@ -26,23 +26,21 @@ class Pattern:
 class GenerateIllustrationPrompts(CodeAgent):
 
     # Background prompt generator (t2i)
-    system = """You are a prompt engineer for generating a SINGLE background image for a short-form video.
+    system = """你是一名提示词工程师，负责为短视频生成一张背景图。
 
-Requirements:
-- Output ONLY one concise English prompt. No markdown, no JSON, no explanations.
-- The background should be cinematic and cohesive.
-- IMPORTANT: Leave the CENTER area visually clean/empty (safe area) for overlay animation (Remotion).
-- Avoid clutter and tiny unreadable details.
+要求：
+- 仅输出一条简洁的英文提示词。不要使用 markdown、JSON 或任何解释说明。
+- 背景应具有电影感且风格统一。
+- 重要：画面中心区域保持视觉上的干净/留白（安全区），以便叠加动画。
+- 避免杂乱和细小难辨的细节。
 """
 
     # Foreground prompt generator (t2i)
-    system_foreground = """You are a prompt engineer for generating a SINGLE foreground asset.
+    system_foreground = """你是一名提示词工程师，负责生成单个前景素材。
 
-Rules:
-- Output ONLY one concise English prompt. No markdown, no JSON, no explanations.
-- ISOLATED OBJECT: single object on WHITE background (or solid color).
-- Sticker / high-quality 3D icon style.
-- NO SCENES, no environment, no text.
+规则：
+- 仅输出一条简洁的英文提示词。不要使用 markdown、JSON 或任何解释说明。
+- 丰富的细节：保证图片可以完整表述原需求。
 """
 
     def __init__(self,
@@ -55,9 +53,7 @@ Rules:
         self.num_parallel = getattr(self.config, 'llm_num_parallel', 10)
         self.illustration_prompts_dir = os.path.join(self.work_dir,
                                                      'illustration_prompts')
-        self.visual_plans_dir = os.path.join(self.work_dir, 'visual_plans')
         os.makedirs(self.illustration_prompts_dir, exist_ok=True)
-        os.makedirs(self.visual_plans_dir, exist_ok=True)
 
     async def execute_code(self, messages: Union[str, List[Message]],
                            **kwargs) -> List[Message]:
@@ -71,8 +67,7 @@ Rules:
             futures = {
                 executor.submit(self._generate_illustration_prompts_static, i,
                                 segment, self.config,
-                                self.illustration_prompts_dir,
-                                self.visual_plans_dir): i
+                                self.illustration_prompts_dir): i
                 for i, segment in tasks
             }
             for future in as_completed(futures):
@@ -81,33 +76,15 @@ Rules:
 
     @staticmethod
     def _generate_illustration_prompts_static(i, segment, config,
-                                              illustration_prompts_dir,
-                                              visual_plans_dir):
+                                              illustration_prompts_dir):
         """Static method for multiprocessing"""
         llm = LLM.from_config(config)
-
-        # 1. Read Visual Plan from Step 5.
-        # The new Visual Director (Step 5) has already generated the plan.
-        # We just need to load it. If it doesn't exist, we fallback.
-        plan_path = os.path.join(visual_plans_dir, f'plan_{i+1}.json')
-        visual_plan = {}
-        if os.path.exists(plan_path):
-            try:
-                with open(plan_path, 'r', encoding='utf-8') as f:
-                    visual_plan = json.load(f)
-            except Exception as e:
-                logger.warning(
-                    f'Failed to load visual plan for segment {i+1}: {e}')
-
-        # If plan is missing or empty, use fallback/legacy generation
-        # But ideally, Step 5 guaranteed this file exists.
-
         max_retries = 10
         if config.background == 'image':
             for attempt in range(max_retries):
                 try:
                     GenerateIllustrationPrompts._generate_illustration_impl(
-                        llm, i, segment, visual_plan, illustration_prompts_dir)
+                        llm, i, segment, illustration_prompts_dir)
                     break
                 except Exception:
                     time.sleep(2)
@@ -116,24 +93,18 @@ Rules:
             for attempt in range(max_retries):
                 try:
                     GenerateIllustrationPrompts._generate_foreground_impl(
-                        llm, i, segment, visual_plan, illustration_prompts_dir)
+                        llm, i, segment, illustration_prompts_dir)
                     break
                 except Exception:
                     time.sleep(2)
 
     @staticmethod
-    def _generate_illustration_impl(llm, i, segment, visual_plan,
-                                    illustration_prompts_dir):
+    def _generate_illustration_impl(llm, i, segment, illustration_prompts_dir):
         if os.path.exists(
                 os.path.join(illustration_prompts_dir, f'segment_{i+1}.txt')):
             return
 
-        # NEW: Prefer Visual Director's concept
-        background_concept = visual_plan.get('background_concept')
-        if not background_concept:
-            background_concept = segment.get('background',
-                                             'Abstract cinematic background')
-
+        background_concept = segment.get('background')
         logger.info(
             f'Generating background prompt from plan: {background_concept}')
 
@@ -155,34 +126,9 @@ Rules:
             f.write(response)
 
     @staticmethod
-    def _generate_foreground_impl(llm, i, segment, visual_plan,
+    def _generate_foreground_impl(llm, i, segment,
                                   illustration_prompts_dir):
-        # NEW: Prefer Visual Director's assets
-        foreground_assets = []
-
-        # 1. Check for new 'visual_assets' list (Multi-asset support)
-        if 'visual_assets' in visual_plan and isinstance(
-                visual_plan['visual_assets'], list):
-            foreground_assets = [
-                a.get('description') for a in visual_plan['visual_assets']
-                if a.get('description')
-            ]
-
-        # 2. Fallback to old 'main_visual_asset' (Single asset)
-        elif 'main_visual_asset' in visual_plan:
-            main_asset = visual_plan.get('main_visual_asset', {})
-            if main_asset and isinstance(
-                    main_asset, dict) and main_asset.get('description'):
-                foreground_assets.append(main_asset.get('description'))
-
-        # 3. Fallback to segment config
-        if not foreground_assets and segment.get('foreground'):
-            foreground_assets = segment.get('foreground')
-
-        # Limit to 1 foreground asset based on user preference for clean visuals
-        if len(foreground_assets) > 1:
-            foreground_assets = foreground_assets[:1]
-
+        foreground_assets = segment.get('foreground')
         for idx, asset_desc in enumerate(foreground_assets):
             file_path = os.path.join(illustration_prompts_dir,
                                      f'segment_{i+1}_foreground_{idx+1}.txt')

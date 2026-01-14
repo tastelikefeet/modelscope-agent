@@ -97,14 +97,6 @@ class FixRemotionCode(CodeAgent):
         """Static method for multiprocessing"""
         if not code:
             return i, ''
-        # First, attempt a fast deterministic auto-fix for common template/parens issues
-        fixed_code = FixRemotionCode._auto_fix_template_parens(code)
-        fixed_code = FixRemotionCode._auto_fix_common_concat_syntax(fixed_code)
-        if fixed_code != code:
-            logger.info(
-                f'Auto-fixed template parenthesis issues for segment {i+1}')
-            # If we could auto-fix, return the fixed code and skip LLM to save cost
-            return i, fixed_code
 
         llm = LLM.from_config(config)
         if pre_error is not None:
@@ -116,184 +108,39 @@ class FixRemotionCode(CodeAgent):
         return i, code
 
     @staticmethod
-    def _auto_fix_template_parens(code: str) -> str:
-        """
-        Auto-fix mismatched parentheses and convert template literals to avoid build errors.
-        """
-
-        # 1. Fix mismatched parentheses.
-        def _repair(match):
-            inner = match.group(1)
-            open_parens = inner.count('(')
-            close_parens = inner.count(')')
-            if open_parens > close_parens:
-                inner = inner + (')' * (open_parens - close_parens))
-            return '${' + inner + '}'
-
-        try:
-            code = re.sub(r'\$\{([^}]*)\}', _repair, code)
-        except Exception:
-            pass
-
-        # 2. Convert transform template literals to string concatenation.
-        # This replaces `transform: ...${...}...` with simple string concatenation.
-
-        def _replace_transform(match):
-            # match.group(0) is the whole line or block
-            # We want to extract the interpolate call and the surrounding text
-            full_str = match.group(0)
-            if 'interpolate' in full_str and 'transform' in full_str:
-                # Replace backticks and template expressions.
-
-                # Check if it's a backtick string
-                if '`' in full_str:
-                    # Replace backticks with single quotes
-                    fixed = full_str.replace('`', "'")
-                    # Replace ${ with ' + ( to handle ternary operators safely
-                    fixed = fixed.replace('${', "' + (")
-                    # Replace } with ) + '
-                    fixed = fixed.replace('}', ") + '")
-                    # Clean up empty strings: ' + ' -> +
-                    fixed = fixed.replace("'' + ", '')
-                    fixed = fixed.replace(" + ''", '')
-                    return fixed
-            return full_str
-
-        # Regex to find transform properties with backticks
-        # transform:\s*`[^`]*`
-        try:
-            code = re.sub(r'transform:\s*`[^`]*`', _replace_transform, code)
-        except Exception:
-            pass
-
-        return code
-
-    @staticmethod
-    def _auto_fix_common_concat_syntax(code: str) -> str:
-        """
-        Auto-fix common malformed string concatenations that break esbuild.
-        """
-
-        # 1. Fix interpolate(..., { ... )) -> interpolate(..., { ... })
-        # Removed aggressive auto-repair.
-        # try:
-        #     code = re.sub(r'(interpolate\s*\([^)]*\{[^})]*)\)', r'\1})', code)
-        # except Exception:
-        #     pass
-
-        def _extract_balanced_parens(s: str, start_idx: int) -> str:
-            """Return substring from start_idx to matching closing ')' (inclusive)."""
-            depth = 0
-            in_single = False
-            in_double = False
-            escaped = False
-            for j in range(start_idx, len(s)):
-                ch = s[j]
-                if escaped:
-                    escaped = False
-                    continue
-                if ch == '\\':
-                    escaped = True
-                    continue
-                if ch == "'" and not in_double:
-                    in_single = not in_single
-                    continue
-                if ch == '"' and not in_single:
-                    in_double = not in_double
-                    continue
-                if in_single or in_double:
-                    continue
-                if ch == '(':
-                    depth += 1
-                elif ch == ')':
-                    depth -= 1
-                    if depth == 0:
-                        return s[start_idx:j + 1]
-            return ''
-
-        def _fix_transform_line(line: str) -> str:
-            if 'transform' not in line or 'interpolate(' not in line:
-                return line
-
-            # Only target already-string-based transforms (not template literals handled elsewhere)
-            if '`' in line:
-                return line
-
-            func = None
-            unit = None
-            if "'translateY('" in line:
-                func = 'translateY'
-                unit = 'px'
-            elif "'translateX('" in line:
-                func = 'translateX'
-                unit = 'px'
-            elif "'rotate('" in line:
-                func = 'rotate'
-                unit = 'deg'
-
-            if not func or not unit:
-                return line
-
-            idx = line.find('interpolate(')
-            call = _extract_balanced_parens(line, idx)
-            if not call:
-                return line
-
-            indent = re.match(r'^\s*', line).group(0)
-            trailing_comma = ',' if line.rstrip().endswith(',') else ''
-            return f"{indent}transform: '{func}(' + {call} + '{unit})'{trailing_comma}"
-
-        try:
-            lines = code.splitlines()
-            lines = [_fix_transform_line(ln) for ln in lines]
-            code = '\n'.join(lines)
-        except Exception:
-            pass
-
-        # Fix common fps typo introduced by LLM
-        # `useVideoConfig()` returns `fps`, not `FPS`.
-        try:
-            code = re.sub(r'\bfps\s*:\s*FPS\b', 'fps: fps', code)
-        except Exception:
-            pass
-
-        return code
-
-    @staticmethod
     def _fix_code_impl(llm, fix_prompt, code):
         fix_request = f"""
 {fix_prompt}
 
-**Original Code**:
-```typescript
+**原始代码**：
+```
 {code}
 ```
 
-- Please focus on solving the detected issues
-- Keep the good parts, only fix problematic areas
-- Ensure no new layout issues are introduced
-- Make minimal code changes to fix the issue while keeping the correct parts unchanged
-- The output must be a valid React Functional Component.
+- 请专注于解决检测到的问题
+- 保留正确的部分，只修复有问题的区域
+- 确保不引入新的布局问题
+- 在保持正确部分不变的前提下，进行最小化的代码修改来修复问题
+- 输出必须是有效的 React 函数组件
 
-**CRITICAL FIXING RULES**:
-1. **React Error #130 (Objects as children)**: If the error mentions "Objects are not valid as a React child",
-   check for variables being rendered directly (e.g. `<div>{{style}}</div>`).
-   Change them to render properties (e.g. `<div>{{style.width}}</div>`).
-2. **Remotion Interpolate Error**: If the error mentions "outputRange must contain only numbers",
-   check your `interpolate` calls.
-   Ensure `outputRange` has consistent types (all numbers OR all strings with same unit).
-3. **Black Screen / Missing Assets**: If the error mentions "Visual Check Failed" or "Missing Assets", ensure:
-    - `opacity` is 1.
-    - `zIndex` is high enough.
-    - Images are actually used (`<Img src={{staticFile(...)}} />`).
+**关键修复规则**：
+1. **React 错误 #130（对象作为子元素）**：如果错误提示"Objects are not valid as a React child"，
+   检查是否有变量被直接渲染（例如 `<div>{{style}}</div>`）。
+   将其改为渲染属性（例如 `<div>{{style.width}}</div>`）。
+2. **Remotion Interpolate 错误**：如果错误提示"outputRange must contain only numbers"，
+   检查你的 `interpolate` 调用。
+   确保 `outputRange` 具有一致的类型（全部为数字 或 全部为带相同单位的字符串）。
+3. **黑屏 / 素材缺失**：如果错误提示"Visual Check Failed"或"Missing Assets"，请确保：
+    - `opacity` 为 1。
+    - `zIndex` 足够高。
+    - 图片确实被使用了（`<Img src={{staticFile(...)}} />`）。
 
-Please precisely fix the detected issues.
-"""
+请精确修复检测到的问题。"""
         inputs = [Message(role='user', content=fix_request)]
         _response_message = llm.generate(inputs)
         response = _response_message.content
 
-        # Robust code extraction using regex
+        # 使用正则表达式稳健地提取代码
         code_match = re.search(
             r'```(?:typescript|tsx|js|javascript)?\s*(.*?)```', response,
             re.DOTALL)
@@ -306,3 +153,4 @@ Please precisely fix the detected issues.
                 code = code[idx:]
 
         return code.strip()
+

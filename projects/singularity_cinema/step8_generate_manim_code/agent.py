@@ -37,7 +37,7 @@ class GenerateManimCode(CodeAgent):
 
         tasks = []
         for i, (segment, audio_info) in enumerate(zip(segments, audio_infos)):
-            manim_requirement = segment.get('manim', segment.get('remotion'))
+            manim_requirement = segment['manim']
             if manim_requirement is not None:
                 tasks.append((segment, audio_info['audio_duration'], i))
 
@@ -78,34 +78,7 @@ class GenerateManimCode(CodeAgent):
     def get_all_images_info(segment, i, image_dir):
         all_images_info = []
 
-        # Try to read descriptions from visual_plans first
-        descriptions = []
-        visual_plans_dir = os.path.join(
-            os.path.dirname(image_dir), 'visual_plans')
-        plan_path = os.path.join(visual_plans_dir, f'plan_{i+1}.json')
-
-        if os.path.exists(plan_path):
-            try:
-                with open(plan_path, 'r') as f:
-                    plan = json.load(f)
-                    if 'visual_assets' in plan and isinstance(
-                            plan['visual_assets'], list):
-                        descriptions = [
-                            a.get('description', '')
-                            for a in plan['visual_assets']
-                        ]
-                    elif 'main_visual_asset' in plan:
-                        descriptions = [
-                            plan['main_visual_asset'].get('description', '')
-                        ]
-                    elif 'foreground_assets' in plan:
-                        descriptions = plan.get('foreground_assets', [])
-            except Exception:
-                pass
-
-        # Fallback to segments.txt
-        if not descriptions:
-            descriptions = segment.get('foreground', [])
+        descriptions = segment.get('foreground', [])
 
         # Now check for files corresponding to these descriptions
         for idx, desc in enumerate(descriptions):
@@ -113,16 +86,13 @@ class GenerateManimCode(CodeAgent):
                 image_dir, f'illustration_{i + 1}_foreground_{idx + 1}.png')
 
             if os.path.exists(foreground_image):
-                try:
-                    size = GenerateManimCode.get_image_size(foreground_image)
-                    image_info = {
-                        'filename': foreground_image,
-                        'size': size,
-                        'description': desc,
-                    }
-                    all_images_info.append(image_info)
-                except Exception:
-                    pass
+                size = GenerateManimCode.get_image_size(foreground_image)
+                image_info = {
+                    'filename': foreground_image,
+                    'size': size,
+                    'description': desc,
+                }
+                all_images_info.append(image_info)
 
         image_info_file = os.path.join(
             os.path.dirname(image_dir), 'image_info.txt')
@@ -137,97 +107,68 @@ class GenerateManimCode(CodeAgent):
         return all_images_info
 
     @staticmethod
-    def _generate_manim_impl(llm, segment, audio_duration, i, image_dir,
-                             config):
+    def _generate_manim_impl(llm, segment, audio_duration, i, image_dir, config):
         class_name = f'Scene{i + 1}'
         content = segment['content']
-        # Try to read the Visual Plan for richer context
-        manim_requirement = segment.get('manim', '')
-        visual_plans_dir = os.path.join(
-            os.path.dirname(image_dir), 'visual_plans')
-        plan_path = os.path.join(visual_plans_dir, f'plan_{i+1}.json')
-
-        if os.path.exists(plan_path):
-            try:
-                with open(plan_path, 'r', encoding='utf-8') as f:
-                    _ = json.load(f)
-            except Exception:
-                pass
-
+        manim_requirement = segment['manim']
         images_info = GenerateManimCode.get_all_images_info(
             segment, i, image_dir)
         if images_info:
             images_info = json.dumps(images_info, indent=4, ensure_ascii=False)
         else:
-            images_info = 'No images offered.'
+            images_info = '未提供图片。'
 
         if config.foreground == 'image':
-            image_usage = f"""**Image usage**
-- You'll receive an actual image list with three fields per image: filename, size, and description，consider deeply how to resize and use them in your animation
-- Pay attention to the size field, write Manim code that respects the image's aspect ratio, size it.
-- Consider the image integration with the background and overall animation. Use blending/glow effects, frames, movements, borders etc. to make it more beautiful and gorgeous
-    * You can more freely consider the integration of images to achieve a better presentation
-    * Image sizes should be **medium OR small** to prevent them from occupying the entire screen or most of the screen, **huge image is strictly forbidden**
-    * Ensure aspect ratios of non-square images remain correct
-    * DO NOT crop image to circular
-    * Images must be decorated with frames
-    * IMPORTANT: **Use smaller image sizes for generated images and larger image sizes for user doc images. DO NOT crop image to circular**
-- IMPORTANT: If images files are not empty, **you must use them all at the appropriate time and position in your animation**. Here is the image files list:
+            image_usage = f"""**图片使用说明**
+    - 你将收到一个实际的图片列表，每张图片包含三个字段：文件名、尺寸和描述，请深入考虑如何在动画中调整大小和使用这些图片
+    - 确保非正方形图片的宽高比正确，编写 Manim 代码时需保持图片的宽高比
+    - 考虑图片与背景及整体动画的融合。使用混合/发光效果、边框、动效、装饰边等使其更美观华丽
+        * 禁止将图片裁剪为圆形
+        * 图片必须添加边框装饰
+        * 缩放图片。不要使用原始尺寸，使图片在你的动画中的位置和大小美观合适。不要将图片放在角落
+        * 禁止让图片和 manim 元素重叠。请在动画中重新组织它们
+    - 重要：如果图片文件列表不为空，**你必须在动画中的适当时机和位置使用所有图片**。以下是图片文件列表：
 
-{images_info}
-
-DO NOT let the image and the manim element overlap. Reorganize them in your animation.
-
-* Scale the images. Do not use the original size, carefully rescale the images to match the requirements below:
-    a. The image size on the canvas depend on its importance, important image occupies more spaces
-        * Consider the image placement in the manim requirements, resize the image until it will not be cut off by the edge(within x∈(-6.0, 6.0), y∈(-3.4, 3.4) with minimum buff=0.5)
-        * Resize generated images by scale(<0.4), if 2 images, resize by scale(<0.3)
-    b. Use 1/4 space of the canvas for each image
-    c. Do not use SVGMobject("magnifying_glass") or any other built-in SVG names that might not exist. If you need an icon, use a simple geometric shape (like a Circle with a Line handle) or check if an image file is provided.
-    d. Do not use `LineGraph` or `LineChart` classes as they are not available in the current Manim version. Use `Axes` and `plot_line_graph` or construct charts manually using `Axes` and `Line` objects.
-    e. Do not use `AlwaysApplyToMobject`. Use `add_updater` instead if continuous updates are needed.""" # noqa
+    {images_info}
+"""
         else:
             image_usage = ''
 
-        prompt = f"""You are a professional Manim animation expert, creating clear and beautiful educational animations.
+        prompt = f"""你是一位专业的 Manim 动画专家，擅长创建清晰美观的教育动画。
 
-**Task**: Create animation
-- Class name: {class_name}
-- Content: {content}
-- Requirement from the storyboard designer: {manim_requirement}
-    * If the storyboard designer's layout is poor, create a better custom layout
-- Duration: {audio_duration} seconds
-- Code language: **Python**
+    **任务**：创建动画
+    - 类名：{class_name}
+    - 内容：{content}
+    - 分镜设计师的要求：{manim_requirement}
+        * 分镜设计师会给你整体要求。你需要自行定制元素和布局，使整体动画美观高档
+    - 时长：{audio_duration} 秒
+    - 代码语言：**Python**
 
-{image_usage}
+    {image_usage}
 
-* Canvas size ratio: 16:9
-* Ensure all content stays within safe bounds x∈(-6.0, 6.0), y∈(-3.4, 3.4) with minimum buff=0.5 from any edge to prevent cropping.
-* [CRITICAL]Absolutely prevent **element spatial overlap** or **elements going out of bounds** or **elements not aligned**.
-* [CRITICAL]Connection lines between boxes/text are of proper length, with **both endpoints attached to the objects**.
-* All boxes must have thick strokes for clear visibility
-* Keep text within frame by controlling font sizes. Use smaller fonts for Latin script than Chinese due to longer length.
-* Use clear, high-contrast font colors to prevent text from blending with the background
-* Use a cohesive color palette of 2-4 colors for the entire video. Avoid cluttered colors, bright blue, and bright yellow. Prefer deep, dark tones
-* Low-quality animations such as stick figures are forbidden
-* Do not use any matchstick-style or pixel-style animations. Use charts, images, industrial/academic-style animations
-* Text box needs to have a background color, and the background must be opaque, with high contrast between the text color and the background.
-* The text box should large enough to contain the text
-* Do not create multi-track complex manim animations. One object per segment, or two to three(NO MORE THAN three!) object arranged in a simple manner, manim layout rules:
-    1. One object in the middle
-    2. Two objects, left-right structure, same y axis, same size, for example, text left, chart right
-    3. Three objects, left-middle-right structure, same y axis, same size. No more than 3 elements in one segment
-    4. Split complex animation into several segments
-    5. Less text boxes in the animation, only titles/definitions/formulas
-    6. Use black fonts, **no gray fonts**
-    7. CRITICAL: **NEVER put an element to a corner, do use horizonal/vertical grid**
-    8. No pie charts should be used, the LLM costs many bugs
-    9. [CRITICAL] **Do NOT use `VGroup` for `ImageMobject`**. `ImageMobject` is not a `VMobject`. Use `Group` instead of `VGroup` when grouping images or mixing images with other mobjects.
-    10. [CRITICAL] **Do NOT use `AlwaysApplyToMobject`**. It is not defined. Use `add_updater` for continuous effects.
+    * 画布尺寸比例：16:9
+    * 确保所有内容保持在安全边界内 x∈(-6.0, 6.0), y∈(-3.4, 3.4)，距任何边缘的最小边距 buff=0.5，以防止裁切。
+    * [关键] 绝对防止**元素空间重叠**或**元素超出边界**或**元素未对齐**。
+    * [关键] 方框/文本之间的连接线长度适当，**两端点必须连接到对象上**。
+    * 所有方框必须有粗边框以确保清晰可见
+    * 通过控制字体大小使文本保持在画面内。由于拉丁字母文本通常较长，其字体应比中文更小。
+    * 使用清晰、高对比度的字体颜色，防止文本与背景混淆
+    * 整个视频使用约2种颜色的协调配色方案。避免杂乱的颜色、亮蓝色和亮黄色。优先使用深色、暗色调
+    * 禁止低质量动画如火柴人，使用图表、图片、工业/学术风格的动画
+    * 文本框需要有背景色，背景必须不透明，文字颜色与背景保持高对比度，文本框应足够大以容纳文字
+    * 不要创建多轨道复杂 manim 动画。每个片段一个对象，或两到三个（不超过三个！）对象以简单方式排列，manim 布局规则：
+        1. 一个对象放在中间
+        2. 两个对象，左右结构，相同 y 轴，相同大小，例如：文本在左，图表在右
+        3. 三个对象，左中右结构，相同 y 轴，相同大小。一个片段中不超过3个元素
+        4. 将复杂动画拆分为多个片段
+        5. 动画中减少文本框，只保留标题/定义/公式
+        6. 使用黑色字体，**禁止使用灰色字体**
+        7. 关键：**永远不要将元素放在角落，请使用水平/垂直网格布局**
+        8. 禁止使用饼图，LLM 生成时容易出错
 
-Please create Manim animation code that meets the above requirements.""" # noqa
+    请创建满足以上要求的 Manim 动画代码。"""
 
-        logger.info(f'Generating manim code for: {content}')
+        logger.info(f'正在生成 manim 代码：{content}')
         _response_message = llm.generate(
             [Message(role='user', content=prompt)], temperature=0.3)
         response = _response_message.content

@@ -76,7 +76,7 @@ class GenerateImages(CodeAgent):
                 futures.append(
                     executor.submit(self._process_single_illustration_static,
                                     i, segment, final_prompt, self.config,
-                                    self.images_dir, self.fusion.__name__))
+                                    self.images_dir))
             # Wait for all tasks to complete
             for future in futures:
                 future.result()
@@ -85,7 +85,7 @@ class GenerateImages(CodeAgent):
 
     @staticmethod
     def _process_single_illustration_static(i, segment, prompt, config,
-                                            images_dir, fusion_name):
+                                            images_dir):
         """Static method for thread pool execution"""
         # Create new event loop for this thread
         loop = asyncio.new_event_loop()
@@ -93,7 +93,7 @@ class GenerateImages(CodeAgent):
         try:
             loop.run_until_complete(
                 GenerateImages._process_single_illustration_impl(
-                    i, segment, prompt, config, images_dir, fusion_name))
+                    i, segment, prompt, config, images_dir))
             loop.run_until_complete(
                 GenerateImages._process_foreground_illustration_impl(
                     i, segment, config, images_dir))
@@ -102,7 +102,7 @@ class GenerateImages(CodeAgent):
 
     @staticmethod
     async def _process_single_illustration_impl(i, segment, prompt, config,
-                                                images_dir, fusion_name):
+                                                images_dir):
         """Implementation of single illustration processing"""
         if config.background != 'image':
             # Generate a 2000x2000 solid color image
@@ -133,34 +133,22 @@ class GenerateImages(CodeAgent):
             elif hasattr(_config.image_generator, 'size'):
                 kwargs['size'] = _config.image_generator.size
 
-            print(
-                f'DEBUG: Generating image. Prompt: {prompt[:50]}... kwargs: {kwargs}'
+            logger.info(
+                f'Generating image. Prompt: {prompt[:50]}... kwargs: {kwargs}'
             )
-            try:
-                _temp_file = await image_generator.generate_image(
-                    prompt, **kwargs)
 
-                # Check directly if the return is a valid file path
-                if not _temp_file or not os.path.exists(_temp_file):
-                    logger.error(
-                        f'Background image generation failed for segment {i + 1}. Result: {_temp_file}'
-                    )
-                    return
+            _temp_file = await image_generator.generate_image(
+                prompt, **kwargs)
 
-            except Exception as e:
-                print(f'DEBUG: Image generation failed. Error: {e}')
-                # Log the error but do not crashing the thread
+            # Check directly if the return is a valid file path
+            if not _temp_file or not os.path.exists(_temp_file):
                 logger.error(
-                    f'Exception during background generation for segment {i + 1}: {e}'
+                    f'Background image generation failed for segment {i + 1}. Result: {_temp_file}'
                 )
                 return
 
             shutil.move(_temp_file, img_path)
-            if fusion_name == 'keep_only_black_for_folder':
-                GenerateImages.keep_only_black_for_folder(
-                    img_path, output_path, segment)
-            else:
-                GenerateImages.fade(img_path, output_path, segment)
+            GenerateImages.fade(img_path, output_path, segment)
 
             try:
                 os.remove(img_path)
@@ -178,40 +166,7 @@ class GenerateImages(CodeAgent):
         work_dir = getattr(config, 'output_dir', 'output')
         illustration_prompts_dir = os.path.join(work_dir,
                                                 'illustration_prompts')
-        visual_plans_dir = os.path.join(work_dir, 'visual_plans')
-
-        # Determine the list of assets to generate
-        # Priority: Visual Plan > Segment Config
-        foreground_assets = []
-        visual_plan_path = os.path.join(visual_plans_dir, f'plan_{i+1}.json')
-
-        if os.path.exists(visual_plan_path):
-            try:
-                with open(visual_plan_path, 'r') as f:
-                    plan = json.load(f)
-                    # Support multiple assets from 'visual_assets' list
-                    if 'visual_assets' in plan and isinstance(
-                            plan['visual_assets'], list):
-                        foreground_assets = [
-                            asset.get('description')
-                            for asset in plan['visual_assets']
-                            if asset.get('description')
-                        ]
-                    # Fallback for legacy keys
-                    elif 'main_visual_asset' in plan:
-                        asset_desc = plan['main_visual_asset'].get(
-                            'description')
-                        if asset_desc:
-                            foreground_assets = [asset_desc]
-                    elif 'foreground_assets' in plan:
-                        foreground_assets = plan.get('foreground_assets', [])
-            except Exception as e:
-                logger.warning(
-                    f'Failed to read visual plan for segment {i+1}: {e}')
-
-        # Fallback if plan is missing or empty (but check if prompts exist to be safe)
-        if not foreground_assets:
-            foreground_assets = segment.get('foreground', [])
+        foreground_assets = segment.get('foreground', [])
 
         for idx, _req in enumerate(foreground_assets):
             foreground_image = os.path.join(
@@ -223,11 +178,7 @@ class GenerateImages(CodeAgent):
                 illustration_prompts_dir,
                 f'segment_{i+1}_foreground_{idx+1}.txt')
 
-            if not os.path.exists(foreground_prompt_path):
-                logger.warning(
-                    f'Prompt file not found: {foreground_prompt_path}. Skipping.'
-                )
-                continue
+            assert os.path.exists(foreground_prompt_path)
 
             with open(foreground_prompt_path, 'r') as f:
                 prompt_text = f.read()
@@ -247,47 +198,15 @@ class GenerateImages(CodeAgent):
             elif hasattr(_config.image_generator, 'size'):
                 kwargs['size'] = _config.image_generator.size
 
-            try:
-                _temp_file = await image_generator.generate_image(
-                    prompt, **kwargs)
-                if not os.path.exists(_temp_file):
-                    raise RuntimeError(
-                        f'Failed to generate image: {_temp_file}')
+            _temp_file = await image_generator.generate_image(
+                prompt, **kwargs)
+            if not os.path.exists(_temp_file):
+                raise RuntimeError(
+                    f'Failed to generate image: {_temp_file}')
 
-                # Apply background removal (simple white keying)
-                GenerateImages.remove_white_background(_temp_file,
-                                                       foreground_image)
-
-                # Cleanup temp file if it still exists (shutil.move inside remove_white might differ)
-                if os.path.exists(_temp_file):
-                    os.remove(_temp_file)
-
-            except Exception as e:
-                logger.error(
-                    f'Failed to generate foreground image {idx+1} for segment {i+1}: {e}'
-                )
-
-    @staticmethod
-    def remove_white_background(input_path, output_path, threshold=240):
-        try:
-            img = Image.open(input_path).convert('RGBA')
-            data = np.array(img)
-
-            # Keying: If R, G, B are all > threshold, make transparent
-            r, g, b, a = data.T
-            white_areas = (r > threshold) & (g > threshold) & (b > threshold)
-
-            # Update Alpha channel: 0 where white, 255 otherwise
-            data[..., 3] = np.where(white_areas.T, 0, 255)
-
-            # Save as PNG
-            result = Image.fromarray(data)
-            result.save(output_path, 'PNG')
-            logger.info(f'Saved transparent asset to {output_path}')
-        except Exception as e:
-            logger.error(f'Failed to remove background: {e}')
-            # Fallback: just copy original
-            shutil.copy(input_path, output_path)
+            # Cleanup temp file if it still exists (shutil.move inside remove_white might differ)
+            if os.path.exists(_temp_file):
+                os.remove(_temp_file)
 
     @staticmethod
     def fade(input_image,
@@ -312,41 +231,3 @@ class GenerateImages(CodeAgent):
         else:
             logger.info('No animation - keeping original background')
             shutil.copy(input_image, output_image)
-
-    @staticmethod
-    def keep_only_black_for_folder(input_image,
-                                   output_image,
-                                   segment,
-                                   threshold=80):
-        img = Image.open(input_image).convert('RGBA')
-        arr = np.array(img)
-
-        logger.info(f'Process image: {input_image}')
-        logger.info(f'  Size: {img.size}')
-        logger.info(f'  Mode: {img.mode}')
-        logger.info(
-            f'  Color range: R[{arr[..., 0].min()}-{arr[..., 0].max()}], G[{arr[..., 1].min()}-{arr[..., 1].max()}]'
-            f', B[{arr[..., 2].min()}-{arr[..., 2].max()}]')
-
-        gray = 0.299 * arr[..., 0] + 0.587 * arr[..., 1] + 0.114 * arr[..., 2]
-        mask = gray < threshold
-
-        transparent_pixels = np.sum(mask)
-        total_pixels = mask.size
-        transparency_ratio = transparent_pixels / total_pixels
-        logger.info(
-            f'Black pixels detected: {transparent_pixels}/{total_pixels} ({transparency_ratio:.1%})'
-        )
-
-        arr[..., 3] = np.where(mask, 255, 0)
-
-        img2 = Image.fromarray(arr, 'RGBA')
-        img2.save(output_image, 'PNG')
-        output_img = Image.open(output_image)
-        output_arr = np.array(output_img)
-        if output_img.mode == 'RGBA':
-            alpha_channel = output_arr[..., 3]
-            unique_alpha = np.unique(alpha_channel)
-            logger.info(f'Transparent value: {unique_alpha}')
-        else:
-            logger.warn(f'Output image is not RGBA mode: {output_img.mode}')

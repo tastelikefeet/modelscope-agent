@@ -40,47 +40,18 @@ class GenerateRemotionCode(CodeAgent):
         tasks = []
         for i, (segment, audio_info) in enumerate(zip(segments, audio_infos)):
             # "remotion" field takes precedence, fall back to "manim"
-            animation_requirement = segment.get('remotion',
-                                                segment.get('manim'))
-
-            # Load visual plan if available
-            visual_plan_path = os.path.join(self.work_dir, 'visual_plans',
-                                            f'plan_{i+1}.json')
-            visual_plan = {}
-            if os.path.exists(visual_plan_path):
-                try:
-                    with open(visual_plan_path, 'r', encoding='utf-8') as f:
-                        visual_plan = json.load(f)
-                except Exception as e:
-                    logger.warning(
-                        f'Failed to load visual plan for segment {i+1}: {e}')
-            else:
-                # Robustness: if step5 failed to persist the plan, synthesize a minimal one
-                # from the existing storyboard/manim requirement so downstream guidance exists.
-                try:
-                    os.makedirs(
-                        os.path.dirname(visual_plan_path), exist_ok=True)
-
-                    visual_plan = GenerateRemotionCode._synthesize_visual_plan_from_segment(
-                        segment)
-                    with open(visual_plan_path, 'w', encoding='utf-8') as f:
-                        json.dump(visual_plan, f, indent=2, ensure_ascii=False)
-                except Exception as e:
-                    logger.warning(
-                        f'Failed to synthesize visual plan for segment {i+1}: {e}'
-                    )
-
+            animation_requirement = segment.get('remotion')
             if animation_requirement is not None:
                 tasks.append(
-                    (segment, audio_info['audio_duration'], i, visual_plan))
+                    (segment, audio_info['audio_duration'], i))
 
         remotion_code = [''] * len(segments)
 
         with ThreadPoolExecutor(max_workers=self.num_parallel) as executor:
             futures = {
                 executor.submit(self._generate_remotion_code_static, seg, dur,
-                                idx, self.config, self.images_dir, v_plan): idx
-                for seg, dur, idx, v_plan in tasks
+                                idx, self.config, self.images_dir): idx
+                for seg, dur, idx in tasks
             }
             for future in as_completed(futures):
                 idx = futures[future]
@@ -95,11 +66,11 @@ class GenerateRemotionCode(CodeAgent):
 
     @staticmethod
     def _generate_remotion_code_static(segment, audio_duration, i, config,
-                                       image_dir, visual_plan):
+                                       image_dir):
         """Static method for multiprocessing"""
         llm = LLM.from_config(config)
         return GenerateRemotionCode._generate_remotion_impl(
-            llm, segment, audio_duration, i, image_dir, config, visual_plan)
+            llm, segment, audio_duration, i, image_dir, config)
 
     @staticmethod
     def get_image_size(filename):
@@ -170,212 +141,71 @@ class GenerateRemotionCode(CodeAgent):
         return all_images_info
 
     @staticmethod
-    def _synthesize_visual_plan_from_segment(segment: dict) -> dict:
-        """Best-effort plan synthesis when Visual Director plan files are missing.
-
-        This keeps the pipeline deterministic and ensures the Remotion generator receives
-        explicit beats/layout guidance even if step5 output is unavailable.
-        """
-        # "remotion" field takes precedence, fall back to "manim"
-        animation_req = (segment.get('remotion') or segment.get('manim')
-                         or '').strip()
-
-        # Heuristic layout detection
-        req_lower = animation_req.lower()
-        if 'three-object' in req_lower or 'three object' in req_lower or 'left-middle-right' in req_lower:
-            layout = 'Grid Layout'
-        elif 'two-object' in req_lower or 'two object' in req_lower or 'left-right' in req_lower:
-            layout = 'Asymmetrical Balance'
-        else:
-            layout = 'Center Focus'
-
-        # Required short labels are often quoted in the animation requirement.
-        # Keep them short to avoid subtitle-like paragraphs.
-        quoted = re.findall(r"'([^']+)'|\"([^\"]+)\"", animation_req)
-        required_labels: List[str] = []
-        for a, b in quoted:
-            s = (a or b or '').strip()
-            if 1 <= len(s) <= 10 and re.search(r'[\u4e00-\u9fff]', s):
-                required_labels.append(s)
-        required_labels = list(dict.fromkeys(required_labels))[:2]
-
-        label_hint = (f"Required label(s): {', '.join(required_labels)}"
-                      if required_labels else '(No required label detected)')
-
-        return {
-            'background_concept':
-            'Clean cinematic backdrop with empty center safe-area',
-            'foreground_assets': [],
-            'layout_composition':
-            layout,
-            'text_placement':
-            'Centered keyword card within SAFE container',
-            'visual_metaphor':
-            f'{label_hint}. Map narration to 1-3 simple visual elements, no random effects.',
-            'beats': [
-                '0-25%: Establish the main visual(s) according to the requirement.',
-                '25-80%: Add 1 supporting change/connection that matches the narration.',
-                '80-100%: Resolve with the keyword/required label on a high-contrast card.',
-            ],
-            'motion_guide':
-            'Use spring-based entrances + subtle camera drift; sequence elements by beats; avoid chaos.',
-        }
-
-    @staticmethod
     def _generate_remotion_impl(llm, segment, audio_duration, i, image_dir,
-                                config, visual_plan):
+                                config):
         component_name = f'Segment{i + 1}'
         content = segment['content']
-        # "remotion" field takes precedence, fall back to "manim"
-        animation_requirement = segment.get('remotion',
-                                            segment.get('manim', ''))
+        animation_requirement = segment['remotion']
         images_info = GenerateRemotionCode.get_all_images_info(
             segment, i, image_dir)
 
         # Inject image info with code snippets.
         images_info_str = ''
         if images_info:
-            images_info_str += 'Available Images (You MUST use these exact import/usage codes):\n'
+            images_info_str += '可用图片（你必须使用以下确切的导入/使用代码）：\n'
             for img in images_info:
                 fname = img['filename']
-                w, h = img['size'].split('x')
-                is_portrait = int(h) > int(w)
-                style_hint = "maxHeight: '80%'" if is_portrait else "maxWidth: '80%'"
-
-                images_info_str += f"- Name: {fname} ({img['size']}, {img['description']})\n"
-                images_info_str += (
-                    f"  USAGE CODE: <Img src={{staticFile(\"images/{fname}\")}} "
-                    f"style={{{{ {style_hint}, objectFit: 'contain' }}}} />\n")
+                images_info_str += f"- 名称：{fname}（{img['size']}，{img['description']}）\n"
         else:
-            images_info_str = 'No images offered. Use CSS shapes/Text only.'
-
-        beats = visual_plan.get('beats', []) if visual_plan else []
-
-        motion_guide_section = ''
-        # Updated Visual Director logic
-        # We now look for the new format from Step 5 (Visual Director).
-        timeline_events = visual_plan.get('timeline_events', [])
-        layout_mode = visual_plan.get(
-            'layout_mode', visual_plan.get('layout_composition',
-                                           'Center Focus'))
-
-        timeline_text = ''
-        if timeline_events:
-            timeline_text = '**TIMELINE EXECUTION (Exact Timings)**:\n'
-            for ev in timeline_events:
-                t_str = f"{int(ev.get('time_percent', 0)*100)}%"
-                timeline_text += f"- At {t_str} of video: {ev.get('action')}\n"
-
-        metaphor_expl = visual_plan.get('visual_metaphor_explanation', '')
-        asset_desc = visual_plan.get('main_visual_asset',
-                                     {}).get('description', '')
-
-        motion_guide_section = f"""
-**VISUAL DIRECTOR'S BLUEPRINT (MANDATORY)**:
-You are the animator. You MUST follow the Director's blueprint below.
-
-0.  **SCENE CONTEXT**:
-    *   Metaphor: {metaphor_expl}
-    *   Main Asset Focus: {asset_desc}
-
-1.  **LAYOUT MODE**: {layout_mode}
-    *   Setup your CSS layout immediately based on this mode.
-    *   **STABILITY FIRST**: Use standard Flexbox layouts (Row/Column).
-        Avoid absolute positioning unless necessary.
-
-2.  **TIMELINE & ACTION**:
-{timeline_text or beats}
-    *   **TIMING**: Use the exact times provided.
-
-3.  **ENGINEERING RULES (VIOLATION = FAIL)**:
-    *   **LAYOUT SYSTEM (ANTI-OVERLAP)**:
-        *   **MANDATORY**: Use `display: 'flex'` and `flexDirection: 'column'`
-            (or row) for the main container layout.
-        *   **FORBIDDEN**: Do NOT place text and images both at
-            `position: 'absolute', top: '50%', left: '50%'`. They WILL collide.
-        *   **STRATEGY**:
-            - Create a `FlexContainer` with `justifyContent: 'center', alignItems: 'center', gap: 50`.
-            - Put Text in one logic block, Images in another.
-        *   **SAFE AREA**: Wrap everything in a `<div style={{ width: '85%', height: '85%' }}>`.
-            Never touch edges.
-
-    *   **ASSET & TEXT VISIBILITY**:
-        *   **Text on Images**: If text MUST overlap an image, the text container MUST have
-            `backgroundColor: 'rgba(255,255,255,0.9)'` (if black text)
-            or `rgba(0,0,0,0.7)` (if white text).
-        *   **Z-Index**: Always set `zIndex: 10` for Text and `zIndex: 1` for Images.
-        *   **Font Size**: Minimum `40px` for titles, `24px` for labels.
-
-    *   **ASSET OVERLOAD PROTECTION**:
-        *   If you have **3 or more images**:
-            *   **MANDATORY**: Use a Grid layout (`display: 'grid', gridTemplateColumns: '1fr 1fr'`)
-                or Flex Wrap.
-            *   **SCALE DOWN**: Force image heights to max `250px`.
-            *   If too many images for one row, wrap to a second row.
-
-    *   **NO FULLSCREEN BACKGROUNDS**:
-        *   The root container **MUST** be transparent. No `backgroundColor: 'white'`.
-        *   We will composite a background later.
-"""
+            images_info_str = '未提供图片。仅使用 CSS 形状/文本。'
 
         if config.foreground == 'image':
-            image_usage = f"""**Image usage (CRITICAL: THESE ARE ASSETS, NOT BACKGROUNDS)**
-- You'll receive an actual image list with three fields per image: filename, size, and description.
-- Images will be placed in the `public/images` folder. You can reference them using
-  `staticFile("images/filename")` or just string path if using `Img` tag with `src`.
-- **THESE IMAGES ARE ISOLATED ELEMENTS** (e.g., a single icon, a character, a prop).
-- **DO NOT** stretch them to fill the screen like a background wallpaper.
-- **DO** position them creatively:
-    *   Float them in 3D space.
-    *   Slide them in from the side.
-    *   Scale them up/down with `spring`.
-    *   Use them as icons next to text.
-- Pay attention to the size field, write Remotion code that respects the image's aspect ratio.
-- IMPORTANT: If images files are not empty, **you MUST use them all**.
-  These are custom-generated assets for this specific scene.
-    *   If the image is a character or object, place it in the foreground.
-    *   If you are unsure where to put it, center it and fade it in.
-    *   **FAILURE TO USE PROVIDED IMAGES IS A CRITICAL ERROR.**
-    *   Here is the image files list:
+            image_usage = f"""**图片使用说明**
+    - 你将收到一个实际的图片列表，每张图片包含三个字段：文件名、尺寸和描述，请深入考虑如何在动画中调整大小和使用这些图片
+    - 确保非正方形图片的宽高比正确，编写Remotion代码时需保持图片的宽高比
+    - 考虑图片与背景及整体动画的融合。使用混合/发光效果、边框、动效、装饰边等使其更美观华丽
+        * 禁止将图片裁剪为圆形
+        * 图片必须添加边框装饰
+        * 缩放图片。不要使用原始尺寸，使图片在你的动画中的位置和大小美观合适。不要将图片放在角落
+        * 禁止让图片和remotion元素重叠。请在动画中重新组织它们
+    - 重要：如果图片文件列表不为空，**你必须在动画中的适当时机和位置使用所有图片**。以下是图片文件列表：
 
-{images_info_str}
-
-**CRITICAL WARNING**:
-- **DO NOT HALLUCINATE IMAGES**. You MUST ONLY use the filenames listed above.
-- If the list above is "No images offered.", you **MUST NOT** use any `Img` tags or `staticFile` calls.
-  Use CSS shapes, colors, and text only.
-- Do not invent filenames like "book.png", "city.png", etc. if they are not in the list.
-- **FORBIDDEN BACKGROUND FILES**: Do NOT use any filename matching `illustration_*_background.png` even if it exists.
-- **FORBIDDEN FULL-SCREEN BACKGROUND**: Never render a full-screen `Img` background.
-  This pipeline composites background later.
-- DO NOT let the image and the text/elements overlap. Reorganize them in your animation.
+    {images_info_str}
 """
         else:
             image_usage = ''
 
-        prompt = f"""You are a **Senior Motion Graphics Designer** and **Instructional Designer**,
-    creating high-end, cinematic, and beautiful educational animations using React (Remotion).
-Your goal is to create a visual experience that complements the narration, NOT just subtitles on a screen.
+        prompt = f"""你是一位**资深动态图形设计师**，
+    使用 React（Remotion）创建高端、电影级、美观的教育动画。你的目标是创建补充旁白的视觉体验，而不仅仅是屏幕上的字幕。
 
-**Task**: Create a Remotion component
-- Component name: {component_name}
-- Content (Narration): {content}
-- Duration: {audio_duration} seconds
-- Code language: **TypeScript (React)**
+    **任务**：创建 Remotion 组件
+    - 组件名称：{component_name}
+    - 场景要求: {animation_requirement}
+    - 内容（旁白）：{content}
+    - 时长：{audio_duration} 秒
+    - 代码语言：**TypeScript (React)**
 
-{image_usage}
+    {image_usage}
 
-- 如果图片存在，你需要使用所有的图片，图片需要放置在屏幕显眼的位置，不要放置在角落
-- 你的动画时长需要符合Duration的要求
-- 你的动画需要符合Content原始需求，尽量高雅，不允许使用火柴人
-- 保证所有元素不重叠，不被屏幕边缘切分
-- 你的屏幕是16:9的
+    - 如果图片存在，你需要使用所有的图片，图片需要放置在屏幕显眼的位置，不要放置在角落
+    - 你的动画时长需要符合 Duration 的要求
+    - 你的动画需要符合 Content 原始需求，避免视觉杂乱，保持简洁优雅，不允许使用火柴人
+    - 你的屏幕是 16:9 的
 
-
-Please create Remotion code that meets the above requirements and creates a visually stunning animation.
+    **设计原则**：
+    - 创建视觉上令人惊艳的动画，而不是简单的文本展示
+    - 使用流畅的过渡和专业的动效
+    - 保持视觉层次清晰，重要信息突出
+    - [关键] 绝对防止**元素空间重叠**或**元素超出边界**或**元素未对齐**。
+    - [关键] 方框/文本之间的连接线长度适当，**两端点必须连接到对象上**。
+    - 所有方框必须有粗边框以确保清晰可见
+    - 通过控制字体大小使文本保持在画面内。由于拉丁字母文本通常较长，其字体应比中文更小。
+    - 使用清晰、高对比度的字体颜色，防止文本与背景混淆
+    - 整个视频使用约2种颜色的协调配色方案。避免杂乱的颜色、亮蓝色和亮黄色。优先使用深色、暗色调
+    请创建满足以上要求的 Remotion 代码，打造视觉震撼的动画效果。
 """
 
-        logger.info(f'Generating remotion code for: {content}')
+        logger.info(f'正在生成 remotion 代码：{content}')
         _response_message = llm.generate(
             [Message(role='user', content=prompt)], temperature=0.3)
         response = _response_message.content
@@ -390,11 +220,6 @@ Please create Remotion code that meets the above requirements and creates a visu
             # Fallback: if no code blocks, assume the whole response is code
             # but try to strip leading/trailing text if it looks like markdown
             code = response
-            if 'import React' in code:
-
-                # Try to find the start of the code
-                idx = code.find('import React')
-                code = code[idx:]
 
         code = code.strip()
 
@@ -405,48 +230,4 @@ Please create Remotion code that meets the above requirements and creates a visu
             return re.sub(pattern, replacement, code)
 
         code = fix_easing_syntax(code)
-
-        # Post-process for offline Windows compatibility (deterministic safety net)
-        code = GenerateRemotionCode._strip_external_font_loading(code)
         return code
-
-    @staticmethod
-    def _strip_external_font_loading(code: str) -> str:
-        """Remove external font loading patterns that break offline environments.
-
-        If the LLM imports `@remotion/fonts` and calls `loadFont()` with a Google Fonts CSS URL,
-        Remotion will crash at runtime while evaluating compositions.
-        We remove the import and top-level loadFont() calls. Keeping `fontFamily` styles is safe.
-        """
-        try:
-            if 'fonts.googleapis.com' not in code and 'fonts.gstatic.com' not in code and '@remotion/fonts' not in code:
-                return code
-
-            # Remove import of loadFont
-            code = re.sub(
-                r"^\s*import\s*\{\s*loadFont\s*\}\s*from\s*['\"]@remotion/fonts['\"];\s*\n",
-                '',
-                code,
-                flags=re.MULTILINE,
-            )
-
-            # Remove any top-level loadFont({...}); blocks (best-effort)
-            code = re.sub(
-                r'^\s*loadFont\(\{[\s\S]*?\}\);\s*\n\s*\n',
-                '',
-                code,
-                flags=re.MULTILINE,
-            )
-            code = re.sub(
-                r'^\s*//\s*Load.*\n\s*loadFont\(\{[\s\S]*?\}\);\s*\n\s*\n',
-                '',
-                code,
-                flags=re.MULTILINE,
-            )
-
-            # As an extra guard, replace any remaining google font URLs with empty string
-            code = code.replace('https://fonts.googleapis.com/', '')
-            code = code.replace('https://fonts.gstatic.com/', '')
-            return code
-        except Exception:
-            return code

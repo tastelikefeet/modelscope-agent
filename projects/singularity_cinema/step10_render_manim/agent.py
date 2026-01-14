@@ -503,11 +503,7 @@ Manim instructions:
     8. No pie charts should be used, the LLM costs many bugs
     9. Do not use SVGMobject("magnifying_glass") or any other built-in SVG names that might not exist. If you need an icon, use a simple geometric shape (like a Circle with a Line handle) or check if an image file is provided.
     10. Do not use `LineGraph` or `LineChart` classes as they are not available in the current Manim version. Use `Axes` and `plot_line_graph` or construct charts manually using `Axes` and `Line` objects.
-
-    9. Do not use SVGMobject("magnifying_glass") or any other built-in SVG names that might not exist. If you need an icon, use a simple geometric shape (like a Circle with a Line handle) or check if an image file is provided.
-    10. Do not use `LineGraph` or `LineChart` classes as they are not available in the current Manim version. Use `Axes` and `plot_line_graph` or construct charts manually using `Axes` and `Line` objects.
-
-    9. [CRITICAL] **Do NOT use `VGroup` for `ImageMobject`**. `ImageMobject` is not a `VMobject`. Use `Group` instead of `VGroup` when grouping images or mixing images with other mobjects.
+    11. [CRITICAL] **Do NOT use `VGroup` for `ImageMobject`**. `ImageMobject` is not a `VMobject`. Use `Group` instead of `VGroup` when grouping images or mixing images with other mobjects.
 
 **Color Suggestions**:
 * You need to explicitly specify element colors and make these colors coordinated and elegant in style.

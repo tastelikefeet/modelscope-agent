@@ -4,7 +4,6 @@ import os
 import re
 import shutil
 import subprocess
-import threading
 import urllib.request
 import zipfile
 from collections import defaultdict
@@ -67,8 +66,7 @@ class RenderRemotion(CodeAgent):
         # Ensure browser is installed before parallel rendering
         self._ensure_browser(self.remotion_project_dir)
 
-        # Initialize status for all segments: None = not started, True = success, False = failed
-        segment_status = {i: None for i in range(len(segments))}
+        segment_status = {i: False for i in range(len(segments))}
 
         for round_idx in range(self.code_fix_round + 1):
             # Identify segments needing render (all initially, then only failed ones)
@@ -146,7 +144,6 @@ class RenderRemotion(CodeAgent):
                 )
 
                 # Apply fixes
-                fix_applied = False
                 for fix_i in to_fix:
                     err_text = error_log or 'Unknown error'
                     error_file = os.path.join(self.code_fix_dir,
@@ -160,201 +157,10 @@ class RenderRemotion(CodeAgent):
                         self.remotion_project_dir)
                     if fixed_code:
                         self._update_segment_code(fix_i, fixed_code)
-                        fix_applied = True
                         # If we fixed a different segment, we should probably reset its status too
                         if fix_i != i:
                             segment_status[
-                                fix_i] = None  # Force re-render of the culprit later if it was skipped
-
-                # Retry the current segment once after applying fixes.
-                if fix_applied:
-                    logger.info(
-                        f'Retrying segment {i+1} after fixes applied...')
-                    _, success2, error_log2 = self._render_remotion_scene_static(
-                        i,
-                        segments[i],
-                        audio_infos[i]['audio_duration'],
-                        self.config,
-                        self.work_dir,
-                        self.render_dir,
-                        self.remotion_project_dir,
-                        self.mllm_check_round,
-                    )
-                    results[i] = (success2, error_log2)
-                    segment_status[i] = success2
-
-            # Check results
-            failed_segments = [
-                i for i, (success, _) in results.items() if not success
-            ]
-
-            # --- VISUAL AUDIT (Post-Render Batch) ---
-            # Now that rendering is physically complete for this round, we perform visual checks
-            # on the *successful* segments. If they fail visual check, we demote them to "failed_segments"
-            # and provide the MLLM feedback as the "error log" for the fixer.
-
-            succeeded_segments = [
-                i for i, (success, _) in results.items() if success
-            ]
-            if succeeded_segments and self.mllm_check_round > 0:
-                logger.info(
-                    f'Performing Batch Visual Audit on {len(succeeded_segments)} segments...'
-                )
-                # We can reuse the thread pool for checking since it's IO bound (LLM calls)
-                visual_check_tasks = []
-                for i in succeeded_segments:
-                    # Construct paths
-                    segment_data = segments[i]
-
-                    # Load Visual Plan to check keywords
-                    visual_plan_path = os.path.join(self.work_dir,
-                                                    'visual_plans',
-                                                    f'plan_{i+1}.json')
-                    if os.path.exists(visual_plan_path):
-                        try:
-                            with open(
-                                    visual_plan_path, 'r',
-                                    encoding='utf-8') as f:
-                                plan = json.load(f)
-                                segment_data = {
-                                    **segment_data,
-                                    **plan
-                                }  # Merge plan into segment data
-                        except Exception:
-                            pass
-
-                    # Read the current Code for auditing
-                    code_to_check = _read_current_code(i)
-
-                    duration = audio_infos[i]['audio_duration']
-                    visual_check_tasks.append(
-                        (i, code_to_check, segment_data, duration))
-
-                with ThreadPoolExecutor(
-                        max_workers=self.num_parallel) as executor:
-                    check_futures = {
-                        executor.submit(self.check_code_quality, v_code, v_i,
-                                        self.config, v_seg, v_dur): v_i
-                        for v_i, v_code, v_seg, v_dur in visual_check_tasks
-                    }
-
-                    for future in as_completed(check_futures):
-                        idx = check_futures[future]
-                        visual_feedback = future.result()
-
-                        if visual_feedback:  # If not None, it failed check
-                            self.visual_fail_counts[idx] += 1
-                            logger.warning(
-                                f'Segment {idx+1} rejected by Visual Audit '
-                                f'(attempt {self.visual_fail_counts[idx]}): '
-                                f'{visual_feedback}')
-
-                            if self.visual_fail_counts[
-                                    idx] <= self.max_visual_fix_rounds:
-                                # Mark as failed
-                                failed_segments.append(idx)
-                                # Update the result tuple to reflect failure and new error log
-                                results[idx] = (
-                                    False,
-                                    f'VISUAL_AUDIT_FAIL:\n{visual_feedback}')
-                                segment_status[
-                                    idx] = False  # Mark for re-render next round
-                            else:
-                                logger.warning(
-                                    f'Segment {idx+1} reached max visual fix attempts '
-                                    f'({self.max_visual_fix_rounds}). Accepting with defects.'
-                                )
-                                # Do NOT add to failed_segments, effectively accepting it.
-                                # results[idx] is currently (True, None) from the render step, or update it to warn?
-                                results[idx] = (
-                                    True,
-                                    f'WARNING: Accepted with visual defects: {visual_feedback}'
-                                )
-                                segment_status[idx] = True
-                        else:
-                            logger.info(
-                                f'Segment {idx+1} passed Visual Audit.')
-
-            failed_segments = sorted(list(set(failed_segments)))  # Deduplicate
-
-            def _extract_error_segment_indices(
-                    log_text: Optional[str]) -> List[int]:
-                if not log_text:
-                    return []
-                # esbuild/webpack error lines usually include: ...\src\Segment15.tsx:...
-                segs = []
-                for m in re.finditer(r'src[\\/]+Segment(\d+)\.tsx', log_text):
-                    try:
-                        segs.append(int(m.group(1)) - 1)
-                    except Exception:
-                        continue
-                return segs
-
-            if not failed_segments:
-                logger.info('All rendered segments succeeded in this round.')
-                continue  # Loop will break at start of next iteration
-
-            if round_idx == self.code_fix_round:
-                logger.warning(
-                    f'Max fix rounds reached. Failed segments: {failed_segments}'
-                )
-                break
-
-            logger.info(
-                f'Round {round_idx + 1}: {len(failed_segments)} segments failed. Attempting to fix...'
-            )
-
-            # If the bundler fails, Remotion cannot render ANY composition.
-            # In that case, the error log will reference the *actual* offending Segment file,
-            # and fixing every failed segment is counterproductive.
-            # The error log for ALL segments will point to the ONE broken file.
-            referenced = set()
-            for seg_idx, (success, error_log) in results.items():
-                if success:
-                    continue
-                # Extract any referenced "SegmentX.tsx" from the error log
-                found_indices = _extract_error_segment_indices(error_log)
-                for idx in found_indices:
-                    # Only care if the error points to a file that is NOT the current file
-                    if 0 <= idx < len(segments):
-                        referenced.add(idx)
-
-            if referenced:
-                logger.info(
-                    'Detected global bundling failure caused by specific '
-                    'segments. Prioritizing fix for: '
-                    f'{sorted([i+1 for i in referenced])}')
-                # If we found culprit(s), we IGNORE the general list of failures for this repair round,
-                # and ONLY fix the culprit(s). This prevents the agent from hallucinating fixes for innocent files.
-                failed_segments = sorted(list(referenced))
-
-            # Prepare fix tasks
-            fix_tasks = []
-            for i in failed_segments:
-                success, error_log = results[i]
-                # Write error log
-                error_file = os.path.join(self.code_fix_dir,
-                                          f'code_fix_{i + 1}.txt')
-                with open(error_file, 'w', encoding='utf-8') as f:
-                    f.write(error_log or 'Unknown error')
-
-                # Read current code
-                current_code = _read_current_code(i)
-
-                fix_tasks.append((i, error_log, current_code))
-
-            # Run parallel fix
-            with ThreadPoolExecutor(max_workers=self.num_parallel) as executor:
-                futures = {
-                    executor.submit(self._fix_code_static, i, error_log, code,
-                                    self.config, self.remotion_project_dir): i
-                    for i, error_log, code in fix_tasks
-                }
-                for future in as_completed(futures):
-                    i, fixed_code = future.result()
-                    if fixed_code:
-                        # Update source files in both locations
-                        self._update_segment_code(i, fixed_code)
+                                fix_i] = False  # Force re-render of the culprit later if it was skipped
 
         return messages
 
@@ -383,23 +189,6 @@ class RenderRemotion(CodeAgent):
             os.path.join(self.remotion_project_dir, 'src', 'images'),
             exist_ok=True)
 
-        # 2. Copy images and validate them.
-        def write_placeholder(dest_path, w=1280, h=720, color=(240, 240, 240)):
-            try:
-                img = Image.new('RGB', (w, h), color)
-                draw = ImageDraw.Draw(img)
-                draw.text((20, 20),
-                          os.path.basename(dest_path),
-                          fill=(80, 80, 80))
-                img.save(dest_path, format='PNG')
-                return
-            except Exception:
-                transparent_png_b64 = (
-                    'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR4nGNgYAAAAAMAASsJTYQAAAAASUVORK5CYII='
-                )
-                with open(dest_path, 'wb') as _f:
-                    _f.write(base64.b64decode(transparent_png_b64))
-
         if os.path.exists(self.images_dir):
             for file in os.listdir(self.images_dir):
                 src = os.path.join(self.images_dir, file)
@@ -407,33 +196,8 @@ class RenderRemotion(CodeAgent):
                                           'images', file)
                 dst_src = os.path.join(self.remotion_project_dir, 'src',
                                        'images', file)
-
                 for dst in (dst_public, dst_src):
-                    try:
-                        shutil.copy(src, dst)
-                        try:
-                            with Image.open(dst) as im:
-                                im.verify()
-                        except Exception:
-                            write_placeholder(dst)
-                    except Exception:
-                        write_placeholder(dst)
-
-        # Create placeholders for likely referenced names
-        for i in range(1, len(segments) + 1):
-            bg_name = f'illustration_{i}_background.png'
-            for base_dir in ('public', 'src'):
-                bg_dst = os.path.join(self.remotion_project_dir, base_dir,
-                                      'images', bg_name)
-                if not os.path.exists(bg_dst):
-                    write_placeholder(bg_dst)
-            for j in range(1, 4):
-                fg_name = f'illustration_{i}_foreground_{j}.png'
-                for base_dir in ('public', 'src'):
-                    fg_dst = os.path.join(self.remotion_project_dir, base_dir,
-                                          'images', fg_name)
-                    if not os.path.exists(fg_dst):
-                        write_placeholder(fg_dst)
+                    shutil.copy(src, dst)
 
         # 3. Copy generated code
         for i in range(len(segments)):
@@ -442,11 +206,7 @@ class RenderRemotion(CodeAgent):
             dst_file = os.path.join(self.remotion_project_dir, 'src',
                                     f'Segment{i+1}.tsx')
             if os.path.exists(src_file):
-                # Sanitize code to reduce common esbuild/TSX syntax failures.
-                with open(src_file, 'r', encoding='utf-8') as f:
-                    code = f.read()
-                with open(dst_file, 'w', encoding='utf-8') as f:
-                    f.write(code)
+                shutil.copy(src_file, dst_file)
             else:
                 # Create a dummy file if missing to prevent build failure
                 with open(dst_file, 'w') as f:
@@ -487,12 +247,9 @@ class RenderRemotion(CodeAgent):
         width = 1280
         height = 720
         if hasattr(self.config.video, 'size'):
-            try:
-                w, h = self.config.video.size.split('x')
-                width = int(w)
-                height = int(h)
-            except Exception:
-                pass
+            w, h = self.config.video.size.split('x')
+            width = int(w)
+            height = int(h)
 
         root_content = "import React from 'react';\n"
         root_content += "import { Composition } from 'remotion';\n"
@@ -591,7 +348,7 @@ class RenderRemotion(CodeAgent):
         browser_found = False
         if os.path.exists(local_browser_cache):
             for root, _, files in os.walk(local_browser_cache):
-                if 'chrome-headless-shell.exe' in files or 'chrome-headless-shell' in files:
+                if 'chrome-headless-shell' in files:
                     browser_found = True
                     break
 
@@ -930,7 +687,7 @@ Does this code follow best practices for layout safety (Flexbox) and avoid obvio
                 log_content = (result.stderr or '') + '\n' + (
                     result.stdout or '')
                 logger.warning(
-                    f'Rendering failed for {composition_id}. Log (excerpt): {log_content[:500]}...'
+                    f'Rendering failed for {composition_id}. Log (except): {log_content[:500]}...'
                 )
                 return i, False, log_content
             else:
@@ -959,125 +716,19 @@ Does this code follow best practices for layout safety (Flexbox) and avoid obvio
         # 3. Use LLM to fix remaining issues.
         llm = LLM.from_config(config)
         logger.info(f'Fixing code for segment {i+1} with LLM...')
-        fixed_code = RenderRemotion._fix_code_impl(llm, error_log, code,
+        return i, RenderRemotion._fix_code_impl(llm, error_log, code,
                                                    remotion_project_dir)
-        if fixed_code and RenderRemotion._is_valid_segment_component(
-                fixed_code, i + 1):
-            return i, fixed_code
-
-        logger.warning(
-            f'LLM returned invalid/partial code for segment {i+1}; keeping previous code to avoid breaking the project.'
-        )
-        return i, code
-
-    @staticmethod
-    def _strip_background_color(code: str) -> str:
-        """Remove root-level background colors to ensure transparency."""
-        try:
-            # Replace backgroundColor: 'black' with backgroundColor: undefined
-            # Also cover rgb/rgba black/white
-            pattern = (
-                r"backgroundColor:\s*['\"](black|white|#000|#fff|#000000|#ffffff|"
-                r"rgb\(0,\s*0,\s*0\)|rgba\(0,\s*0,\s*0,\s*1\))['\"]")
-            code = re.sub(
-                pattern,
-                'backgroundColor: undefined',
-                code,
-                flags=re.IGNORECASE,
-            )
-        except Exception:
-            pass
-        return code
-
-    @staticmethod
-    def _strip_background_images(code: str) -> str:
-        """
-        Remove background images to ensure ProRes 4444 transparency.
-        The background is composed in a later step.
-        """
-        if not code:
-            return code
-
-        try:
-            # Remove common wrapper pattern:
-            # <AbsoluteFill ...> <Img src={staticFile("images/illustration_X_background.png")} ... /> </AbsoluteFill>
-            code = re.sub(
-                (r"<AbsoluteFill[^>]*>\s*<Img[\s\S]*?staticFile\(\s*['\"]"
-                 r"images/illustration_\d+_background\.png['\"]\s*\)"
-                 r'[\s\S]*?<\/AbsoluteFill>'),
-                '',
-                code,
-                flags=re.IGNORECASE,
-            )
-
-            # Remove any remaining Img referencing illustration_*_background.png
-            code = re.sub(
-                (r"<Img[\s\S]*?staticFile\(\s*['\"]images/illustration_\d+_background\.png"
-                 r"['\"]\s*\)[\s\S]*?\/?>"),
-                '',
-                code,
-                flags=re.IGNORECASE,
-            )
-
-            # Remove inline CSS backgroundImage that references illustration_*_background.png
-            code = re.sub(
-                r'backgroundImage\s*:\s*[^,\n}]*illustration_\d+_background\.png[^,\n}]*,?',
-                '',
-                code,
-                flags=re.IGNORECASE,
-            )
-
-            # Heuristic: Remove any full-screen image component with zIndex: -1 (often used as background)
-            # e.g., <Img ... style={{width: '100%', height: '100%', zIndex: -1}} ... />
-            # Matches src="..." then style with zIndex: -1 around it
-            code = re.sub(
-                r'<Img[^>]*style=\{[^}]*zIndex:\s*-1[^}]*\}[^>]*\/?>',
-                '',
-                code,
-                flags=re.IGNORECASE)
-
-            # Remove <AbsoluteFill zIndex={-1}> ... <Img ... width: '100%' ... /> ... </AbsoluteFill>
-            # This is harder with regex, but we can catch the simple AbsoluteFill style={{zIndex: -1}} pattern
-            code = re.sub(
-                r'<AbsoluteFill[^>]*style=\{[^}]*zIndex:\s*-1[^}]*\}[^>]*>[\s\S]*?</AbsoluteFill>',
-                '',
-                code,
-                flags=re.IGNORECASE)
-
-            return code
-        except Exception:
-            return code
-
-    @staticmethod
-    def _is_valid_segment_component(code: str, segment_number: int) -> bool:
-        """Heuristic validation to avoid overwriting with snippets.
-
-        We require the code to contain an export for the expected Segment component.
-        """
-        if not code or len(code) < 50:
-            return False
-        expected = f'Segment{segment_number}'
-        if f'export const {expected}' in code:
-            return True
-        if f'export function {expected}' in code:
-            return True
-        if f'export {{ {expected} }}' in code:
-            return True
-        return False
 
     @staticmethod
     def _fix_code_impl(llm, error_log, code, remotion_project_dir=None):
         available_images_info = ''
         if remotion_project_dir:
-            try:
-                images_path = os.path.join(remotion_project_dir, 'public',
-                                           'images')
-                if os.path.exists(images_path):
-                    files = sorted(os.listdir(images_path))
-                    available_images_info = '\nAvailable images in public/images/:\n' + '\n'.join(
-                        [f'- {f}' for f in files])
-            except Exception:
-                pass
+            images_path = os.path.join(remotion_project_dir, 'public',
+                                       'images')
+            if os.path.exists(images_path):
+                files = sorted(os.listdir(images_path))
+                available_images_info = '\nAvailable images in public/images/:\n' + '\n'.join(
+                    [f'- {f}' for f in files])
 
         if 'VISUAL CHECK FAILED' in error_log:
             fix_prompt = f"""
@@ -1153,403 +804,3 @@ Return the full corrected code.
             code = response
 
         return code.strip()
-
-    @staticmethod
-    def _auto_fix_template_parens(code: str) -> str:
-        """Auto-fix common LLM TSX generation issues.
-
-        1) Fix mismatched parentheses inside `${...}` template expressions.
-        2) Convert `transform: `...${expr}...`` template literals into string concatenation.
-           This avoids esbuild parse errors from complex nested braces/parens.
-        """
-
-        try:
-            code = RenderRemotion._auto_fix_common_tsx_typos(code)
-        except Exception:
-            pass
-
-        # Fix common pattern: `config: { ... ) }` (stray ')' before closing brace)
-        try:
-            code = re.sub(
-                r'(\bconfig\s*:\s*\{[^}]*?)\)(\s*\})',
-                r'\1\2',
-                code,
-                flags=re.DOTALL)
-        except Exception:
-            pass
-
-        def _repair(match):
-            inner = match.group(1)
-            open_parens = inner.count('(')
-            close_parens = inner.count(')')
-            if open_parens > close_parens:
-                inner = inner + (')' * (open_parens - close_parens))
-            elif close_parens > open_parens:
-                # Common LLM bug: extra closing parens right before `}` like `${0.3 + x)}`
-                trimmed = inner.rstrip()
-                extra = close_parens - open_parens
-                while extra > 0 and trimmed.endswith(')'):
-                    trimmed = trimmed[:-1].rstrip()
-                    extra -= 1
-                inner = trimmed
-            return '${' + inner + '}'
-
-        try:
-            code = re.sub(r'\$\{([^}]*)\}', _repair, code)
-        except Exception:
-            pass
-
-        # Fix a common typo: extra ')' inside spring config objects.
-        # Example: config: {damping: 200)}  ->  config: {damping: 200}
-        try:
-            code = re.sub(r'(\bconfig\s*:\s*\{[^}]*?)\)(\s*\})', r'\1\2', code)
-        except Exception:
-            pass
-
-        try:
-            code = RenderRemotion._convert_transform_template_literals(code)
-        except Exception:
-            pass
-
-        # Fix common malformed string concatenation in transforms (non-template literal case)
-        try:
-            code = RenderRemotion._auto_fix_common_concat_syntax(code)
-        except Exception:
-            pass
-
-        try:
-            code = RenderRemotion._auto_fix_input_range(code)
-        except Exception:
-            pass
-
-        try:
-            code = RenderRemotion._remove_background_color(code)
-        except Exception:
-            pass
-
-        return code
-
-    @staticmethod
-    def _auto_fix_common_tsx_typos(code: str) -> str:
-        """Fix small, common TSX typos that frequently break esbuild bundling."""
-        if not code:
-            return code
-
-        # Fix malformed arrow function parameter list like: (t}) => ...
-        # Seen in: easing: (t}) => 1 - Math.pow(1 - t, 3)
-        code = re.sub(
-            r'\(\s*([A-Za-z_$][\w$]*)\s*\}\s*\)\s*=>',
-            r'(\1) =>',
-            code,
-        )
-
-        # Fix common misspellings for interpolate extrapolation options
-        code = code.replace('extrapulateRight', 'extrapolateRight')
-        code = code.replace('extrapulateLeft', 'extrapolateLeft')
-
-        # Fix broken imports caused by bad injection logic
-        # e.g. import { A } , staticFile } from 'remotion' -> import { A, staticFile } from 'remotion'
-        code = re.sub(r'\}\s*,\s*staticFile\s*\}', ', staticFile }', code)
-        code = re.sub(r'\}\s*,\s*staticFile\s*,\s*Img\s*\}',
-                      ', staticFile, Img }', code)
-
-        return code
-
-    @staticmethod
-    def _auto_fix_common_concat_syntax(code: str) -> str:
-        """Fix common malformed string concatenations that break esbuild.
-
-        Example observed in the wild (breaks bundling):
-        transform: 'translateY(' + (interpolate(...) + ')) + 'px)'
-
-        This function rewrites common translateX/translateY/rotate transform lines
-        into a stable concatenation form.
-        """
-        # 1. Fix interpolate(..., { ... )) -> interpolate(..., { ... })
-        # Pattern: interpolate call ending in ) where the last arg is an object but missing }
-        try:
-            code = re.sub(r'(interpolate\s*\([^)]*\{[^})]*)\)', r'\1})', code)
-        except Exception:
-            pass
-
-        def _extract_balanced_parens(s: str, start_idx: int) -> str:
-            depth = 0
-            in_single = False
-            in_double = False
-            escaped = False
-            for j in range(start_idx, len(s)):
-                ch = s[j]
-                if escaped:
-                    escaped = False
-                    continue
-                if ch == '\\':
-                    escaped = True
-                    continue
-                if ch == "'" and not in_double:
-                    in_single = not in_single
-                    continue
-                if ch == '"' and not in_single:
-                    in_double = not in_double
-                    continue
-                if in_single or in_double:
-                    continue
-                if ch == '(':
-                    depth += 1
-                elif ch == ')':
-                    depth -= 1
-                    if depth == 0:
-                        return s[start_idx:j + 1]
-            return ''
-
-        def _fix_transform_line(line: str) -> str:
-            if 'transform' not in line or 'interpolate(' not in line:
-                return line
-            # Skip template literals handled elsewhere
-            if '`' in line:
-                return line
-
-            func = None
-            unit = None
-            if "'translateY('" in line:
-                func, unit = 'translateY', 'px'
-            elif "'translateX('" in line:
-                func, unit = 'translateX', 'px'
-            elif "'rotate('" in line:
-                func, unit = 'rotate', 'deg'
-            else:
-                return line
-
-            idx = line.find('interpolate(')
-            call = _extract_balanced_parens(line, idx)
-            if not call:
-                return line
-
-            indent = re.match(r'^\s*', line).group(0)
-            trailing_comma = ',' if line.rstrip().endswith(',') else ''
-            return f"{indent}transform: '{func}(' + {call} + '{unit})'{trailing_comma}"
-
-        try:
-            lines = code.splitlines()
-            lines = [_fix_transform_line(ln) for ln in lines]
-            code = '\n'.join(lines)
-        except Exception:
-            pass
-
-        # Fix a common typo introduced by LLM
-        try:
-            code = re.sub(r'\bfps\s*:\s*FPS\b', 'fps: fps', code)
-        except Exception:
-            pass
-
-        return code
-
-    @staticmethod
-    def _auto_fix_input_range(code: str) -> str:
-        """Sort numeric inputRange arrays to satisfy Remotion monotonicity requirement.
-
-        Note: This is a heuristic. It only sorts strictly numeric arrays.
-        It does NOT reorder outputRange, which might break animation logic,
-        but it fixes the crash. The LLM fix is preferred, but this helps simple cases.
-        """
-
-        def _sort_range(match):
-            content = match.group(1)
-            # Check if it looks like a list of numbers (int or float)
-            if not re.match(r'^[\d\.\s,\-]+$', content):
-                return match.group(0)
-            try:
-                nums = [
-                    float(x.strip()) for x in content.split(',') if x.strip()
-                ]
-                # If already sorted, do nothing
-                if nums == sorted(nums) and len(nums) == len(set(nums)):
-                    return match.group(0)
-
-                # Sort
-                sorted_nums = sorted(nums)
-                # Deduplicate if needed (Remotion requires strict monotonicity)
-                # But changing length breaks outputRange matching.
-                # So we just sort. If duplicates exist, it will still crash, but sorting helps [20, 0] -> [0, 20]
-                return f'inputRange: [{", ".join(str(n) for n in sorted_nums)}]'
-            except Exception:
-                return match.group(0)
-
-        # Regex for `inputRange: [...]`
-        return re.sub(r'inputRange\s*:\s*\[([^\]]+)\]', _sort_range, code)
-
-    @staticmethod
-    def _remove_background_color(code: str) -> str:
-        """Remove solid background colors from root styles to ensure transparency."""
-        # Remove backgroundColor: 'black', 'white', '#000', etc.
-        # We target common patterns.
-
-        # 1. Remove `backgroundColor: 'black'` or similar in style objects
-        code = re.sub(
-            r'backgroundColor\s*:\s*[\'"](black|white|#000|#000000|#fff|#ffffff)[\'"]\s*,?',
-            '', code)
-
-        # 2. Remove `backgroundColor: 'black'` if it's the only prop in a style object? No, too risky.
-
-        return code
-
-    @staticmethod
-    def _convert_transform_template_literals(code: str) -> str:
-        """Convert `transform: `...`` template literals to string concatenation.
-
-        Handles multi-line template literals and nested `{}` inside `${...}` by using a small scanner
-        (instead of fragile regex-only rewriting).
-        """
-
-        def _escape_single_quotes(text: str) -> str:
-            return text.replace('\\', '\\\\').replace("'", "\\'")
-
-        def _parse_template(template: str) -> str:
-            # Turn a template literal body (no backticks) into `'a' + (expr) + 'b'`.
-            parts = []
-            i = 0
-            literal_buf = []
-
-            def flush_literal():
-                nonlocal literal_buf
-                if literal_buf:
-                    parts.append("'"
-                                 + _escape_single_quotes(''.join(literal_buf))
-                                 + "'")
-                    literal_buf = []
-
-            while i < len(template):
-                if template.startswith('${', i):
-                    flush_literal()
-                    i += 2
-                    depth = 1
-                    expr_buf = []
-                    in_str = None
-                    escape = False
-                    while i < len(template) and depth > 0:
-                        ch = template[i]
-                        if escape:
-                            expr_buf.append(ch)
-                            escape = False
-                            i += 1
-                            continue
-
-                        if in_str is not None:
-                            expr_buf.append(ch)
-                            if ch == '\\':
-                                escape = True
-                            elif ch == in_str:
-                                in_str = None
-                            i += 1
-                            continue
-
-                        if ch in ('"', "'"):
-                            in_str = ch
-                            expr_buf.append(ch)
-                            i += 1
-                            continue
-
-                        if ch == '{':
-                            depth += 1
-                            expr_buf.append(ch)
-                            i += 1
-                            continue
-                        if ch == '}':
-                            depth -= 1
-                            if depth == 0:
-                                i += 1
-                                break
-                            expr_buf.append(ch)
-                            i += 1
-                            continue
-
-                        expr_buf.append(ch)
-                        i += 1
-
-                    expr = ''.join(expr_buf).strip()
-                    # Wrap in parentheses to be safe when concatenating.
-                    parts.append(f'({expr})' if expr else "''")
-                    continue
-
-                literal_buf.append(template[i])
-                i += 1
-
-            flush_literal()
-
-            # Join parts: remove empty string literals when possible
-            # e.g. '' + (x) -> (x), (x) + '' -> (x)
-            joined = ' + '.join(parts)
-            joined = joined.replace("'' + ", '')
-            joined = joined.replace(" + ''", '')
-            return joined
-
-        out = []
-        idx = 0
-        # Find occurrences of `transform: ` and replace the following template literal.
-        while True:
-            m = re.search(r'(\btransform\s*:\s*)`', code[idx:])
-            if not m:
-                out.append(code[idx:])
-                break
-
-            start = idx + m.start()
-            prefix_end = idx + m.end()  # points right after opening backtick
-            out.append(code[idx:start])
-            prefix = code[
-                start:prefix_end]  # includes `transform: ` + opening backtick
-
-            # Locate closing backtick
-            j = prefix_end
-            while j < len(code) and code[j] != '`':
-                j += 1
-            if j >= len(code):
-                # Unclosed template literal; bail.
-                out.append(code[start:])
-                break
-
-            template_body = code[prefix_end:j]
-            converted = _parse_template(template_body)
-            # Replace prefix `transform: `
-            prefix_no_tick = prefix[:-1]  # remove opening backtick
-            out.append(prefix_no_tick)
-            out.append(converted)
-            idx = j + 1  # skip closing backtick
-
-        return ''.join(out)
-
-    @staticmethod
-    def _enforce_image_constraints(code: str) -> str:
-        """
-        [DISABLED - Agentic Approach]
-        Previously injecting hard constraints (maxWidth: '90%').
-        Now letting LLM decide scaling. If it fails visual check, LLM fixes it.
-        """
-        return code
-
-    @staticmethod
-    def _enforce_layout_safety(code: str) -> str:
-        """Enforce basic technical safety (no flickering), but allow LLM layout freedom."""
-
-        # 1. Anti-Flickering: Remove rapid modulo-based opacity/visibility
-        # Pattern: `opacity: frame %` or `opacity: (frame %`
-        code = re.sub(r'opacity:\s*(\(frame|frame)\s*%',
-                      'opacity: 1; // fixed flickering ', code)
-
-        # 2. Universal Overflow Protection
-        # Inject overflow: hidden into the root AbsoluteFill to physically cut off out-of-bounds content
-        if '<AbsoluteFill' in code:
-            if 'style={{' in code:
-                # Be careful not to double inject if run multiple times
-                if "overflow: 'hidden'" not in code:
-                    code = code.replace(
-                        '<AbsoluteFill style={{',
-                        "<AbsoluteFill style={{ overflow: 'hidden', ", 1)
-            else:
-                code = code.replace(
-                    '<AbsoluteFill',
-                    "<AbsoluteFill style={{ overflow: 'hidden' }}", 1)
-
-        # 3. [DISABLED] Aggressive Absolute Positioning Neutralizer
-        # We now rely on the Visual Audit loop to catch overlaps, allowing the model
-        # to use absolute positioning if it does so correctly (e.g. non-overlapping coordinates).
-
-        return code
