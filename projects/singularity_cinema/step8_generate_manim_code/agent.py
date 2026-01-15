@@ -37,7 +37,7 @@ class GenerateManimCode(CodeAgent):
 
         tasks = []
         for i, (segment, audio_info) in enumerate(zip(segments, audio_infos)):
-            manim_requirement = segment['manim']
+            manim_requirement = segment.get('manim')
             if manim_requirement is not None:
                 tasks.append((segment, audio_info['audio_duration'], i))
 

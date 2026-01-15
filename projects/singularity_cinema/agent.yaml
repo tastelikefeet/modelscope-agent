@@ -85,7 +85,7 @@ video:
 
 use_doc_image: true
 
-use_subtitle: true
+use_subtitle: false
 
 use_text2video: true
 
@@ -93,12 +93,12 @@ use_video_soundtrack: false
 
 subtitle_translate:
 
-bg_audio_path: bg.mp3
+bg_audio_path:
 
 bg_audio_volume: 0.3
 
 # image/'#fcfbf9'/BLACK/WHITE
-background: white
+background: image
 
 # image/blank value
 foreground: image
@@ -126,7 +126,7 @@ voices:
   # Chinese voices - Mandarin
   male:
     voice: zh-CN-YunjianNeural
-    rate: '+50%'
+    rate: '+0%'
     pitch: '+0Hz'
 
   female:

@@ -219,5 +219,4 @@ class GenerateRemotionCode(CodeAgent):
             return re.sub(pattern, replacement, code)
 
         code = fix_easing_syntax(code)
-        # code = code.replace('illustration_', 'images/illustration_')
         return code
