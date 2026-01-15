@@ -48,6 +48,8 @@ class RenderRemotion(CodeAgent):
                                              'max_visual_fix_rounds', 2)
         # Track per-segment visual failure counts
         self.visual_fail_counts = defaultdict(int)
+        # Track scale per segment for edge clipping retry
+        self.segment_scales = {}
 
         os.makedirs(self.render_dir, exist_ok=True)
         os.makedirs(self.code_fix_dir, exist_ok=True)
@@ -65,9 +67,16 @@ class RenderRemotion(CodeAgent):
         # Ensure browser is installed before parallel rendering
         self._ensure_browser(self.remotion_project_dir)
 
+        logger.info('Installing dependencies...')
+        subprocess.run(
+            'npm install',
+            cwd=self.remotion_project_dir,
+            shell=True,
+            check=True)
+
         segment_status = {i: False for i in range(len(segments))}
 
-        for round_idx in range(self.code_fix_round + 1):
+        for round_idx in range(self.code_fix_round + 30):
             # Identify segments needing render (all initially, then only failed ones)
             segments_to_render = [
                 i for i, status in segment_status.items() if status is not True
@@ -112,6 +121,9 @@ class RenderRemotion(CodeAgent):
 
             # Render sequentially; if any render fails, fix immediately and retry once.
             for i in segments_to_render:
+                # Get current scale for this segment (default 0.9)
+                current_scale = self.segment_scales.get(i, 0.9)
+                
                 i, success, error_log = self._render_remotion_scene_static(
                     i,
                     segments[i],
@@ -121,9 +133,19 @@ class RenderRemotion(CodeAgent):
                     self.render_dir,
                     self.remotion_project_dir,
                     self.mllm_check_round,
+                    current_scale,
                 )
                 results[i] = (success, error_log)
                 segment_status[i] = success
+                
+                # If edge clipping detected, reduce scale and retry
+                if not success and error_log and 'EDGE_CLIPPING' in error_log:
+                    new_scale = 0.8
+                    self.segment_scales[i] = new_scale
+                    logger.info(f'Edge clipping detected for segment {i+1}, reducing scale to {new_scale}')
+                    # Update Root.tsx with new scale
+                    self._update_root_tsx_for_segment(i)
+                    segment_status[i] = False  # Force retry
 
                 if success or round_idx >= self.code_fix_round:
                     continue
@@ -241,7 +263,12 @@ class RenderRemotion(CodeAgent):
             f.write("import { RemotionRoot } from './Root';\n")
             f.write('registerRoot(RemotionRoot);\n')
 
-        # 6. Create src/Root.tsx
+        # 6. Create src/Root.tsx with dynamic scale support
+        self._generate_root_tsx(segments, audio_infos)
+
+        # 7. Create tsconfig.json
+    def _generate_root_tsx(self, segments, audio_infos):
+        """Generate Root.tsx with dynamic scale support"""
         fps = self.config.video.fps
         width = 1280
         height = 720
@@ -266,6 +293,8 @@ class RenderRemotion(CodeAgent):
 
         for i, audio_info in enumerate(audio_infos):
             duration_in_frames = int(audio_info['audio_duration'] * fps)
+            # Get scale from tracking dict or use default
+            scale = self.segment_scales.get(i, 0.9)
             root_content += '      <Composition\n'
             root_content += f"        id=\"Segment{i+1}\"\n"
             root_content += f'        component={{Segment{i+1}}}\n'
@@ -273,6 +302,7 @@ class RenderRemotion(CodeAgent):
             root_content += f'        fps={{{fps}}}\n'
             root_content += f'        width={{{width}}}\n'
             root_content += f'        height={{{height}}}\n'
+            root_content += f'        defaultProps={{{{ scale: {scale} }}}}\n'
             root_content += '      />\n'
 
         root_content += '    </>\n'
@@ -283,6 +313,14 @@ class RenderRemotion(CodeAgent):
                 os.path.join(self.remotion_project_dir, 'src', 'Root.tsx'),
                 'w') as f:
             f.write(root_content)
+
+    def _update_root_tsx_for_segment(self, segment_idx):
+        """Update Root.tsx when a specific segment's scale changes"""
+        with open(os.path.join(self.work_dir, 'segments.txt'), 'r') as f:
+            segments = json.load(f)
+        with open(os.path.join(self.work_dir, 'audio_info.txt'), 'r') as f:
+            audio_infos = json.load(f)
+        self._generate_root_tsx(segments, audio_infos)
 
         # 7. Create tsconfig.json
         tsconfig = {
@@ -308,17 +346,6 @@ class RenderRemotion(CodeAgent):
                 os.path.join(self.remotion_project_dir, 'tsconfig.json'),
                 'w') as f:
             json.dump(tsconfig, f, indent=2)
-
-        # 8. Install dependencies
-        node_modules_dir = os.path.join(self.remotion_project_dir,
-                                        'node_modules')
-        if not os.path.exists(node_modules_dir):
-            logger.info('Installing dependencies...')
-            subprocess.run(
-                'npm install',
-                cwd=self.remotion_project_dir,
-                shell=True,
-                check=True)
 
     def _ensure_browser(self, remotion_project_dir):
         # Check for global browser cache to avoid re-downloading.
@@ -478,74 +505,6 @@ class RenderRemotion(CodeAgent):
         )
 
     @staticmethod
-    def check_code_quality(code, i, config, segment, duration):
-        """
-        Use LLM to audit code quality, checking for layout issues (e.g. Flexbox vs Absolute).
-        """
-        # If no code, we can't check.
-        if not code or len(code) < 50:
-            return 'FAIL: Empty or invalid code.'
-
-        llm = LLM.from_config(config)
-
-        system_prompt = """You are a Senior React/Remotion Code Auditor.
-Your goal is to ensure the generated video code is robust, responsive, and uses modern layout practices (Flexbox).
-
-**CRITICAL FAILURE CRITERIA (Report these as FAIL)**:
-1.  **Absolute Overlap Risk**: Using `position: 'absolute'` with `top: '50'`, `left: '50'` on MULTIPLE elements
-    without distinct margins or transforms. This causes overlap.
-2.  **Lack of Flexbox**: The main container should use `display: 'flex'` to manage layout structure (Text vs Image).
-    - **VIOLATION**: If you see `AbsoluteFill` containing only direct children with `position: 'absolute'`, FAIL IT.
-    - **REQUIREMENT**: There must be a flex container that separates content.
-3.  **Hardcoded Dimensions (Universal Bounds Issue)**:
-    - **VIOLATION**: Using fixed pixel widths/heights (e.g., `width: 500`, `left: 300`) for MAIN containers.
-    - **REQUIREMENT**: Use percentages (e.g., `width: '50%'`) to ensure generic compatibility across resolutions.
-4.  **Z-Index Chaos**: Elements using random high z-indexes (100, 999) to force visibility
-    instead of proper DOM order.
-5.  **Text Visibility**: Text containers MUST have a background color (e.g., `rgba(0,0,0,0.5)`)
-    if they are overlaying images to prevent contrast issues.
-
-**Context**:
-- This is a 16:9 video (1280x720).
-- We want a clean, high-end presentation style.
-
-**Output Format**:
-- If Clean: Output exactly `PASS`.
-- If Issues: Output `FAIL: <Concise explanation of the code flaw and how to fix it>`.
-"""
-
-        user_prompt = f"""
-Audit this Remotion Component Code for Segment {i+1}:
-
-```typescript
-{code}
-```
-
-Does this code follow best practices for layout safety (Flexbox) and avoid obvious overlap risks?
-"""
-
-        try:
-            response = llm.generate([
-                Message(role='system', content=system_prompt),
-                Message(role='user', content=user_prompt)
-            ])
-            result = response.content.strip()
-
-            if 'FAIL' in result:
-                return result
-            # If the LLM just chats but doesn't explicitly fail, we assume pass or look for negative keywords?
-            # The prompt asks for explicit PASS/FAIL.
-            if 'PASS' in result:
-                return None
-
-            # Fallback: if ambiguous, treat as pass but log? No, safe to pass if not explicit fail.
-            return None
-
-        except Exception as e:
-            logger.warning(f'Code Audit Check failed: {e}')
-            return None
-
-    @staticmethod
     def _render_remotion_scene_static(
             i,
             segment,
@@ -554,7 +513,8 @@ Does this code follow best practices for layout safety (Flexbox) and avoid obvio
             work_dir,
             render_dir,
             remotion_project_dir,
-            mllm_check_round=0) -> Tuple[int, bool, Optional[str]]:
+            mllm_check_round=0,
+            scale=0.9) -> Tuple[int, bool, Optional[str]]:
         """Static method for multiprocessing"""
         composition_id = f'Segment{i+1}'
         output_dir_scene = os.path.join(render_dir, f'scene_{i+1}')
@@ -691,7 +651,18 @@ Does this code follow best practices for layout safety (Flexbox) and avoid obvio
                 return i, False, log_content
             else:
                 logger.info(f'Rendered {composition_id} successfully.')
-                RenderRemotion._extract_preview_frames_static(output_path, i, work_dir)
+                preview_paths = RenderRemotion._extract_preview_frames_static(output_path, i, work_dir)
+
+                # Check for edge clipping
+                clipping_detected = False
+                for preview_path in preview_paths:
+                    if RenderRemotion._check_edge_clipping(preview_path):
+                        clipping_detected = True
+                        logger.warning(f'Edge clipping detected in {preview_path} for segment {i+1}')
+                        break
+                
+                if clipping_detected:
+                    return i, False, 'EDGE_CLIPPING: Content touches frame boundaries, need to reduce scale'
 
                 # --- VISUAL CHECK MOVED TO STEP 14 (Global Check) ---
                 # As per user request, we delay the MLLM visual inspection to the final composition stage.
@@ -702,6 +673,41 @@ Does this code follow best practices for layout safety (Flexbox) and avoid obvio
         except Exception as e:
             logger.error(f'Exception during rendering {composition_id}: {e}')
             return i, False, str(e)
+
+    @staticmethod
+    def _check_edge_clipping(frame_path, threshold=10):
+        """
+        Check if edge pixels are near pure black or white.
+        Returns True if clipping detected (colored pixels at edges).
+        """
+        try:
+            from PIL import Image
+            import numpy as np
+            
+            img = Image.open(frame_path).convert('RGB')
+            pixels = np.array(img)
+            height, width, _ = pixels.shape
+            
+            # Extract edge pixels (1-pixel border)
+            top_edge = pixels[0, :, :]
+            bottom_edge = pixels[height-1, :, :]
+            left_edge = pixels[:, 0, :]
+            right_edge = pixels[:, width-1, :]
+            
+            edges = np.concatenate([top_edge, bottom_edge, left_edge, right_edge])
+            
+            # Check if pixels are near black (0,0,0) or white (255,255,255)
+            near_black = np.all(edges < threshold, axis=1)
+            near_white = np.all(edges > (255 - threshold), axis=1)
+            safe_pixels = near_black | near_white
+            
+            # If less than 95% of edge pixels are black/white, clipping detected
+            clipping_ratio = np.sum(safe_pixels) / len(edges)
+            logger.info(f'Edge safety ratio: {clipping_ratio:.2%}')
+            return clipping_ratio < 0.95
+        except Exception as e:
+            logger.warning(f'Edge clipping check failed: {e}')
+            return False
 
     @staticmethod
     def _extract_preview_frames_static(video_path, segment_id, work_dir):
