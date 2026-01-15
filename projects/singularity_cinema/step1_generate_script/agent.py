@@ -42,11 +42,15 @@ class GenerateScript(LLMAgent):
         return super().on_task_end(messages)
 
     async def run(self, query: str, **kwargs):
+        script = os.path.join(self.work_dir, 'script.txt')
+        title = os.path.join(self.work_dir, 'title.txt')
         query += self.extra_req
         messages = [
             Message(role='system', content=self.system),
             Message(role='user', content=query),
         ]
+        if os.path.isfile(title) and os.path.isfile(script):
+            return messages
         inputs = await super().run(messages, **kwargs)
         with open(os.path.join(self.work_dir, 'topic.txt'), 'w') as f:
             f.write(messages[1].content)

@@ -83,22 +83,22 @@ video:
   preset: ultrafast
   fps: 24
 
-use_doc_image: false
+use_doc_image: true
 
-use_subtitle: false
+use_subtitle: true
 
-use_text2video: false
+use_text2video: true
 
 use_video_soundtrack: false
 
 subtitle_translate:
 
-bg_audio_path: bg_audio.mp3
+bg_audio_path: bg.mp3
 
 bg_audio_volume: 0.3
 
 # image/'#fcfbf9'/BLACK/WHITE
-background: image
+background: white
 
 # image/blank value
 foreground: image
@@ -126,7 +126,7 @@ voices:
   # Chinese voices - Mandarin
   male:
     voice: zh-CN-YunjianNeural
-    rate: '+0%'
+    rate: '+50%'
     pitch: '+0Hz'
 
   female:
@@ -286,5 +286,7 @@ tools:
 
 memory:
   diversity:
+
+save_history: false
 
 help: |

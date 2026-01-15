@@ -477,6 +477,8 @@ class ComposeVideo(CodeAgent):
     async def execute_code(self, messages, **kwargs):
         final_name = 'final_video.mp4'
         final_video_path = os.path.join(self.work_dir, final_name)
+        if os.path.exists(final_video_path):
+            return messages
         with open(os.path.join(self.work_dir, 'segments.txt'), 'r') as f:
             segments = json.load(f)
 
