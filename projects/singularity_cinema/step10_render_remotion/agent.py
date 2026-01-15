@@ -74,7 +74,8 @@ class RenderRemotion(CodeAgent):
             shell=True,
             check=True)
 
-        segment_status = {i: False for i in range(len(segments))}
+        segment_status = {i: os.path.exists(
+            os.path.join(self.render_dir, f'scene_{i+1}', f'Scene{i+1}.mov')) for i in range(len(segments))}
 
         for round_idx in range(self.code_fix_round + 1):
             # Identify segments needing render (all initially, then only failed ones)

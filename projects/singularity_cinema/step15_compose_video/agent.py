@@ -411,11 +411,14 @@ class ComposeVideo(CodeAgent):
 
                 final_video = final_video.with_audio(final_audio)
 
-            if os.path.exists(self.config.bg_audio_path):
-                bg_music_path = self.config.bg_audio_path
+            if self.config.bg_audio_path:
+                if os.path.exists(self.config.bg_audio_path):
+                    bg_music_path = self.config.bg_audio_path
+                else:
+                    bg_music_path = os.path.join(self.config.local_dir,
+                                                self.config.bg_audio_path)
             else:
-                bg_music_path = os.path.join(self.config.local_dir,
-                                             self.config.bg_audio_path)
+                bg_music_path = ''
             if os.path.exists(
                     bg_music_path) and not self.config.use_video_soundtrack:
                 bg_music = mp.AudioFileClip(bg_music_path)
