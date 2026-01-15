@@ -540,7 +540,8 @@ class RenderRemotion(CodeAgent):
         base_cmd = [
             'render', 'src/index.ts', composition_id, output_path,
             '--codec=prores', '--prores-profile=4444',
-            '--pixel-format=yuva444p10le', '--image-format=png'
+            '--pixel-format=yuva444p10le', '--image-format=png',
+            '--every-nth-frame=1'  # Render every frame for smooth animation
         ]
 
         # Try to find browser executable (Local > System)
