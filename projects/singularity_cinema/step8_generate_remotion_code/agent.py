@@ -42,10 +42,21 @@ class GenerateRemotionCode(CodeAgent):
             # "remotion" field takes precedence, fall back to "manim"
             animation_requirement = segment.get('remotion')
             if animation_requirement is not None:
+                # Check if file already exists
+                remotion_file = os.path.join(self.remotion_code_dir, f'Segment{i + 1}.tsx')
+                if os.path.exists(remotion_file):
+                    continue
                 tasks.append(
                     (segment, audio_info['audio_duration'], i))
 
         remotion_code = [''] * len(segments)
+
+        # Load existing files for skipped segments
+        for i in range(len(segments)):
+            remotion_file = os.path.join(self.remotion_code_dir, f'Segment{i + 1}.tsx')
+            if os.path.exists(remotion_file):
+                with open(remotion_file, 'r', encoding='utf-8') as f:
+                    remotion_code[i] = f.read()
 
         with ThreadPoolExecutor(max_workers=self.num_parallel) as executor:
             futures = {

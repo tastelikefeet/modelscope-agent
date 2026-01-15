@@ -220,14 +220,42 @@ class RenderRemotion(CodeAgent):
                 for dst in (dst_public, dst_src):
                     shutil.copy(src, dst)
 
-        # 3. Copy generated code
+        image_info_file = os.path.join(self.work_dir, 'image_info.txt')
+        user_image_mapping = {}
+        if os.path.exists(image_info_file):
+            with open(image_info_file, 'r') as f:
+                for line in f.readlines():
+                    if not line.strip():
+                        continue
+                    image_info = json.loads(line)
+                    original_path = image_info['filename']
+                    # Extract filename from absolute path
+                    filename = os.path.basename(original_path)
+                    # Copy to public/images and src/images
+                    dst_public = os.path.join(self.remotion_project_dir, 'public', 'images', filename)
+                    dst_src = os.path.join(self.remotion_project_dir, 'src', 'images', filename)
+                    shutil.copy(original_path, dst_public)
+                    shutil.copy(original_path, dst_src)
+                    # Store mapping for path replacement
+                    user_image_mapping[original_path] = f'images/{filename}'
+                    logger.info(f'Copied user image: {original_path} -> images/{filename}')
+
+        # 3. Copy generated code and replace absolute paths
         for i in range(len(segments)):
             src_file = os.path.join(self.remotion_code_dir,
                                     f'Segment{i+1}.tsx')
             dst_file = os.path.join(self.remotion_project_dir, 'src',
                                     f'Segment{i+1}.tsx')
             if os.path.exists(src_file):
-                shutil.copy(src_file, dst_file)
+                # Read file content
+                with open(src_file, 'r', encoding='utf-8') as f:
+                    content = f.read()
+                # Replace absolute paths with images/filename
+                for abs_path, rel_path in user_image_mapping.items():
+                    content = content.replace(abs_path, rel_path)
+                # Write modified content
+                with open(dst_file, 'w', encoding='utf-8') as f:
+                    f.write(content)
             else:
                 # Create a dummy file if missing to prevent build failure
                 with open(dst_file, 'w') as f:
