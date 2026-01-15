@@ -34,6 +34,8 @@ class ParseImages(CodeAgent):
             key = key[len('mllm_'):]
             setattr(_config.llm, key, value)
         _config.generation_config = DictConfig({'temperature': 0.3})
+        if 'extra_body' in config.generation_config:
+            _config.generation_config.extra_body = config.generation_config.extra_body
         self.mllm: OpenAI = LLM.from_config(_config)
         logger.info(
             f"Using MLLM for image parsing: {getattr(self.mllm, 'model', None)}"

@@ -109,7 +109,10 @@ class GenerateIllustrationPrompts(CodeAgent):
         logger.info(
             f'Generating background prompt from plan: {background_concept}')
 
-        query = f'Generate a background prompt based on concept: {background_concept}.'
+        with open(os.path.join(os.path.dirname(illustration_prompts_dir), 'topic.txt'), 'r') as f:
+            topic = f.read()
+        query = (f'User original topic: {topic}\n'
+                 f'Generate a background prompt based on the topic and concept of current segment: {background_concept}.')
         inputs = [
             Message(role='system', content=GenerateIllustrationPrompts.system),
             Message(role='user', content=query),
