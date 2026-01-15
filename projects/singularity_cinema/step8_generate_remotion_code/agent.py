@@ -185,6 +185,7 @@ class GenerateRemotionCode(CodeAgent):
             1. maxWidth: '90%' 或 width: '90%'
             2. maxHeight: '80%' 或 height: '80%'
             3. margin: 'auto'（确保居中时不超出边界）
+            4. translate等元素的使用必须考虑元素宽高的一半
         * **禁止使用固定像素值**定位元素（如 left: 300, width: 1500），必须使用百分比
         * **图片必须限制尺寸**：style={{{{maxWidth: '85%', maxHeight: '85%', objectFit: 'contain'}}}}
         * **绝对定位时检查边界**：确保 left/right/top/bottom 值在 5%-95% 和 10%-90% 范围内
