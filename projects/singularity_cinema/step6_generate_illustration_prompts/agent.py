@@ -41,7 +41,7 @@ class GenerateIllustrationPrompts(CodeAgent):
 规则：
 - 仅输出一条简洁的英文提示词。不要使用 markdown、JSON 或任何解释说明。
 - 丰富的细节：保证图片可以完整表述原需求。
-- 不要留白：使用适当的背景填充图像
+- 不要留白：使用适当的背景填充图像，尽量不要使用白色背景
 """
 
     def __init__(self,
