@@ -51,12 +51,12 @@ class Segment(LLMAgent):
 示例：
 ```json
 [
-    {
+    {{
         "index": 1, # 片段索引，从1开始
         "content": "你在这里完善内容",
         "background": "一张图片描述... 颜色 ... （你的详细要求在这里）",
         "{animation_engine}": "动画应该描述 ...",
-    },
+    }},
     ...
 ]
 ```
@@ -182,7 +182,7 @@ class Segment(LLMAgent):
 
 ```json
 [
-    {
+    {{
         "index": 1, # 片段索引，从1开始
         "{animation_engine}": "动画应该 ...，使用图片来... ",
         "user_image": [
@@ -193,7 +193,7 @@ class Segment(LLMAgent):
             "一张图片描述... 颜色 ... （你的详细要求在这里）",
             ...
         ],
-    },
+    }},
     ...
 ]
 ```
@@ -201,11 +201,11 @@ class Segment(LLMAgent):
 提供给{animation_engine}大语言模型的图片结构示例：
 ```json
 [
-    {
+    {{
         "file_path": "user_image1.jpg",
         "size": "2000*2000",
         "description": "图片包含 ..."
-    },
+    }},
     ...
 ]
 

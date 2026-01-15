@@ -82,47 +82,14 @@ class GenerateRemotionCode(CodeAgent):
         all_images_info = []
 
         foreground = segment.get('foreground', [])
-
-        # Fallback: Check for existing foreground images even if not in segment info
-        if not foreground:
-            pattern = os.path.join(image_dir,
-                                   f'illustration_{i + 1}_foreground_*.png')
-            found_files = sorted(glob.glob(pattern))
-            for fpath in found_files:
-                # Extract index from filename to match expected structure if needed,
-                # or just treat as a foreground image.
-                # Filename format: illustration_{i+1}_foreground_{idx+1}.png
-                try:
-                    # Try to find a description file
-                    base_name = os.path.basename(fpath)
-                    desc_name = base_name.replace('.png', '.txt')
-                    desc_path = os.path.join(
-                        os.path.dirname(image_dir), 'illustration_prompts',
-                        desc_name)
-                    description = 'Foreground element'
-                    if os.path.exists(desc_path):
-                        with open(desc_path, 'r', encoding='utf-8') as df:
-                            description = df.read().strip()
-
-                    size = GenerateRemotionCode.get_image_size(fpath)
-                    image_info = {
-                        'filename': base_name,
-                        'size': size,
-                        'description': description,
-                    }
-                    all_images_info.append(image_info)
-                except Exception as e:
-                    logger.warning(
-                        f'Error processing fallback image {fpath}: {e}')
-
         for idx, _req in enumerate(foreground):
             foreground_image = os.path.join(
                 image_dir, f'illustration_{i + 1}_foreground_{idx + 1}.png')
             if os.path.exists(foreground_image):
                 size = GenerateRemotionCode.get_image_size(foreground_image)
                 image_info = {
-                    'filename': os.path.basename(
-                        foreground_image),  # Use basename for Remotion
+                    'filename':  os.path.join('images', os.path.basename(
+                        foreground_image)),  # Use basename for Remotion
                     'size': size,
                     'description': _req,
                 }
@@ -152,7 +119,7 @@ class GenerateRemotionCode(CodeAgent):
         # Inject image info with code snippets.
         images_info_str = ''
         if images_info:
-            images_info_str += '可用图片（你必须使用以下确切的导入/使用代码）：\n'
+            images_info_str += '可用图片（你必须使用以下**确切的带路径**导入/使用代码）：\n'
             for img in images_info:
                 fname = img['filename']
                 images_info_str += f"- 名称：{fname}（{img['size']}，{img['description']}）\n"
@@ -196,12 +163,25 @@ class GenerateRemotionCode(CodeAgent):
     - 创建视觉上令人惊艳的动画，而不是简单的文本展示
     - 使用流畅的过渡和专业的动效
     - 保持视觉层次清晰，重要信息突出
-    - [关键] 绝对防止**元素空间重叠**或**元素超出边界**或**元素未对齐**。
+    - [关键] 绝对不允许**任何组件（文本框、图片、物体）重叠**或**元素超出边界**或**元素未对齐**。
     - [关键] 方框/文本之间的连接线长度适当，**两端点必须连接到对象上**。
+    - [关键] **绝对禁止非透明背景**。你的组件下方存在背景图片，需要显示它
     - 所有方框必须有粗边框以确保清晰可见
     - 通过控制字体大小使文本保持在画面内。由于拉丁字母文本通常较长，其字体应比中文更小。
     - 使用清晰、高对比度的字体颜色，防止文本与背景混淆
     - 整个视频使用约2种颜色的协调配色方案。避免杂乱的颜色、亮蓝色和亮黄色。优先使用深色、暗色调
+    
+    布局要求:
+      1. 文字动画布局工整,采用左右式或者田字格式，多利用横向空间，在屏幕上对称分布
+      2. 不要有截断和动画重叠
+      3. 文字颜色和背景有高对比度
+      4. 不要用代码绘制人物或物体，也不要用代码绘制复杂图像，多利用前景图片
+      5. 所有分镜背景和前景均使用一种主要配色
+      6. 生成的背景图片中间留空方便展示动画，防止前景混乱
+  
+    **代码原则**：
+    - 使用命名导出而非默认导出(export SegmentN)
+    - 引用图片时使用静态资源，例子：staticFile('images/illustration_M_foreground_N.png');
     请创建满足以上要求的 Remotion 代码，打造视觉震撼的动画效果。
 """
 
@@ -230,4 +210,5 @@ class GenerateRemotionCode(CodeAgent):
             return re.sub(pattern, replacement, code)
 
         code = fix_easing_syntax(code)
+        # code = code.replace('illustration_', 'images/illustration_')
         return code

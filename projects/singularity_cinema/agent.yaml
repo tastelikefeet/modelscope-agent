@@ -68,7 +68,7 @@ prompt:
 
     Now begin:
 
-t2i_num_parallel: 1
+t2i_num_parallel: 5
 t2v_num_parallel: 1
 llm_num_parallel: 10
 
@@ -96,15 +96,6 @@ subtitle_translate:
 bg_audio_path: bg_audio.mp3
 
 bg_audio_volume: 0.3
-
-extra_requirement: |
-  布局要求:
-  1. 文字动画布局工整,采用左右式或者田字格式，多利用横向空间，在屏幕上对称分布，每个分镜有一个title
-  2. 不要有截断和动画重叠
-  3. 文字颜色和背景有高对比度
-  4. 不要用代码绘制人物或物体，也不要用代码绘制复杂图像，多利用前景图片
-  5. 所有分镜背景和前景均使用一种主要配色
-  6. 生成的背景图片中间留空方便展示动画，防止前景混乱
 
 # image/'#fcfbf9'/BLACK/WHITE
 background: image

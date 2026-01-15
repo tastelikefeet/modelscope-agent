@@ -203,7 +203,7 @@ class GenerateImages(CodeAgent):
             if not os.path.exists(_temp_file):
                 raise RuntimeError(
                     f'Failed to generate image: {_temp_file}')
-
+            shutil.move(_temp_file, foreground_image)
             # Cleanup temp file if it still exists (shutil.move inside remove_white might differ)
             if os.path.exists(_temp_file):
                 os.remove(_temp_file)

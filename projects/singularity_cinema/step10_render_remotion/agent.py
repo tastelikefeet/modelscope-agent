@@ -1,5 +1,5 @@
 # Copyright (c) Alibaba, Inc. and its affiliates.
-import base64
+import json
 import os
 import re
 import shutil
@@ -7,15 +7,13 @@ import subprocess
 import urllib.request
 import zipfile
 from collections import defaultdict
-from concurrent.futures import ThreadPoolExecutor, as_completed
 from typing import List, Optional, Tuple, Union
 
-import json
+from omegaconf import DictConfig
+
 from ms_agent.agent import CodeAgent
 from ms_agent.llm import LLM, Message
 from ms_agent.utils import get_logger
-from omegaconf import DictConfig
-from PIL import Image, ImageDraw
 
 logger = get_logger()
 
