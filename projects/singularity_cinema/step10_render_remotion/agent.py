@@ -9,6 +9,7 @@ import zipfile
 from collections import defaultdict
 from typing import List, Optional, Tuple, Union
 
+from moviepy import VideoFileClip
 from omegaconf import DictConfig
 
 from ms_agent.agent import CodeAgent
@@ -690,6 +691,7 @@ Does this code follow best practices for layout safety (Flexbox) and avoid obvio
                 return i, False, log_content
             else:
                 logger.info(f'Rendered {composition_id} successfully.')
+                RenderRemotion._extract_preview_frames_static(output_path, i, work_dir)
 
                 # --- VISUAL CHECK MOVED TO STEP 14 (Global Check) ---
                 # As per user request, we delay the MLLM visual inspection to the final composition stage.
@@ -700,6 +702,27 @@ Does this code follow best practices for layout safety (Flexbox) and avoid obvio
         except Exception as e:
             logger.error(f'Exception during rendering {composition_id}: {e}')
             return i, False, str(e)
+
+    @staticmethod
+    def _extract_preview_frames_static(video_path, segment_id, work_dir):
+
+        test_dir = os.path.join(work_dir, 'remotion_test')
+        os.makedirs(test_dir, exist_ok=True)
+        video = VideoFileClip(video_path)
+        duration = video.duration
+
+        timestamps = {1: max(0, duration - 0.2)}
+
+        preview_paths = []
+        for frame_idx, timestamp in timestamps.items():
+            output_path = os.path.join(
+                test_dir,
+                f'segment_{segment_id + 1}_{frame_idx}.png'
+            )
+            video.save_frame(output_path, t=timestamp)
+            preview_paths.append(output_path)
+        video.close()
+        return preview_paths
 
     @staticmethod
     def _fix_code_static(i,
