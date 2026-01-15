@@ -41,7 +41,7 @@ class GenerateIllustrationPrompts(CodeAgent):
 规则：
 - 仅输出一条简洁的英文提示词。不要使用 markdown、JSON 或任何解释说明。
 - 丰富的细节：保证图片可以完整表述原需求。
-- 透明图层: 如果你判断图片需要透明背景，则生成周边透明的单物体图片
+- 合适的背景：使用适当的背景填充图像
 """
 
     def __init__(self,

@@ -76,7 +76,7 @@ class RenderRemotion(CodeAgent):
 
         segment_status = {i: False for i in range(len(segments))}
 
-        for round_idx in range(self.code_fix_round + 30):
+        for round_idx in range(self.code_fix_round + 1):
             # Identify segments needing render (all initially, then only failed ones)
             segments_to_render = [
                 i for i, status in segment_status.items() if status is not True
@@ -654,15 +654,15 @@ class RenderRemotion(CodeAgent):
                 preview_paths = RenderRemotion._extract_preview_frames_static(output_path, i, work_dir)
 
                 # Check for edge clipping
-                clipping_detected = False
-                for preview_path in preview_paths:
-                    if RenderRemotion._check_edge_clipping(preview_path):
-                        clipping_detected = True
-                        logger.warning(f'Edge clipping detected in {preview_path} for segment {i+1}')
-                        break
+                # clipping_detected = False
+                # for preview_path in preview_paths:
+                #     if RenderRemotion._check_edge_clipping(preview_path):
+                #         clipping_detected = True
+                #         logger.warning(f'Edge clipping detected in {preview_path} for segment {i+1}')
+                #         break
                 
-                if clipping_detected:
-                    return i, False, 'EDGE_CLIPPING: Content touches frame boundaries, need to reduce scale'
+                # if clipping_detected:
+                #     return i, False, 'EDGE_CLIPPING: Content touches frame boundaries, need to reduce scale'
 
                 # --- VISUAL CHECK MOVED TO STEP 14 (Global Check) ---
                 # As per user request, we delay the MLLM visual inspection to the final composition stage.
@@ -717,7 +717,7 @@ class RenderRemotion(CodeAgent):
         video = VideoFileClip(video_path)
         duration = video.duration
 
-        timestamps = {1: max(0, duration - 0.2)}
+        timestamps = {1: max(0, duration - 1)}
 
         preview_paths = []
         for frame_idx, timestamp in timestamps.items():

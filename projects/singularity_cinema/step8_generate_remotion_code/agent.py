@@ -178,6 +178,7 @@ class GenerateRemotionCode(CodeAgent):
   
     **代码原则**：
     - 使用命名导出而非默认导出(export SegmentN)
+    - 文字大小不得小于25px，重点介绍文字不小于45px
     - 引用图片时使用静态资源，例子：staticFile('images/illustration_M_foreground_N.png');
     - 防止元素超出边界：
         * **所有内容必须限制在安全区域内**：水平5%-95%，垂直10%-90%
@@ -185,7 +186,7 @@ class GenerateRemotionCode(CodeAgent):
             1. maxWidth: '90%' 或 width: '90%'
             2. maxHeight: '80%' 或 height: '80%'
             3. margin: 'auto'（确保居中时不超出边界）
-            4. translate等元素的使用必须考虑元素宽高的一半
+            4. translate/radial-gradient等元素的使用必须考虑元素宽高的一半是否超出
         * **禁止使用固定像素值**定位元素（如 left: 300, width: 1500），必须使用百分比
         * **图片必须限制尺寸**：style={{{{maxWidth: '85%', maxHeight: '85%', objectFit: 'contain'}}}}
         * **绝对定位时检查边界**：确保 left/right/top/bottom 值在 5%-95% 和 10%-90% 范围内
