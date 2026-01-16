@@ -48,7 +48,7 @@ class ParseImages(CodeAgent):
             return messages
         logger.info('Parsing images.')
         docs_file = os.path.join(self.work_dir, 'docs.txt')
-        if os.path.exists(docs_file):
+        if not os.path.exists(docs_file):
             return messages
         with open(docs_file, 'r') as f:
             docs = f.readlines()
@@ -61,6 +61,13 @@ class ParseImages(CodeAgent):
         for doc in docs:
             image_files.extend(self.parse_images(doc))
 
+        if not image_files:
+            return messages
+
+        filename = os.path.join(self.work_dir, 'image_info.txt')
+        if image_files and os.path.exists(filename):
+            return messages
+
         def process_image(image_file):
             size = self.get_image_size(image_file)
             description = self.get_image_description(image_file)
@@ -69,7 +76,6 @@ class ParseImages(CodeAgent):
         with ThreadPoolExecutor(max_workers=4) as executor:
             output = list(executor.map(process_image, image_files))
 
-        filename = os.path.join(self.work_dir, 'image_info.txt')
         with open(filename, 'w') as f:
             for img_tuple in output:
                 image_json = {
