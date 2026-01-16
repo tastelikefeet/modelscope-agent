@@ -1,5 +1,4 @@
 # Copyright (c) Alibaba, Inc. and its affiliates.
-import json
 import os
 import re
 import shutil
@@ -9,12 +8,12 @@ import zipfile
 from collections import defaultdict
 from typing import List, Optional, Tuple, Union
 
+import json
 from moviepy import VideoFileClip
-from omegaconf import DictConfig
-
 from ms_agent.agent import CodeAgent
 from ms_agent.llm import LLM, Message
 from ms_agent.utils import get_logger
+from omegaconf import DictConfig
 
 logger = get_logger()
 
@@ -72,8 +71,12 @@ class RenderRemotion(CodeAgent):
             shell=True,
             check=True)
 
-        segment_status = {i: os.path.exists(
-            os.path.join(self.render_dir, f'scene_{i+1}', f'Scene{i+1}.mov')) for i in range(len(segments))}
+        segment_status = {
+            i: os.path.exists(
+                os.path.join(self.render_dir, f'scene_{i+1}',
+                             f'Scene{i+1}.mov'))
+            for i in range(len(segments))
+        }
 
         for round_idx in range(self.code_fix_round + 1):
             # Identify segments needing render (all initially, then only failed ones)
@@ -122,7 +125,7 @@ class RenderRemotion(CodeAgent):
             for i in segments_to_render:
                 # Get current scale for this segment (default 0.9)
                 current_scale = self.segment_scales.get(i, 0.9)
-                
+
                 i, success, error_log = self._render_remotion_scene_static(
                     i,
                     segments[i],
@@ -136,12 +139,14 @@ class RenderRemotion(CodeAgent):
                 )
                 results[i] = (success, error_log)
                 segment_status[i] = success
-                
+
                 # If edge clipping detected, reduce scale and retry
                 if not success and error_log and 'EDGE_CLIPPING' in error_log:
                     new_scale = 0.8
                     self.segment_scales[i] = new_scale
-                    logger.info(f'Edge clipping detected for segment {i+1}, reducing scale to {new_scale}')
+                    logger.info(
+                        f'Edge clipping detected for segment {i+1}, reducing scale to {new_scale}'
+                    )
                     # Update Root.tsx with new scale
                     self._update_root_tsx_for_segment(i)
                     segment_status[i] = False  # Force retry
@@ -226,13 +231,17 @@ class RenderRemotion(CodeAgent):
                     # Extract filename from absolute path
                     filename = os.path.basename(original_path)
                     # Copy to public/images and src/images
-                    dst_public = os.path.join(self.remotion_project_dir, 'public', 'images', filename)
-                    dst_src = os.path.join(self.remotion_project_dir, 'src', 'images', filename)
+                    dst_public = os.path.join(self.remotion_project_dir,
+                                              'public', 'images', filename)
+                    dst_src = os.path.join(self.remotion_project_dir, 'src',
+                                           'images', filename)
                     shutil.copy(original_path, dst_public)
                     shutil.copy(original_path, dst_src)
                     # Store mapping for path replacement
                     user_image_mapping[original_path] = f'images/{filename}'
-                    logger.info(f'Copied user image: {original_path} -> images/{filename}')
+                    logger.info(
+                        f'Copied user image: {original_path} -> images/{filename}'
+                    )
 
         # 3. Copy generated code and replace absolute paths
         for i in range(len(segments)):
@@ -244,7 +253,7 @@ class RenderRemotion(CodeAgent):
                 # Read file content
                 with open(src_file, 'r', encoding='utf-8') as f:
                     content = f.read()
-                
+
                 if content:
                     # Replace absolute paths with images/filename
                     for abs_path, rel_path in user_image_mapping.items():
@@ -256,7 +265,7 @@ class RenderRemotion(CodeAgent):
                     with open(dst_file, 'w') as f:
                         f.write(
                             f"import React from 'react';\nexport const Segment{i+1} = () => <div>Missing Segment</div>;"
-                        ) 
+                        )
             else:
                 # Create a dummy file if missing to prevent build failure
                 with open(dst_file, 'w') as f:
@@ -431,7 +440,8 @@ class RenderRemotion(CodeAgent):
         # Link: https://npmmirror.com/mirrors/chrome-for-testing/134.0.6998.35/win64/chrome-headless-shell-win64.zip
         version = '134.0.6998.35'
         import sys
-        platform_str = 'win64' if os.name == 'nt' else ('mac64' if sys.platform == 'darwin' else 'linux64')
+        platform_str = 'win64' if os.name == 'nt' else (
+            'mac64' if sys.platform == 'darwin' else 'linux64')
         filename = f'chrome-headless-shell-{platform_str}.zip'
         mirror_url = f'https://npmmirror.com/mirrors/chrome-for-testing/{version}/{platform_str}/{filename}'
 
@@ -567,9 +577,14 @@ class RenderRemotion(CodeAgent):
             remotion_cmd = 'npx remotion'
 
         base_cmd = [
-            'render', 'src/index.ts', composition_id, output_path,
-            '--codec=prores', '--prores-profile=4444',
-            '--pixel-format=yuva444p10le', '--image-format=png',
+            'render',
+            'src/index.ts',
+            composition_id,
+            output_path,
+            '--codec=prores',
+            '--prores-profile=4444',
+            '--pixel-format=yuva444p10le',
+            '--image-format=png',
             '--every-nth-frame=1'  # Render every frame for smooth animation
         ]
 
@@ -681,23 +696,6 @@ class RenderRemotion(CodeAgent):
                 return i, False, log_content
             else:
                 logger.info(f'Rendered {composition_id} successfully.')
-                preview_paths = RenderRemotion._extract_preview_frames_static(output_path, i, work_dir)
-
-                # Check for edge clipping
-                # clipping_detected = False
-                # for preview_path in preview_paths:
-                #     if RenderRemotion._check_edge_clipping(preview_path):
-                #         clipping_detected = True
-                #         logger.warning(f'Edge clipping detected in {preview_path} for segment {i+1}')
-                #         break
-                
-                # if clipping_detected:
-                #     return i, False, 'EDGE_CLIPPING: Content touches frame boundaries, need to reduce scale'
-
-                # --- VISUAL CHECK MOVED TO STEP 14 (Global Check) ---
-                # As per user request, we delay the MLLM visual inspection to the final composition stage.
-                # This avoids blocking the render loop for every segment.
-
                 return i, True, None
 
         except Exception as e:
@@ -713,24 +711,25 @@ class RenderRemotion(CodeAgent):
         try:
             from PIL import Image
             import numpy as np
-            
+
             img = Image.open(frame_path).convert('RGB')
             pixels = np.array(img)
             height, width, _ = pixels.shape
-            
+
             # Extract edge pixels (1-pixel border)
             top_edge = pixels[0, :, :]
-            bottom_edge = pixels[height-1, :, :]
+            bottom_edge = pixels[height - 1, :, :]
             left_edge = pixels[:, 0, :]
-            right_edge = pixels[:, width-1, :]
-            
-            edges = np.concatenate([top_edge, bottom_edge, left_edge, right_edge])
-            
+            right_edge = pixels[:, width - 1, :]
+
+            edges = np.concatenate(
+                [top_edge, bottom_edge, left_edge, right_edge])
+
             # Check if pixels are near black (0,0,0) or white (255,255,255)
             near_black = np.all(edges < threshold, axis=1)
             near_white = np.all(edges > (255 - threshold), axis=1)
             safe_pixels = near_black | near_white
-            
+
             # If less than 95% of edge pixels are black/white, clipping detected
             clipping_ratio = np.sum(safe_pixels) / len(edges)
             logger.info(f'Edge safety ratio: {clipping_ratio:.2%}')
@@ -752,9 +751,7 @@ class RenderRemotion(CodeAgent):
         preview_paths = []
         for frame_idx, timestamp in timestamps.items():
             output_path = os.path.join(
-                test_dir,
-                f'segment_{segment_id + 1}_{frame_idx}.png'
-            )
+                test_dir, f'segment_{segment_id + 1}_{frame_idx}.png')
             video.save_frame(output_path, t=timestamp)
             preview_paths.append(output_path)
         video.close()
@@ -774,7 +771,7 @@ class RenderRemotion(CodeAgent):
         llm = LLM.from_config(config)
         logger.info(f'Fixing code for segment {i+1} with LLM...')
         return i, RenderRemotion._fix_code_impl(llm, error_log, code,
-                                                   remotion_project_dir)
+                                                remotion_project_dir)
 
     @staticmethod
     def _fix_code_impl(llm, error_log, code, remotion_project_dir=None):

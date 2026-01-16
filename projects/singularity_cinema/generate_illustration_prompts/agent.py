@@ -109,10 +109,15 @@ class GenerateIllustrationPrompts(CodeAgent):
         logger.info(
             f'Generating background prompt from plan: {background_concept}')
 
-        with open(os.path.join(os.path.dirname(illustration_prompts_dir), 'topic.txt'), 'r') as f:
+        with open(
+                os.path.join(
+                    os.path.dirname(illustration_prompts_dir), 'topic.txt'),
+                'r') as f:
             topic = f.read()
-        query = (f'User original topic: {topic}\n'
-                 f'Generate a background prompt based on the topic and concept of current segment: {background_concept}.')
+        query = (
+            f'User original topic: {topic}\n'
+            f'Generate a background prompt based on the topic and concept of current segment: {background_concept}.'
+        )
         inputs = [
             Message(role='system', content=GenerateIllustrationPrompts.system),
             Message(role='user', content=query),
@@ -130,8 +135,7 @@ class GenerateIllustrationPrompts(CodeAgent):
             f.write(response)
 
     @staticmethod
-    def _generate_foreground_impl(llm, i, segment,
-                                  illustration_prompts_dir):
+    def _generate_foreground_impl(llm, i, segment, illustration_prompts_dir):
         foreground_assets = segment.get('foreground')
         for idx, asset_desc in enumerate(foreground_assets):
             file_path = os.path.join(illustration_prompts_dir,
@@ -142,13 +146,14 @@ class GenerateIllustrationPrompts(CodeAgent):
             logger.info(
                 f'Generating foreground_{idx} prompt from plan: {asset_desc}')
 
-            with open(os.path.join(os.path.dirname(illustration_prompts_dir), 'topic.txt'), 'r') as f:
+            with open(
+                    os.path.join(
+                        os.path.dirname(illustration_prompts_dir),
+                        'topic.txt'), 'r') as f:
                 topic = f.read()
 
-            query = (
-                f'User original topic: {topic}\n'
-                f'Design a single foreground asset: {asset_desc}\n'
-            )
+            query = (f'User original topic: {topic}\n'
+                     f'Design a single foreground asset: {asset_desc}\n')
 
             inputs = [
                 Message(

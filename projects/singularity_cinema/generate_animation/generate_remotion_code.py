@@ -43,17 +43,18 @@ class GenerateRemotionCode(CodeAgent):
             animation_requirement = segment.get('remotion')
             if animation_requirement is not None:
                 # Check if file already exists
-                remotion_file = os.path.join(self.remotion_code_dir, f'Segment{i + 1}.tsx')
+                remotion_file = os.path.join(self.remotion_code_dir,
+                                             f'Segment{i + 1}.tsx')
                 if os.path.exists(remotion_file):
                     continue
-                tasks.append(
-                    (segment, audio_info['audio_duration'], i))
+                tasks.append((segment, audio_info['audio_duration'], i))
 
         remotion_code = [''] * len(segments)
 
         # Load existing files for skipped segments
         for i in range(len(segments)):
-            remotion_file = os.path.join(self.remotion_code_dir, f'Segment{i + 1}.tsx')
+            remotion_file = os.path.join(self.remotion_code_dir,
+                                         f'Segment{i + 1}.tsx')
             if os.path.exists(remotion_file):
                 with open(remotion_file, 'r', encoding='utf-8') as f:
                     remotion_code[i] = f.read()
@@ -99,10 +100,13 @@ class GenerateRemotionCode(CodeAgent):
             if os.path.exists(foreground_image):
                 size = GenerateRemotionCode.get_image_size(foreground_image)
                 image_info = {
-                    'filename':  os.path.join('images', os.path.basename(
+                    'filename':
+                    os.path.join('images', os.path.basename(
                         foreground_image)),  # Use basename for Remotion
-                    'size': size,
-                    'description': _req,
+                    'size':
+                    size,
+                    'description':
+                    _req,
                 }
                 all_images_info.append(image_info)
 
@@ -186,7 +190,7 @@ class GenerateRemotionCode(CodeAgent):
         * 田字格分布：四个格子内放置内容，所有元素在16:9的横向纵向范围内
         * 左中右分布：横向并列放置数个物体，大小相等，所有元素在16:9的横向纵向范围内
         * 不要在上述分布上再增加title或者中心文字
-  
+
     **代码原则**：
     - 使用命名导出而非默认导出(export SegmentN)
     - 文字大小不得小于25px，重点介绍文字不小于45px

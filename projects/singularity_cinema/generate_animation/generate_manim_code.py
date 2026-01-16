@@ -107,7 +107,8 @@ class GenerateManimCode(CodeAgent):
         return all_images_info
 
     @staticmethod
-    def _generate_manim_impl(llm, segment, audio_duration, i, image_dir, config):
+    def _generate_manim_impl(llm, segment, audio_duration, i, image_dir,
+                             config):
         class_name = f'Scene{i + 1}'
         content = segment['content']
         manim_requirement = segment['manim']

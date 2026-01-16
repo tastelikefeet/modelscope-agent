@@ -1,9 +1,10 @@
 # Copyright (c) Alibaba, Inc. and its affiliates.
 
-from omegaconf import DictConfig
 import os
 import sys
+
 from ms_agent.agent import CodeAgent
+from omegaconf import DictConfig
 
 
 class RenderAnimation(CodeAgent):

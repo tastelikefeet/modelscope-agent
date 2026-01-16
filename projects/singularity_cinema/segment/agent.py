@@ -60,7 +60,7 @@ class Segment(LLMAgent):
     ...
 ]
 ```
-"""
+""" # noqa
 
     video_prompt = """- 你可以使用文生视频功能来渲染某些镜头，这可以增强短视频的整体趣味性和可读性
     * 当使用文生视频渲染某些镜头时，返回的结构应该只包含三个字段：index、content和video。不要包含其他字段如{animation_engine}、background等。换句话说，文生视频镜头不应该包含动画引擎或背景图片
@@ -69,7 +69,7 @@ class Segment(LLMAgent):
     * **生成具有强动态效果的视频，而不是只有镜头移动的静态场景。你需要在视频中讲好你的故事**
     * video字段包含你对文生视频生成的要求。注意生成的视频如何与前后镜头协调
     * 如果你使用多个文生视频镜头，注意保持角色、建筑、动物等的ID一致性
-    * 需要叙述摄像机和镜头信息，集中于讲述故事、推进情节和深化主题"""
+    * 需要叙述摄像机和镜头信息，集中于讲述故事、推进情节和深化主题""" # noqa
 
     def __init__(self,
                  config: DictConfig,
@@ -148,10 +148,8 @@ class Segment(LLMAgent):
 
     async def add_images(self, segments, topic, script, **kwargs):
 
-        video_prompt = (
-            '注意：不需要修改包含video字段的镜头。这些镜头是文生视频镜头，它不需要背景、动画或前景图片。'
-            '只需在返回值中保留并返回这些镜头的index即可。'
-        )
+        video_prompt = ('注意：不需要修改包含video字段的镜头。这些镜头是文生视频镜头，它不需要背景、动画或前景图片。'
+                        '只需在返回值中保留并返回这些镜头的index即可。')
         if not self.config.use_text2video:
             video_prompt = ''
 
@@ -210,7 +208,7 @@ class Segment(LLMAgent):
 ]
 
 现在开始：
-"""
+""" # noqa
         # Format the system prompt with the actual engine name
         animation_engine = self.engine
         animation_engine_cap = animation_engine.capitalize()

@@ -134,11 +134,9 @@ class GenerateImages(CodeAgent):
                 kwargs['size'] = _config.image_generator.size
 
             logger.info(
-                f'Generating image. Prompt: {prompt[:50]}... kwargs: {kwargs}'
-            )
+                f'Generating image. Prompt: {prompt[:50]}... kwargs: {kwargs}')
 
-            _temp_file = await image_generator.generate_image(
-                prompt, **kwargs)
+            _temp_file = await image_generator.generate_image(prompt, **kwargs)
 
             # Check directly if the return is a valid file path
             if not _temp_file or not os.path.exists(_temp_file):
@@ -198,11 +196,9 @@ class GenerateImages(CodeAgent):
             elif hasattr(_config.image_generator, 'size'):
                 kwargs['size'] = _config.image_generator.size
 
-            _temp_file = await image_generator.generate_image(
-                prompt, **kwargs)
+            _temp_file = await image_generator.generate_image(prompt, **kwargs)
             if not os.path.exists(_temp_file):
-                raise RuntimeError(
-                    f'Failed to generate image: {_temp_file}')
+                raise RuntimeError(f'Failed to generate image: {_temp_file}')
             shutil.move(_temp_file, foreground_image)
             # Cleanup temp file if it still exists (shutil.move inside remove_white might differ)
             if os.path.exists(_temp_file):

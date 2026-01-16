@@ -416,7 +416,7 @@ class ComposeVideo(CodeAgent):
                     bg_music_path = self.config.bg_audio_path
                 else:
                     bg_music_path = os.path.join(self.config.local_dir,
-                                                self.config.bg_audio_path)
+                                                 self.config.bg_audio_path)
             else:
                 bg_music_path = ''
             if os.path.exists(
