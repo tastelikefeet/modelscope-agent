@@ -18,34 +18,13 @@ class GenerateAnimation(CodeAgent):
 
     async def execute_code(self, messages, **kwargs):
         engine = getattr(self.config, 'animation_engine', 'remotion')
-
-        # Add the project root to sys.path to allow importing other steps
-        project_root = os.path.dirname(
-            os.path.dirname(os.path.abspath(__file__)))
-
         if engine == 'manim':
-            spec = importlib.util.spec_from_file_location(
-                'step8_generate_manim_code.agent',
-                os.path.join(project_root, 'step8_generate_manim_code',
-                             'agent.py'))
-            module = importlib.util.module_from_spec(spec)
-            sys.modules['step8_generate_manim_code.agent'] = module
-            spec.loader.exec_module(module)
-            GenerateManimCode = module.GenerateManimCode
-
+            from generate_manim_code import GenerateManimCode
             agent = GenerateManimCode(self.config, self.tag,
                                       self.trust_remote_code, **kwargs)
             return await agent.execute_code(messages, **kwargs)
         elif engine == 'remotion':
-            spec = importlib.util.spec_from_file_location(
-                'step8_generate_remotion_code.agent',
-                os.path.join(project_root, 'step8_generate_remotion_code',
-                             'agent.py'))
-            module = importlib.util.module_from_spec(spec)
-            sys.modules['step8_generate_remotion_code.agent'] = module
-            spec.loader.exec_module(module)
-            GenerateRemotionCode = module.GenerateRemotionCode
-
+            from generate_remotion_code import GenerateRemotionCode
             agent = GenerateRemotionCode(self.config, self.tag,
                                          self.trust_remote_code, **kwargs)
             return await agent.execute_code(messages, **kwargs)

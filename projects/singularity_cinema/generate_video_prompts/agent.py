@@ -28,6 +28,7 @@ Requirements:
 - All text in the video must be clear and readable and must not be distorted.
 - All elements should be relevant to the theme and the meaning of the current subtitle segment.
 - Video panel size is 1920*1080.
+- Preserve the face id mentioned in the user topic or input requirements.
 - The video needs to accurately reflect the text requirements.
 - Output approximately 200 words in English.
 - Return ONLY the prompt description. Do not include style keywords unless requested, and do not add

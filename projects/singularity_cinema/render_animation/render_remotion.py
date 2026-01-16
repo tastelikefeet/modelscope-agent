@@ -39,7 +39,6 @@ class RenderRemotion(CodeAgent):
                                                  'remotion_project')
         self.remotion_code_dir = os.path.join(self.work_dir, 'remotion_code')
         self.images_dir = os.path.join(self.work_dir, 'images')
-        self.code_fix_dir = os.path.join(self.work_dir, 'code_fix')
         self.code_fix_round = getattr(self.config, 'code_fix_round', 3)
         # Default to 1 to ensure visual quality check runs at least once unless explicitly disabled (-1)
         self.mllm_check_round = getattr(self.config, 'mllm_fix_round', 1)
@@ -52,7 +51,6 @@ class RenderRemotion(CodeAgent):
         self.segment_scales = {}
 
         os.makedirs(self.render_dir, exist_ok=True)
-        os.makedirs(self.code_fix_dir, exist_ok=True)
 
     async def execute_code(self, messages: Union[str, List[Message]],
                            **kwargs) -> List[Message]:
@@ -168,11 +166,6 @@ class RenderRemotion(CodeAgent):
                 # Apply fixes
                 for fix_i in to_fix:
                     err_text = error_log or 'Unknown error'
-                    error_file = os.path.join(self.code_fix_dir,
-                                              f'code_fix_{fix_i + 1}.txt')
-                    with open(error_file, 'w', encoding='utf-8') as f:
-                        f.write(err_text)
-
                     current_code = _read_current_code(fix_i)
                     _, fixed_code = self._fix_code_static(
                         fix_i, err_text, current_code, self.config,
