@@ -1,4 +1,4 @@
-# Copyright (c) Alibaba, Inc. and its affiliates.
+# Copyright (c) ModelScope Contributors. All rights reserved.
 import inspect
 from copy import deepcopy
 from typing import Any, Dict, Generator, Iterable, List, Optional

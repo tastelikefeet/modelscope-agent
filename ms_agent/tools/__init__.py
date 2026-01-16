@@ -1,4 +1,4 @@
-# Copyright (c) Alibaba, Inc. and its affiliates.
+# Copyright (c) ModelScope Contributors. All rights reserved.
 from .code import CodeExecutionTool, SandboxManagerFactory
 from .code_server import LSPCodeServer
 from .filesystem_tool import FileSystemTool
