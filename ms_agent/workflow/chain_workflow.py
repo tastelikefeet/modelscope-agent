@@ -98,6 +98,7 @@ class ChainWorkflow(Workflow):
                 init_args['tag'] = task
             engine = AgentLoader.build(**init_args)
             step_inputs[idx] = (inputs, config)
+            logger.info(f'Executing step: {task}')
             outputs = await engine.run(inputs)
             next_idx = engine.next_flow(idx)
             assert next_idx - idx <= 1

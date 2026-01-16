@@ -1,7 +1,8 @@
 # Copyright (c) Alibaba, Inc. and its affiliates.
 
 from omegaconf import DictConfig
-
+import os
+import sys
 from ms_agent.agent import CodeAgent
 
 
@@ -16,13 +17,16 @@ class RenderAnimation(CodeAgent):
 
     async def execute_code(self, messages, **kwargs):
         engine = getattr(self.config, 'animation_engine', 'remotion')
+        sys.path.insert(0, os.path.dirname(__file__))
         if engine == 'manim':
             from render_manim import RenderManim
+            sys.path.pop(0)
             agent = RenderManim(self.config, self.tag, self.trust_remote_code,
                                 **kwargs)
             return await agent.execute_code(messages, **kwargs)
         elif engine == 'remotion':
             from render_remotion import RenderRemotion
+            sys.path.pop(0)
             agent = RenderRemotion(self.config, self.tag,
                                    self.trust_remote_code, **kwargs)
             return await agent.execute_code(messages, **kwargs)

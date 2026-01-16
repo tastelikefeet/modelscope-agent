@@ -244,12 +244,19 @@ class RenderRemotion(CodeAgent):
                 # Read file content
                 with open(src_file, 'r', encoding='utf-8') as f:
                     content = f.read()
-                # Replace absolute paths with images/filename
-                for abs_path, rel_path in user_image_mapping.items():
-                    content = content.replace(abs_path, rel_path)
-                # Write modified content
-                with open(dst_file, 'w', encoding='utf-8') as f:
-                    f.write(content)
+                
+                if content:
+                    # Replace absolute paths with images/filename
+                    for abs_path, rel_path in user_image_mapping.items():
+                        content = content.replace(abs_path, rel_path)
+                    # Write modified content
+                    with open(dst_file, 'w', encoding='utf-8') as f:
+                        f.write(content)
+                else:
+                    with open(dst_file, 'w') as f:
+                        f.write(
+                            f"import React from 'react';\nexport const Segment{i+1} = () => <div>Missing Segment</div>;"
+                        ) 
             else:
                 # Create a dummy file if missing to prevent build failure
                 with open(dst_file, 'w') as f:

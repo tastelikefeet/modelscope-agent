@@ -48,7 +48,7 @@ class ParseImages(CodeAgent):
             return messages
         logger.info('Parsing images.')
         docs_file = os.path.join(self.work_dir, 'docs.txt')
-        if not os.path.exists(docs_file):
+        if os.path.exists(docs_file):
             return messages
         with open(docs_file, 'r') as f:
             docs = f.readlines()

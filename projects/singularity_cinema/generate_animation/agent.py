@@ -18,13 +18,16 @@ class GenerateAnimation(CodeAgent):
 
     async def execute_code(self, messages, **kwargs):
         engine = getattr(self.config, 'animation_engine', 'remotion')
+        sys.path.insert(0, os.path.dirname(__file__))
         if engine == 'manim':
             from generate_manim_code import GenerateManimCode
+            sys.path.pop(0)
             agent = GenerateManimCode(self.config, self.tag,
                                       self.trust_remote_code, **kwargs)
             return await agent.execute_code(messages, **kwargs)
         elif engine == 'remotion':
             from generate_remotion_code import GenerateRemotionCode
+            sys.path.pop(0)
             agent = GenerateRemotionCode(self.config, self.tag,
                                          self.trust_remote_code, **kwargs)
             return await agent.execute_code(messages, **kwargs)

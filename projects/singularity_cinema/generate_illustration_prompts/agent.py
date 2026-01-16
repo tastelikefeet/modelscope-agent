@@ -142,9 +142,12 @@ class GenerateIllustrationPrompts(CodeAgent):
             logger.info(
                 f'Generating foreground_{idx} prompt from plan: {asset_desc}')
 
+            with open(os.path.join(os.path.dirname(illustration_prompts_dir), 'topic.txt'), 'r') as f:
+                topic = f.read()
+
             query = (
-                f'Design a single foreground asset: {asset_desc}. '
-                f'Rules: ISOLATED OBJECT on white background, 8k, high quality 3D icon style.'
+                f'User original topic: {topic}\n'
+                f'Design a single foreground asset: {asset_desc}\n'
             )
 
             inputs = [
