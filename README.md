@@ -308,7 +308,7 @@ For more details, please refer to [**MS-Agent Skills**](ms_agent/skill/README.md
 ---
 
 
-### Agentic Insight
+### Agentic Insight (Deep Research)
 
 #### - Lightweight, Efficient, and Extensible Multi-modal Deep Research Framework
 
