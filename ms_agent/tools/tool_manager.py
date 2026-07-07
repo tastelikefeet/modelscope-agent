@@ -227,6 +227,17 @@ class ToolManager:
         self._mcp_index_keys: set[str] = set()
         self._skip_mcp_reindex = False
 
+        # Used temporarily during async initialization; the actual client is managed in self.servers
+        self.mcp_client = mcp_client
+        self.mcp_config = mcp_config
+        self.servers = None
+        self._managed_client = mcp_client is None
+
+        # Initialize concurrency limiter (will be set in connect)
+        self._concurrent_limiter = None
+        self._init_lock = None
+        self._sync_lock = asyncio.Lock()
+
     def ensure_plugin_agent_tools(self, registry) -> None:
         """Attach plugin-defined subagents to AgentTool before connect()."""
         if registry is None or not registry.has_agents():
@@ -241,17 +252,6 @@ class ToolManager:
                 self.config, trust_remote_code=self.trust_remote_code)
             self.extra_tools.append(agent_tool)
         agent_tool.sync_plugin_agents(registry)
-
-        # Used temporarily during async initialization; the actual client is managed in self.servers
-        self.mcp_client = mcp_client
-        self.mcp_config = mcp_config
-        self.servers = None
-        self._managed_client = mcp_client is None
-
-        # Initialize concurrency limiter (will be set in connect)
-        self._concurrent_limiter = None
-        self._init_lock = None
-        self._sync_lock = asyncio.Lock()
 
     def register_tool(self, tool: ToolBase):
         self.extra_tools.append(tool)
