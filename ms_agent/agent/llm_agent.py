@@ -38,6 +38,11 @@ from ms_agent.skill.runtime import SkillRuntime
 from ms_agent.skill.skill_tools import SkillToolSet
 from ms_agent.utils.snapshot import take_snapshot
 from ms_agent.utils.task_manager import TaskManager
+from ms_agent.ui.events import (ContentDelta, ContentEnd, ContextCompacted,
+                                ErrorRaised, PlanEntry, PlanUpdated,
+                                ReasoningDelta, ReasoningEnded, ReasoningStarted,
+                                ToolCallCompleted, ToolCallStarted,
+                                TurnCompleted, UsageInfo)
 from ..config.config import Config, ConfigLifecycleHandler
 from .base import Agent
 
@@ -172,6 +177,24 @@ class LLMAgent(Agent):
         # Gates both the initial >>> prompt and the mid-turn InputCallback.
         self._interactive = False
 
+        # Optional injected PermissionHandler (TUI/WebUI/Server). When None,
+        # _select_permission_handler() picks by mode + interactivity.
+        self._permission_handler = kwargs.get('permission_handler', None)
+
+        # Structured event sink — the UI-agnostic output seam (ms_agent.ui).
+        # When set, the agent emits semantic AgentEvents (content / reasoning /
+        # tool / ...) that a TUI renders and a WebUI backend forwards. When
+        # None, output goes to stdout (current CLI behavior, byte-identical).
+        # This is the seam that validates the WebUI contract.
+        self._event_sink = kwargs.get('event_sink', None)
+
+        # Async input source (awaitable read_prompt). When set, the interactive
+        # loop reads the next prompt through it (TUI now, WebUI queue later),
+        # so the read never blocks the event loop or fights the renderer for
+        # the terminal — the enabling seam for the native (route-A) lifecycle.
+        # When None, the legacy sync console_io / input() path is used.
+        self._input_source = kwargs.get('input_source', None)
+
         # Personalization (lazy-loaded in _build_personalization_section)
         self._profile_manager = ProfileManager()
 
@@ -237,6 +260,18 @@ class LLMAgent(Agent):
         if getattr(self, '_plugin_runtime', None) is not None:
             self._plugin_runtime.skill_runtime = self._skill_runtime
             self._plugin_runtime._sync_skill_runtime(self.config)
+
+        # Wire /skill-name slash commands. Without this the SkillCommandBridge
+        # is never registered and `/skill-id args` falls through to the model as
+        # raw text (only "works" when the skill happens to be in the system
+        # prompt). Registering it makes `/skill-id` dispatch to SUBMIT_PROMPT,
+        # including *disabled* skills (per meeting decision). The bridge is the
+        # only router interceptor (plugins use register()), so reset first to
+        # rebind to the current catalog across restarts without duplicates.
+        from ms_agent.command.skill_bridge import SkillCommandBridge
+        router = self._get_command_router()
+        router._interceptors.clear()
+        SkillCommandBridge(self._skill_catalog).register(router)
 
     def _build_system_content(self) -> str:
         """Build the full system prompt content.
@@ -456,7 +491,9 @@ class LLMAgent(Agent):
                     if self._interactive:
                         self.callbacks.append(callbacks_mapping[_callback](
                             self.config,
-                            command_router=self._get_command_router()))
+                            command_router=self._get_command_router(),
+                            input_source=self._input_source,
+                            event_sink=self._event_sink))
                 else:
                     self.callbacks.append(callbacks_mapping[_callback](
                         self.config))
@@ -469,7 +506,9 @@ class LLMAgent(Agent):
             self.callbacks.append(
                 input_cls(
                     self.config,
-                    command_router=self._get_command_router()))
+                    command_router=self._get_command_router(),
+                    input_source=self._input_source,
+                    event_sink=self._event_sink))
 
     async def on_task_begin(self, messages: List[Message]):
         self.log_output(f'Agent {self.tag} task beginning.')
@@ -573,16 +612,39 @@ class LLMAgent(Agent):
             self.log_output(_new_message.content)
         return messages
 
+    def _select_permission_handler(self, mode: str):
+        """Pick the PermissionHandler by mode + runtime environment.
+
+        - An explicitly injected handler (``set_permission_handler`` / the
+          ``permission_handler`` kwarg) always wins — this is how the TUI /
+          WebUI / Server supply their own confirmation UI.
+        - ``interactive`` (alias ``restricted``) in an interactive terminal
+          session -> ``CLIPermissionHandler`` (the ``[y/s/a/e/n]`` prompt),
+          so non-whitelisted tools actually ask the user.
+        - Everything else (``auto`` / ``strict`` / non-interactive) ->
+          ``AutoPermissionHandler`` (SafetyGuard still enforces the floor).
+        """
+        if self._permission_handler is not None:
+            return self._permission_handler
+        from ms_agent.permission import (
+            AutoPermissionHandler,
+            CLIPermissionHandler,
+        )
+        # ``PermissionConfig.from_dict`` already normalizes ``restricted`` ->
+        # ``interactive``; accept both so a direct caller passing the raw alias
+        # still gets the interactive prompt (not a silent AutoPermissionHandler).
+        if mode in ('interactive', 'restricted') and self._interactive:
+            return CLIPermissionHandler()
+        return AutoPermissionHandler()
+
     def _build_permission_objects(self):
         """Create SafetyGuard and PermissionEnforcer from config if configured."""
         from ms_agent.permission import (
-            AutoPermissionHandler,
             PermissionConfig,
             PermissionEnforcer,
             PermissionMemory,
             SafetyGuard,
         )
-        from ms_agent.permission.config import SafetyConfig
 
         raw = {}
         if hasattr(self.config, 'permission'):
@@ -605,11 +667,40 @@ class LLMAgent(Agent):
             workspace_root=workspace_root,
         )
 
-        handler = AutoPermissionHandler()
+        handler = self._select_permission_handler(perm_config.mode)
         memory = PermissionMemory(project_path=workspace_root)
         enforcer = PermissionEnforcer(config=perm_config, handler=handler, memory=memory)
 
         return safety_guard, enforcer, perm_config
+
+    def set_permission_handler(self, handler) -> None:
+        """Inject a custom PermissionHandler (TUI/WebUI/Server) before run."""
+        self._permission_handler = handler
+
+    def set_permission_mode(self, mode: str) -> str:
+        """Change the permission mode at runtime; returns the normalized mode.
+
+        Mutates the live ToolManager + enforcer so the next tool call uses the
+        new mode without rebuilding the agent (``PermissionConfig`` is frozen,
+        so a replaced copy is swapped in). ``restricted`` normalizes to
+        ``interactive`` (the canonical asking mode).
+        """
+        from dataclasses import replace
+        mode = {'restricted': 'interactive'}.get(mode, mode)
+        if mode not in ('auto', 'strict', 'interactive'):
+            raise ValueError(
+                f"Unknown permission mode '{mode}' "
+                '(auto | restricted | strict | interactive)')
+        tm = self.tool_manager
+        if tm is not None:
+            tm._permission_mode = mode
+            if getattr(tm, '_permission_config', None) is not None:
+                tm._permission_config = replace(
+                    tm._permission_config, mode=mode)
+            enf = getattr(tm, '_permission_enforcer', None)
+            if enf is not None and getattr(enf, '_config', None) is not None:
+                enf._config = replace(enf._config, mode=mode)
+        return mode
 
     async def prepare_tools(self):
         """Initialize and connect the tool manager."""
@@ -788,6 +879,72 @@ class LLMAgent(Agent):
             stream.write(f'\n{self._THINKING_SEP}\n')
         stream.flush()
 
+    # ── output seam ────────────────────────────────────────────────────────
+    # These route each output write to the structured event sink when one is
+    # injected, else to stdout. The no-sink branch calls the exact same code as
+    # before the seam existed, so CLI output stays byte-identical.
+
+    def _emit_reasoning_start(self) -> None:
+        if self._event_sink is not None:
+            self._event_sink.emit(ReasoningStarted())
+        else:
+            self._write_thinking_header()
+
+    def _emit_reasoning_delta(self, text: str) -> None:
+        if self._event_sink is not None:
+            self._event_sink.emit(ReasoningDelta(text))
+        else:
+            self._write_reasoning(text, dim=True)
+
+    def _emit_reasoning_end(self) -> None:
+        if self._event_sink is not None:
+            self._event_sink.emit(ReasoningEnded())
+        else:
+            self._write_thinking_footer()
+
+    def _emit_content(self, text: str) -> None:
+        if self._event_sink is not None:
+            self._event_sink.emit(ContentDelta(text))
+        else:
+            sys.stdout.write(text)
+            sys.stdout.flush()
+
+    def _emit_content_end(self) -> None:
+        if self._event_sink is not None:
+            self._event_sink.emit(ContentEnd())
+        else:
+            sys.stdout.write('\n')
+
+    @staticmethod
+    def _extract_plan_from_tool_result(msg):
+        """Parse a todo / split_task tool result into a list of PlanEntry, or
+        None. Feeds the WebUI plan/todo panel (and the TUI plan render). Mirrors
+        the ACP server's plan extraction so both consumers agree."""
+        name = getattr(msg, 'name', '') or ''
+        short = name.split('---')[-1] if '---' in name else name
+        if 'todo' not in short and short != 'split_task':
+            return None
+        content = msg.content if isinstance(msg.content, str) else str(
+            msg.content)
+        try:
+            data = json.loads(content)
+        except (json.JSONDecodeError, TypeError, ValueError):
+            return None
+        todos = (data.get('todos') if isinstance(data, dict)
+                 else data if isinstance(data, list) else None)
+        if not isinstance(todos, list):
+            return None
+        entries = []
+        for it in todos:
+            if isinstance(it, dict):
+                entries.append(
+                    PlanEntry(
+                        content=str(
+                            it.get('content') or it.get('description')
+                            or it.get('task') or ''),
+                        status=str(it.get('status') or 'pending')))
+        return entries or None
+
     @property
     def system(self):
         return getattr(
@@ -842,6 +999,24 @@ class LLMAgent(Agent):
         if configured:
             return False
         return sys.stdin.isatty()
+
+    def _has_restorable_history(self) -> bool:
+        """True when this run should resume from the session log rather than
+        read an initial prompt.
+
+        Guards against the prompt-then-discard on resume: without this, the
+        interactive first ``>>>`` read happens *before* history restore, so the
+        user's first line would be thrown away when the log is loaded. When a
+        resumable log exists (``load_cache`` + non-empty ``SessionLog``), skip
+        the initial prompt; restore seeds context and the loop then prompts for
+        the next turn via ``InputCallback``.
+        """
+        if not self.load_cache or self.session_log is None:
+            return False
+        try:
+            return bool(self.session_log.get_all_messages())
+        except Exception:
+            return False
 
     async def create_messages(
             self, messages: Union[List[Message], str]) -> List[Message]:
@@ -1053,10 +1228,20 @@ class LLMAgent(Agent):
             session_cfg, 'dir', None
         ) if session_cfg else None
         if session_dir is None:
-            session_dir = os.path.join(
-                getattr(self.config, 'output_dir', 'output'),
-                'sessions',
-            )
+            # Sessions live globally, keyed by the work dir (Claude Code style),
+            # decoupled from output_dir. An explicit session_log.dir (set by the
+            # WebUI/Server per project) still wins. Legacy <output_dir>/sessions
+            # is migrated forward if present.
+            from ms_agent.project.paths import global_sessions_dir
+            output_dir = getattr(self.config, 'output_dir', 'output')
+            session_dir = str(global_sessions_dir(output_dir))
+            legacy_dir = os.path.join(output_dir, 'sessions')
+            if os.path.isdir(legacy_dir) and not os.path.isdir(session_dir):
+                try:
+                    import shutil
+                    shutil.copytree(legacy_dir, session_dir)
+                except Exception:
+                    pass
 
         session_key = getattr(session_cfg, 'session_key', None) if session_cfg else None
         self.session_log = SessionLog(session_dir, session_key=session_key)
@@ -1299,35 +1484,34 @@ class LLMAgent(Agent):
                         new_reasoning = reasoning_text[len(_reasoning):]
                         if new_reasoning:
                             if not _printed_reasoning_header:
-                                self._write_thinking_header()
+                                self._emit_reasoning_start()
                                 _printed_reasoning_header = True
-                            self._write_reasoning(new_reasoning, dim=True)
+                            self._emit_reasoning_delta(new_reasoning)
                             _reasoning = reasoning_text
 
                     new_content = _response_message.content[len(_content):]
                     if self.stream_output and new_content:
                         if _printed_reasoning_header and not _printed_reasoning_footer:
-                            self._write_thinking_footer()
+                            self._emit_reasoning_end()
                             _printed_reasoning_footer = True
-                        sys.stdout.write(new_content)
-                        sys.stdout.flush()
+                        self._emit_content(new_content)
                     _content = _response_message.content
                     messages[-1] = _response_message
                     yield messages
                 if self.stream_output:
                     if _printed_reasoning_header and not _printed_reasoning_footer:
-                        self._write_thinking_footer()
+                        self._emit_reasoning_end()
 
                     # Handle reasoning summaries that arrive after content
                     if self.show_reasoning and _response_message is not None:
                         final_reasoning = getattr(_response_message,
                                                   'reasoning_content', '') or ''
                         if final_reasoning and not _printed_reasoning_header:
-                            self._write_thinking_header()
-                            self._write_reasoning(final_reasoning, dim=True)
-                            self._write_thinking_footer()
+                            self._emit_reasoning_start()
+                            self._emit_reasoning_delta(final_reasoning)
+                            self._emit_reasoning_end()
 
-                    sys.stdout.write('\n')
+                    self._emit_content_end()
             else:
                 _response_message = self.llm.generate(messages, tools=tools)
                 if self.show_reasoning:
@@ -1335,10 +1519,13 @@ class LLMAgent(Agent):
                         getattr(_response_message, 'reasoning_content', '')
                         or '')
                     if reasoning_text:
-                        self._write_thinking_header()
-                        self._write_reasoning(reasoning_text, dim=True)
-                        self._write_thinking_footer()
+                        self._emit_reasoning_start()
+                        self._emit_reasoning_delta(reasoning_text)
+                        self._emit_reasoning_end()
                 if _response_message.content:
+                    if self._event_sink is not None:
+                        self._emit_content(_response_message.content)
+                        self._emit_content_end()
                     self.log_output('[assistant]:')
                     self.log_output(_response_message.content)
 
@@ -1353,7 +1540,31 @@ class LLMAgent(Agent):
         self.save_history(messages)
 
         if _response_message.tool_calls:
+            if self._event_sink is not None:
+                for tc in _response_message.tool_calls:
+                    self._event_sink.emit(
+                        ToolCallStarted(
+                            call_id=str(tc.get('id') or ''),
+                            name=str(
+                                tc.get('tool_name') or tc.get('name') or ''),
+                            arguments=tc.get('arguments')))
+            _tool_start = len(messages)
             messages = await self.parallel_tool_call(messages)
+            if self._event_sink is not None:
+                for m in messages[_tool_start:]:
+                    if getattr(m, 'role', None) == 'tool':
+                        _content = (m.content if isinstance(m.content, str)
+                                    else str(m.content))
+                        self._event_sink.emit(
+                            ToolCallCompleted(
+                                call_id=str(
+                                    getattr(m, 'tool_call_id', '') or ''),
+                                name=str(getattr(m, 'name', '') or ''),
+                                result=_content or ''))
+                        # todo/split_task tool results drive the plan panel.
+                        _plan = self._extract_plan_from_tool_result(m)
+                        if _plan is not None:
+                            self._event_sink.emit(PlanUpdated(entries=_plan))
 
         # usage
         # NOTE: token accounting must run BEFORE after_tool_call. The interactive
@@ -1400,6 +1611,15 @@ class LLMAgent(Agent):
                 f'[usage_cache_total] total_cache_hit: {LLMAgent.TOTAL_CACHED_TOKENS}, '
                 f'total_cache_created: {LLMAgent.TOTAL_CACHE_CREATION_INPUT_TOKENS}'
             )
+
+        if self._event_sink is not None:
+            self._event_sink.emit(
+                TurnCompleted(usage=UsageInfo(
+                    prompt_tokens=prompt_tokens,
+                    completion_tokens=completion_tokens,
+                    reasoning_tokens=reasoning_tokens,
+                    total_prompt_tokens=LLMAgent.TOTAL_PROMPT_TOKENS,
+                    total_completion_tokens=LLMAgent.TOTAL_COMPLETION_TOKENS)))
 
         yield messages
 
@@ -1602,16 +1822,27 @@ class LLMAgent(Agent):
                 if configured:
                     messages = configured
                 elif self._interactive:
-                    from ms_agent.command.interactive import InteractiveSession
-                    session = InteractiveSession(self._get_command_router())
-                    turn = await session.run_turn(
-                        messages=None, runtime=self.runtime)
-                    if turn.action == 'quit':
-                        # Exited at the interactive prompt without a task.
-                        self.runtime.should_stop = True
-                        await self.cleanup_tools()
-                        return
-                    messages = turn.text
+                    # On resume (restorable history), skip the initial prompt:
+                    # restore below seeds context and the loop then prompts for
+                    # the next turn via InputCallback. Leaving messages None here
+                    # lets the restore block fill it.
+                    if not self._has_restorable_history():
+                        from ms_agent.command.interactive import \
+                            InteractiveSession
+                        session = InteractiveSession(
+                            self._get_command_router(),
+                            source='tui' if self._input_source is not None
+                            else 'cli',
+                            input_source=self._input_source,
+                            event_sink=self._event_sink)
+                        turn = await session.run_turn(
+                            messages=None, runtime=self.runtime)
+                        if turn.action == 'quit':
+                            # Exited at the interactive prompt without a task.
+                            self.runtime.should_stop = True
+                            await self.cleanup_tools()
+                            return
+                        messages = turn.text
                 else:
                     # Non-interactive with no task: accept piped stdin as the
                     # query; otherwise fail clearly instead of blocking input().
@@ -1694,7 +1925,16 @@ class LLMAgent(Agent):
                 # compression). This is the canonical history for the round, so
                 # it must run before the per-round augmentations below.
                 if self.context_assembler is not None and self.runtime.round > 0:
+                    # Detect real compaction via last_consolidated advancing
+                    # (assemble() only advances it when a strategy consolidated
+                    # the window — see ContextAssembler.assemble).
+                    _lc_before = (self.session_log.last_consolidated
+                                  if self.session_log is not None else 0)
                     messages = self.context_assembler.assemble()
+                    if (self._event_sink is not None
+                            and self.session_log is not None
+                            and self.session_log.last_consolidated > _lc_before):
+                        self._event_sink.emit(ContextCompacted())
 
                 messages = self._apply_pending_rollback(messages)
                 if self.task_manager is not None:
@@ -1758,6 +1998,9 @@ class LLMAgent(Agent):
             import traceback
 
             logger.warning(traceback.format_exc())
+            if self._event_sink is not None:
+                self._event_sink.emit(
+                    ErrorRaised(message=f'{type(e).__name__}: {e}'))
             if hasattr(self.config, 'help'):
                 logger.error(
                     f'[{self.tag}] Runtime error, please follow the instructions:\n\n {self.config.help}'

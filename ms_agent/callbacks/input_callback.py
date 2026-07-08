@@ -31,13 +31,19 @@ class InputCallback(Callback):
         self,
         config: DictConfig,
         command_router: Optional['CommandRouter'] = None,
+        input_source: object = None,
+        event_sink: object = None,
     ):
         super().__init__(config)
         if command_router is None:
             # Fallback for standalone / test instantiation. In normal CLI use
             # the agent injects its own router so there is a single instance.
             command_router = self._build_default_router()
-        self._session = InteractiveSession(command_router)
+        self._session = InteractiveSession(
+            command_router,
+            source='tui' if input_source is not None else 'cli',
+            input_source=input_source,
+            event_sink=event_sink)
 
     @staticmethod
     def _build_default_router() -> 'CommandRouter':
