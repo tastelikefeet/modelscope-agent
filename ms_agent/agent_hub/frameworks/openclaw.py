@@ -1,4 +1,4 @@
-# Copyright (c) Alibaba, Inc. and its affiliates.
+# Copyright (c) ModelScope Contributors. All rights reserved.
 """OpenClaw workspace specification (root-per-agent)."""
 from __future__ import annotations
 

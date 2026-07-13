@@ -1,4 +1,4 @@
-# Copyright (c) Alibaba, Inc. and its affiliates.
+# Copyright (c) ModelScope Contributors. All rights reserved.
 """``ms-agent agent`` command -- manage agent workspace files.
 
 Migrated from modelscope-hub's ``ms agent`` command. The business logic lives in

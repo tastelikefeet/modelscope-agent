@@ -1,4 +1,4 @@
-# Copyright (c) Alibaba, Inc. and its affiliates.
+# Copyright (c) ModelScope Contributors. All rights reserved.
 """OpenHuman workspace specification (single-agent install)."""
 from __future__ import annotations
 

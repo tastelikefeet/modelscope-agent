@@ -1,4 +1,4 @@
-# Copyright (c) Alibaba, Inc. and its affiliates.
+# Copyright (c) ModelScope Contributors. All rights reserved.
 """Section-level Markdown merge engine for cross-framework workspace migration."""
 from __future__ import annotations
 

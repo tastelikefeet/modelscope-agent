@@ -1,4 +1,4 @@
-# Copyright (c) Alibaba, Inc. and its affiliates.
+# Copyright (c) ModelScope Contributors. All rights reserved.
 """Agent cache path helpers.
 
 Cache layout (under ``~/.cache/modelscope/agent/``)::

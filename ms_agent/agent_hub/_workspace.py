@@ -1,4 +1,4 @@
-# Copyright (c) Alibaba, Inc. and its affiliates.
+# Copyright (c) ModelScope Contributors. All rights reserved.
 """Agent workspace file specification and framework registry.
 
 Each agent framework stores its files in a known on-disk layout.  A subclass of

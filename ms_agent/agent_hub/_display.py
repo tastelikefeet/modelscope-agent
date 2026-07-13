@@ -1,4 +1,4 @@
-# Copyright (c) Alibaba, Inc. and its affiliates.
+# Copyright (c) ModelScope Contributors. All rights reserved.
 """Presentation helpers for ``ms agent`` upload/download/convert output.
 
 Centralizes coloring, section headers, tabular file listings, and merge/drop

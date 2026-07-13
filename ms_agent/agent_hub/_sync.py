@@ -1,4 +1,4 @@
-# Copyright (c) Alibaba, Inc. and its affiliates.
+# Copyright (c) ModelScope Contributors. All rights reserved.
 """Core sync logic: backup, zip, bidirectional sync helpers."""
 from __future__ import annotations
 

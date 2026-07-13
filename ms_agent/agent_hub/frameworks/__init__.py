@@ -1,4 +1,4 @@
-# Copyright (c) Alibaba, Inc. and its affiliates.
+# Copyright (c) ModelScope Contributors. All rights reserved.
 """Auto-register all built-in framework workspace specifications.
 
 Importing this package triggers registration of all bundled frameworks into

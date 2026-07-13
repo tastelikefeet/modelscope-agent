@@ -1,4 +1,4 @@
-# Copyright (c) Alibaba, Inc. and its affiliates.
+# Copyright (c) ModelScope Contributors. All rights reserved.
 """Human-friendly formatting helpers for agent-hub CLI output.
 
 Self-contained copy of the small formatting utilities the agent workspace

@@ -1,4 +1,4 @@
-# Copyright (c) Alibaba, Inc. and its affiliates.
+# Copyright (c) ModelScope Contributors. All rights reserved.
 """Agent workspace management for ms-agent (migrated from modelscope-hub).
 
 This package holds the agent-workspace *business logic* (framework specs,

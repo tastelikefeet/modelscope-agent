@@ -1,4 +1,4 @@
-# Copyright (c) Alibaba, Inc. and its affiliates.
+# Copyright (c) ModelScope Contributors. All rights reserved.
 """Core command logic for agent workspace management.
 
 This module contains the business logic for agent upload, download, convert,

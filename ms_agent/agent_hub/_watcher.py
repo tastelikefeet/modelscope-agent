@@ -1,4 +1,4 @@
-# Copyright (c) Alibaba, Inc. and its affiliates.
+# Copyright (c) ModelScope Contributors. All rights reserved.
 """File watcher (polling) and daemon management for agent sync."""
 from __future__ import annotations
 

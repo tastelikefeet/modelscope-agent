@@ -1,4 +1,4 @@
-# Copyright (c) Alibaba, Inc. and its affiliates.
+# Copyright (c) ModelScope Contributors. All rights reserved.
 """Hermes workspace specification (root-per-agent).
 
 Hermes stores the *default* agent at the install root (``~/.hermes/``) and every

@@ -1,4 +1,4 @@
-# Copyright (c) Alibaba, Inc. and its affiliates.
+# Copyright (c) ModelScope Contributors. All rights reserved.
 """Shared bundled/default skill filtering for CoPaw-family frameworks.
 
 Both Hermes and QwenPaw (a.k.a. CoPaw) install a large library of
