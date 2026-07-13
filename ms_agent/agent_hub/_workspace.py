@@ -217,7 +217,11 @@ class WorkspaceSpec(ABC):
                 if self._is_excluded_asset(rel):
                     continue
                 try:
-                    if f.stat().st_size > MAX_FILE_SIZE:
+                    size = f.stat().st_size
+                    if size > MAX_FILE_SIZE:
+                        logger.warning(
+                            'Skip large file %s (%d bytes exceeds limit %d)',
+                            f, size, MAX_FILE_SIZE)
                         continue
                 except OSError:
                     continue

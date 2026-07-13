@@ -1221,16 +1221,8 @@ def cmd_list(
             updated = updated.split('T')[0]
         rows.append((repo_id, fw, vis, updated))
 
-    col_widths = [len(h) for h in headers]
-    for row in rows:
-        for i, val in enumerate(row):
-            col_widths[i] = max(col_widths[i], len(str(val)))
-
-    fmt = '  '.join(f'{{:<{w}}}' for w in col_widths)
-    print(fmt.format(*headers))
-    print(fmt.format(*['-' * w for w in col_widths]))
-    for row in rows:
-        print(fmt.format(*[str(v) for v in row]))
+    from ._format import tabulate
+    print(tabulate(rows, headers))
 
     print(f'\npage {page_number} / total {total} (page_size={page_size})')
     return 0

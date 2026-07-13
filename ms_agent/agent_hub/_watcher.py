@@ -369,8 +369,8 @@ def daemonize(target, *args, **kwargs):
         'token': getattr(client_obj, 'token', '') if client_obj else '',
     }
     fd, param_path = tempfile.mkstemp(suffix='.json', prefix='ms_agent_watch_')
-    with os.fdopen(fd, 'w') as f:
-        json.dump(payload, f)
+    with os.fdopen(fd, 'w', encoding='utf-8') as f:
+        json.dump(payload, f, ensure_ascii=False)
 
     cmd = [
         sys.executable, '-m', 'ms_agent.agent_hub._watcher', '_daemon',
@@ -433,7 +433,7 @@ def stop_daemon(extra_patterns: list[str] | None = None) -> bool:
     tracked_pid = None
     if pf.exists():
         try:
-            tracked_pid = int(pf.read_text().strip())
+            tracked_pid = int(pf.read_text(encoding='utf-8').strip())
             if hasattr(os, 'fork'):
                 os.kill(tracked_pid, signal.SIGTERM)
             stopped = True
@@ -573,7 +573,7 @@ if __name__ == '__main__':
 
     if len(sys.argv) >= 3 and sys.argv[1] == '_daemon':
         param_path = sys.argv[2]
-        with open(param_path, 'r') as _f:
+        with open(param_path, 'r', encoding='utf-8') as _f:
             _params = json.load(_f)
         os.unlink(param_path)
 
