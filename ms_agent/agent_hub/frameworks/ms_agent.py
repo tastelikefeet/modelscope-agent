@@ -26,27 +26,27 @@ class MsAgentWorkspace(WorkspaceSpec):
 
     @property
     def product_name(self) -> str:
-        return "ms-agent"
+        return 'ms-agent'
 
     @property
     def default_root(self) -> Path:
-        return Path.home() / ".ms_agent"
+        return Path.home() / '.ms_agent'
 
     @property
     def patterns(self) -> list[str]:
         return [
             # Persona + injected configuration
-            "profile.md",
-            "config.yaml",
-            "settings.json",
-            "agent.yaml",
+            'profile.md',
+            'config.yaml',
+            'settings.json',
+            'agent.yaml',
             # Memory
-            "MEMORY.md",
-            "facts.json",
+            'MEMORY.md',
+            'facts.json',
             # Skills
-            "skill.json",
-            "skills/*/SKILL.md",
+            'skill.json',
+            'skills/*/SKILL.md',
         ]
 
 
-register_framework("ms-agent", MsAgentWorkspace)
+register_framework('ms-agent', MsAgentWorkspace)

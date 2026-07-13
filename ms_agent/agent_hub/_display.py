@@ -14,20 +14,20 @@ from ._format import style, tabulate
 
 # Semantic colors reused across sections so the same concept always reads the
 # same way (written=green, merged=yellow, dropped/removed=red, skip/meta=dim).
-COLOR_WRITTEN = "green"
-COLOR_MERGED = "yellow"
-COLOR_DROPPED = "red"
-COLOR_SKIP = "dim"
-COLOR_TITLE = "cyan"
+COLOR_WRITTEN = 'green'
+COLOR_MERGED = 'yellow'
+COLOR_DROPPED = 'red'
+COLOR_SKIP = 'dim'
+COLOR_TITLE = 'cyan'
 
-_ARROW = "\u2192"  # →
+_ARROW = '\u2192'  # →
 
 
 def header(action: str, src: str, dst: str | None = None) -> None:
     """Print a bold action heading, e.g. ``Convert  qwenpaw/all → hermes/all``."""
-    title = style(action, "bold", COLOR_TITLE)
+    title = style(action, 'bold', COLOR_TITLE)
     if dst is not None:
-        arrow = style(_ARROW, "dim")
+        arrow = style(_ARROW, 'dim')
         print(f"\n{title}  {style(src, 'bold')} {arrow} {style(dst, 'bold')}")
     else:
         print(f"\n{title}  {style(src, 'bold')}")
@@ -44,10 +44,12 @@ def summary(items: Sequence[tuple[str, int, str]]) -> None:
     *items* is a sequence of ``(label, count, color)``; entries are rendered in
     order and joined with a dim middle dot.
     """
-    parts = [f"{style(str(count), 'bold', color)} {label}"
-             for label, count, color in items]
+    parts = [
+        f"{style(str(count), 'bold', color)} {label}"
+        for label, count, color in items
+    ]
     if parts:
-        print("  " + style(" \u00b7 ", "dim").join(parts))
+        print('  ' + style(' \u00b7 ', 'dim').join(parts))
 
 
 def file_list(
@@ -68,15 +70,15 @@ def file_list(
     items = sorted(items)
     if not items:
         return
-    head = style(f"{title} ({len(items)})", "bold", color)
+    head = style(f'{title} ({len(items)})', 'bold', color)
     if root is not None:
         head += f" {style(_ARROW, 'dim')} {style(str(root), 'dim')}"
     if note:
-        head += style(f"  \u2014 {note}", "dim")
-    print(f"\n{head}")
-    prefix = (style(marker, color) + " ") if marker else ""
+        head += style(f'  \u2014 {note}', 'dim')
+    print(f'\n{head}')
+    prefix = (style(marker, color) + ' ') if marker else ''
     for it in items:
-        print(f"  {prefix}{it}")
+        print(f'  {prefix}{it}')
 
 
 def map_table(
@@ -84,21 +86,21 @@ def map_table(
     pairs: Iterable[tuple[str, str]],
     *,
     color: str,
-    headers: tuple[str, str] = ("SOURCE", "DESTINATION"),
+    headers: tuple[str, str] = ('SOURCE', 'DESTINATION'),
     note: str | None = None,
 ) -> None:
     """Print a titled two-column table of ``(left, right)`` path pairs."""
     pairs = sorted(pairs)
     if not pairs:
         return
-    head = style(f"{title} ({len(pairs)})", "bold", color)
+    head = style(f'{title} ({len(pairs)})', 'bold', color)
     if note:
-        head += style(f"  \u2014 {note}", "dim")
-    print(f"\n{head}")
+        head += style(f'  \u2014 {note}', 'dim')
+    print(f'\n{head}')
     rows = [(left, _ARROW, right) for left, right in pairs]
-    table = tabulate(rows, headers=(headers[0], "", headers[1]))
+    table = tabulate(rows, headers=(headers[0], '', headers[1]))
     for line in table.splitlines():
-        print("  " + line)
+        print('  ' + line)
 
 
 def table(
@@ -116,15 +118,15 @@ def table(
     rows = list(rows)
     if not rows:
         return
-    head = style(f"{title} ({len(rows)})", "bold", color)
+    head = style(f'{title} ({len(rows)})', 'bold', color)
     if note:
-        head += style(f"  \u2014 {note}", "dim")
-    print(f"\n{head}")
+        head += style(f'  \u2014 {note}', 'dim')
+    print(f'\n{head}')
     for line in tabulate(rows, headers=headers).splitlines():
-        print("  " + line)
+        print('  ' + line)
 
 
 def done(message: str) -> None:
     """Print a final success line (checkmark shown when colored)."""
-    check = style("\u2713 ", "green")
-    print(f"\n{check}{message}")
+    check = style('\u2713 ', 'green')
+    print(f'\n{check}{message}')

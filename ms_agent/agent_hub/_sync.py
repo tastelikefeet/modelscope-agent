@@ -18,20 +18,21 @@ if TYPE_CHECKING:
     from modelscope_hub.agent import AgentApi, RemoteFileInfo
 
 __all__ = [
-    "zip_resources",
-    "backup_local",
-    "sha256_content",
-    "detect_local_changes",
-    "push_resources",
-    "push_incremental",
-    "push_mirror",
-    "pull_incremental",
+    'zip_resources',
+    'backup_local',
+    'sha256_content',
+    'detect_local_changes',
+    'push_resources',
+    'push_incremental',
+    'push_mirror',
+    'pull_incremental',
 ]
 
 logger = get_logger()
 
 
-def zip_resources(resources: dict[str, str | bytes], wrapper: str = "") -> bytes:
+def zip_resources(resources: dict[str, str | bytes],
+                  wrapper: str = '') -> bytes:
     """Pack resources into a deterministic in-memory zip for local backup.
 
     Entries are stored with workspace-relative paths (no wrapper directory) so
@@ -43,9 +44,9 @@ def zip_resources(resources: dict[str, str | bytes], wrapper: str = "") -> bytes
     destructive operations (pull, convert, restore).
     """
     buf = io.BytesIO()
-    with zipfile.ZipFile(buf, "w", zipfile.ZIP_DEFLATED) as zf:
+    with zipfile.ZipFile(buf, 'w', zipfile.ZIP_DEFLATED) as zf:
         for rel, value in sorted(resources.items()):
-            key = f"{wrapper}/{rel}" if wrapper else rel
+            key = f'{wrapper}/{rel}' if wrapper else rel
             zf.writestr(key, value)
     return buf.getvalue()
 
@@ -56,8 +57,8 @@ def backup_local(spec, name: str) -> Path:
     Returns the path to the created zip file.
     """
     resources: dict[str, bytes] = spec.collect_bytes()
-    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-    zip_path = cache_dir() / f"{name}_{timestamp}.zip"
+    timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
+    zip_path = cache_dir() / f'{name}_{timestamp}.zip'
     zip_path.write_bytes(zip_resources(resources))
     return zip_path
 
@@ -84,7 +85,8 @@ def drop_unchanged_defaults(resources: dict, framework: str, spec) -> dict:
         bare = spec.split_all_path(path)[1] if is_all else path
         default = defaults.get(bare)
         if default is not None:
-            default_val = default.encode("utf-8") if isinstance(content, bytes) else default
+            default_val = default.encode('utf-8') if isinstance(
+                content, bytes) else default
             if content == default_val:
                 continue
         out[path] = content
@@ -93,10 +95,11 @@ def drop_unchanged_defaults(resources: dict, framework: str, spec) -> dict:
 
 # ---- Bidirectional sync helpers ----
 
+
 def sha256_content(content: str | bytes) -> str:
     """Compute sha256 of content (accepts str or bytes)."""
     if isinstance(content, str):
-        content = content.encode("utf-8")
+        content = content.encode('utf-8')
     return hashlib.sha256(content).hexdigest()
 
 
@@ -130,28 +133,26 @@ def _retry_on_master_missing(fn, *, retries: int = 6, delay: float = 1.0):
     every first-push path gets the same protection.
     """
     import time
-
     from modelscope_hub.errors import APIError
 
     for attempt in range(retries):
         try:
             return fn()
         except APIError as e:
-            msg = (getattr(e, "message", "") or str(e)).lower()
-            branch_missing = e.status_code == 400 and (
-                "branch" in msg or "revision" in msg
-            )
+            msg = (getattr(e, 'message', '') or str(e)).lower()
+            branch_missing = e.status_code == 400 and ('branch' in msg
+                                                       or 'revision' in msg)
             if branch_missing and attempt < retries - 1:
                 # Exponential backoff (1, 2, 4, 8, 16s capped -> ~31s total) to
                 # outlast slow server-side master-branch initialization on a
                 # freshly created bare repo.
-                time.sleep(min(delay * (2 ** attempt), 16.0))
+                time.sleep(min(delay * (2**attempt), 16.0))
                 continue
             raise
 
 
 def push_resources(
-    client: "AgentApi",
+    client: 'AgentApi',
     username: str,
     name: str,
     framework: str,
@@ -175,16 +176,18 @@ def push_resources(
     from modelscope_hub.agent import is_lfs_file
 
     if not resources:
-        logger.warning("push_resources called with empty resources; skipping.")
+        logger.warning('push_resources called with empty resources; skipping.')
         return
 
     # Ensure repo exists (idempotent create).
     try:
         if not client.check_repo(username, name):
             client.create_repo(username, name, framework=framework)
-            logger.info("Created empty agent repo %s/%s (framework=%s).", username, name, framework)
+            logger.info('Created empty agent repo %s/%s (framework=%s).',
+                        username, name, framework)
     except Exception as exc:
-        logger.warning("create_repo check failed (%s), proceeding anyway.", exc)
+        logger.warning('create_repo check failed (%s), proceeding anyway.',
+                       exc)
 
     # Idempotent upsert: skip files whose content already matches the remote.
     # A repeated full upload of unchanged content would otherwise issue
@@ -198,7 +201,7 @@ def push_resources(
         }
     except Exception as exc:
         logger.debug(
-            "Cannot list remote detail for idempotent skip (%s); uploading all.",
+            'Cannot list remote detail for idempotent skip (%s); uploading all.',
             exc,
         )
 
@@ -215,37 +218,44 @@ def push_resources(
         if is_lfs_file(rel, size):
             lfs_files.append((rel, content))
         else:
-            b64 = base64.b64encode(content).decode("ascii")
+            b64 = base64.b64encode(content).decode('ascii')
             normal_actions.append({
-                "action": "create",
-                "path": rel,
-                "type": "normal",
-                "size": size,
-                "sha256": "",
-                "content": b64,
-                "encoding": "base64",
+                'action': 'create',
+                'path': rel,
+                'type': 'normal',
+                'size': size,
+                'sha256': '',
+                'content': b64,
+                'encoding': 'base64',
             })
 
     # Commit normal files in one request.
     if normal_actions:
         _retry_on_master_missing(lambda: client.commit_files(
-            username, name, normal_actions,
-            commit_message="sync: upload normal files"))
+            username,
+            name,
+            normal_actions,
+            commit_message='sync: upload normal files'))
         for a in normal_actions:
-            logger.info("  CREATE: %s (%d B)", a["path"], a["size"])
+            logger.info('  CREATE: %s (%d B)', a['path'], a['size'])
 
     # Upload LFS files one-by-one (batch verify + PUT + commit).  The commit
     # inside upload_lfs_file hits the same fresh-repo master race, so it needs
     # the retry too (LFS-only first push would otherwise fail).
     for rel, content in lfs_files:
-        _retry_on_master_missing(lambda rel=rel, content=content: client.upload_lfs_file(
-            username, name, rel, content,
-            action="create", commit_message=f"sync: upload LFS {rel}"))
-        logger.info("  CREATE (LFS): %s (%d B)", rel, len(content))
+        _retry_on_master_missing(
+            lambda rel=rel, content=content: client.upload_lfs_file(
+                username,
+                name,
+                rel,
+                content,
+                action='create',
+                commit_message=f'sync: upload LFS {rel}'))
+        logger.info('  CREATE (LFS): %s (%d B)', rel, len(content))
 
-    logger.info("Pushed %d file(s) (%d normal, %d LFS, %d unchanged).",
-                len(normal_actions) + len(lfs_files),
-                len(normal_actions), len(lfs_files), skipped)
+    logger.info('Pushed %d file(s) (%d normal, %d LFS, %d unchanged).',
+                len(normal_actions) + len(lfs_files), len(normal_actions),
+                len(lfs_files), skipped)
 
     # Mirror semantics: prune remote files that fall within this upload's
     # scope but are no longer present locally.
@@ -254,25 +264,26 @@ def push_resources(
         try:
             remote_paths = set(client.list_repo_files(username, name))
         except Exception as exc:
-            logger.warning("Cannot list remote for prune (%s); skip prune.", exc)
+            logger.warning('Cannot list remote for prune (%s); skip prune.',
+                           exc)
             remote_paths = set()
         local_paths = set(resources.keys())
         stale = [
-            rp for rp in sorted(remote_paths - local_paths)
-            if any(fnmatch.fnmatch(rp, pat) for pat in prune_patterns)
+            rp for rp in sorted(remote_paths - local_paths) if any(
+                fnmatch.fnmatch(rp, pat) for pat in prune_patterns)
         ]
         for fpath in stale:
-            logger.info("  DELETE (prune): %s", fpath)
+            logger.info('  DELETE (prune): %s', fpath)
             try:
                 client.delete_file(username, name, fpath)
             except Exception as exc:
-                logger.warning("  prune delete failed for %s (%s)", fpath, exc)
+                logger.warning('  prune delete failed for %s (%s)', fpath, exc)
         if stale:
-            logger.info("Pruned %d stale remote file(s).", len(stale))
+            logger.info('Pruned %d stale remote file(s).', len(stale))
 
 
 def push_incremental(
-    client: "AgentApi",
+    client: 'AgentApi',
     username: str,
     name: str,
     changed: dict[str, bytes | None],
@@ -287,14 +298,15 @@ def push_incremental(
     from modelscope_hub.agent import is_lfs_file
 
     normal_actions: list[dict] = []
-    lfs_items: list[tuple[str, bytes, str]] = []  # (path, content, action_type)
+    lfs_items: list[tuple[str, bytes,
+                          str]] = []  # (path, content, action_type)
     delete_paths: list[str] = []
 
     for fpath, content in changed.items():
         if content is None:
             delete_paths.append(fpath)
         else:
-            action_type = "update" if fpath in remote_paths else "create"
+            action_type = 'update' if fpath in remote_paths else 'create'
             size = len(content)
             # Determine if the file needs LFS: check remote flag or local heuristic.
             use_lfs = False
@@ -306,15 +318,15 @@ def push_incremental(
             if use_lfs:
                 lfs_items.append((fpath, content, action_type))
             else:
-                b64 = base64.b64encode(content).decode("ascii")
+                b64 = base64.b64encode(content).decode('ascii')
                 normal_actions.append({
-                    "action": action_type,
-                    "path": fpath,
-                    "type": "normal",
-                    "size": size,
-                    "sha256": "",
-                    "content": b64,
-                    "encoding": "base64",
+                    'action': action_type,
+                    'path': fpath,
+                    'type': 'normal',
+                    'size': size,
+                    'sha256': '',
+                    'content': b64,
+                    'encoding': 'base64',
                 })
 
     # Commit normal file actions in one batch.  The commit hits the same
@@ -322,34 +334,39 @@ def push_incremental(
     # may not be ready when the first commit fires), hence the same retry.
     if normal_actions:
         for a in normal_actions:
-            logger.info("  %s: %s", a["action"].upper(), a["path"])
+            logger.info('  %s: %s', a['action'].upper(), a['path'])
         _retry_on_master_missing(lambda: client.commit_files(
-            username, name, normal_actions, commit_message="watch sync"))
+            username, name, normal_actions, commit_message='watch sync'))
 
     # Upload LFS files one-by-one (their commit races master too).
     for fpath, content, action_type in lfs_items:
-        logger.info("  %s (LFS): %s", action_type.upper(), fpath)
+        logger.info('  %s (LFS): %s', action_type.upper(), fpath)
         _retry_on_master_missing(
             lambda fpath=fpath, content=content, action_type=action_type:
-            client.upload_lfs_file(username, name, fpath, content,
-                                   action=action_type, commit_message="watch sync"))
+            client.upload_lfs_file(
+                username,
+                name,
+                fpath,
+                content,
+                action=action_type,
+                commit_message='watch sync'))
 
     # Delete files via the DELETE endpoint.
     for fpath in delete_paths:
-        logger.info("  DELETE: %s", fpath)
+        logger.info('  DELETE: %s', fpath)
         client.delete_file(username, name, fpath)
 
     total = len(normal_actions) + len(lfs_items) + len(delete_paths)
     if total:
-        logger.info("Committed %d action(s) incrementally.", total)
+        logger.info('Committed %d action(s) incrementally.', total)
 
 
 def pull_incremental(
-    client: "AgentApi",
+    client: 'AgentApi',
     username: str,
     name: str,
     spec,
-    remote_files: "list[RemoteFileInfo]",
+    remote_files: 'list[RemoteFileInfo]',
     local_resources: dict[str, bytes],
 ) -> int:
     """Incrementally pull remote changes to local workspace.
@@ -366,28 +383,31 @@ def pull_incremental(
     for rfile in remote_files:
         target = (root / rfile.path).resolve()
         if not target.is_relative_to(resolved_root):
-            logger.warning("  Skipped (path traversal): %s", rfile.path)
+            logger.warning('  Skipped (path traversal): %s', rfile.path)
             continue
         local_content = local_resources.get(rfile.path)
         # Fast path: identical raw sha means the local file already matches the
         # remote (only possible when the inbound hook does not rewrite it), so
         # skip the download entirely.
-        if local_content is not None and sha256_content(local_content) == rfile.sha256:
+        if local_content is not None and sha256_content(
+                local_content) == rfile.sha256:
             continue
-        content = client.download_repo_file(username, name, rfile.path, binary=True)
+        content = client.download_repo_file(
+            username, name, rfile.path, binary=True)
         # Every inbound write path funnels through the sanitize hook so secrets
         # (e.g. in QwenPaw agent.json) never reach disk regardless of sync mode.
         content = spec.sanitize_inbound_file(rfile.path, content)
         # Re-compare against the sanitized bytes: if the hook rewrote the file,
         # its raw sha differs from remote but may equal what is already on disk,
         # in which case there is nothing to write.
-        if local_content is not None and sha256_content(local_content) == sha256_content(content):
+        if local_content is not None and sha256_content(
+                local_content) == sha256_content(content):
             continue
         target.parent.mkdir(parents=True, exist_ok=True)
         target.write_bytes(content)
         changes += 1
-        action = "UPDATE" if local_content is not None else "CREATE"
-        logger.info("  %s (pull): %s", action, rfile.path)
+        action = 'UPDATE' if local_content is not None else 'CREATE'
+        logger.info('  %s (pull): %s', action, rfile.path)
 
     for rel in sorted(local_paths - remote_paths):
         target = (root / rel).resolve()
@@ -396,13 +416,13 @@ def pull_incremental(
         if target.exists():
             target.unlink()
             changes += 1
-            logger.info("  DELETE (pull): %s", rel)
+            logger.info('  DELETE (pull): %s', rel)
 
     return changes
 
 
 def push_mirror(
-    client: "AgentApi",
+    client: 'AgentApi',
     username: str,
     name: str,
     framework: str,
@@ -425,7 +445,7 @@ def push_mirror(
     from modelscope_hub.errors import APIError
 
     if not resources:
-        logger.warning("push_mirror called with empty resources; skipping.")
+        logger.warning('push_mirror called with empty resources; skipping.')
         return
 
     # Fetch remote baseline. A brand-new / missing repo surfaces as 400/404/500
@@ -441,9 +461,15 @@ def push_mirror(
         remote_files = []
 
     if not remote_files:
-        logger.info("Remote empty/new; doing full push for %s/%s.", username, name)
-        push_resources(client, username, name, framework, resources,
-                       prune_patterns=prune_patterns)
+        logger.info('Remote empty/new; doing full push for %s/%s.', username,
+                    name)
+        push_resources(
+            client,
+            username,
+            name,
+            framework,
+            resources,
+            prune_patterns=prune_patterns)
         return
 
     remote_sha_map = {f.path: f.sha256 for f in remote_files}
@@ -454,7 +480,8 @@ def push_mirror(
     changed: dict[str, bytes | None] = {}
     # New or content-changed files -> create/update.
     for rel, content in resources.items():
-        if rel not in remote_sha_map or sha256_content(content) != remote_sha_map[rel]:
+        if rel not in remote_sha_map or sha256_content(
+                content) != remote_sha_map[rel]:
             changed[rel] = content
     # Mirror delete: remote files in scope but absent locally -> delete.
     if prune_patterns:
@@ -463,11 +490,13 @@ def push_mirror(
                 changed[rp] = None
 
     if not changed:
-        logger.info("Remote already up to date for %s/%s (no changes).", username, name)
+        logger.info('Remote already up to date for %s/%s (no changes).',
+                    username, name)
         return
 
     n_upsert = sum(1 for v in changed.values() if v is not None)
     n_delete = sum(1 for v in changed.values() if v is None)
-    logger.info("Incremental push: %d upsert, %d delete for %s/%s.",
-                n_upsert, n_delete, username, name)
-    push_incremental(client, username, name, changed, remote_paths, remote_lfs_paths)
+    logger.info('Incremental push: %d upsert, %d delete for %s/%s.', n_upsert,
+                n_delete, username, name)
+    push_incremental(client, username, name, changed, remote_paths,
+                     remote_lfs_paths)

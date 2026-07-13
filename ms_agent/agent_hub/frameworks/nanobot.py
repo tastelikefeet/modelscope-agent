@@ -21,26 +21,26 @@ class NanobotWorkspace(WorkspaceSpec):
 
     @property
     def product_name(self) -> str:
-        return "nanobot"
+        return 'nanobot'
 
     @property
     def default_root(self) -> Path:
-        return Path.home() / ".nanobot" / "workspace"
+        return Path.home() / '.nanobot' / 'workspace'
 
     @property
     def patterns(self) -> list[str]:
         # fnmatch ``*`` spans ``/`` so ``skills/*`` recurses the whole skill
         # tree (SKILL.md + scripts/references/assets at any depth).
         return [
-            "AGENTS.md",
-            "SOUL.md",
-            "USER.md",
-            "HEARTBEAT.md",
-            "prompts/*.md",
-            "memory/MEMORY.md",
-            "memory/history.jsonl",
-            "skills/*",
+            'AGENTS.md',
+            'SOUL.md',
+            'USER.md',
+            'HEARTBEAT.md',
+            'prompts/*.md',
+            'memory/MEMORY.md',
+            'memory/history.jsonl',
+            'skills/*',
         ]
 
 
-register_framework("nanobot", NanobotWorkspace)
+register_framework('nanobot', NanobotWorkspace)

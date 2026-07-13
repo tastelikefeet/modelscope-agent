@@ -6,15 +6,10 @@ import json
 from pathlib import Path
 from typing import Any
 
-from .._workspace import (
-    ALL_AGENT_NAME,
-    DEFAULT_AGENT_NAME,
-    GLOBAL_AGENT_NAME,
-    WorkspaceSpec,
-    register_framework,
-)
-from ._bundled_skills import BundledSkillFilterMixin
 from ms_agent.utils.logger import get_logger
+from .._workspace import (ALL_AGENT_NAME, DEFAULT_AGENT_NAME,
+                          GLOBAL_AGENT_NAME, WorkspaceSpec, register_framework)
+from ._bundled_skills import BundledSkillFilterMixin
 
 logger = get_logger()
 
@@ -47,20 +42,32 @@ class QwenpawWorkspace(BundledSkillFilterMixin, WorkspaceSpec):
     # ``~/.copaw`` (config.json + workspaces registry), so it takes top
     # priority; ``~/.qwenpaw`` is only a fallback. Probe both, preferring
     # ``.copaw``; default to it when neither exists yet (fresh install).
-    _CONFIG_DIRNAMES = (".copaw", ".qwenpaw")
+    _CONFIG_DIRNAMES = ('.copaw', '.qwenpaw')
 
     # channel keys whose values are machine-specific secrets/paths and must
     # never be carried across machines.
     _CHANNEL_SECRET_KEYS = frozenset([
-        "bot_token", "bot_token_file", "app_secret", "client_secret",
-        "access_token", "secret", "sk", "encrypt_key", "verification_token",
-        "twilio_auth_token", "sip_password", "password", "dashscope_api_key",
-        "livekit_api_key", "livekit_api_secret", "db_path",
+        'bot_token',
+        'bot_token_file',
+        'app_secret',
+        'client_secret',
+        'access_token',
+        'secret',
+        'sk',
+        'encrypt_key',
+        'verification_token',
+        'twilio_auth_token',
+        'sip_password',
+        'password',
+        'dashscope_api_key',
+        'livekit_api_key',
+        'livekit_api_secret',
+        'db_path',
     ])
 
     @property
     def product_name(self) -> str:
-        return "qwenpaw"
+        return 'qwenpaw'
 
     @property
     def default_root(self) -> Path:
@@ -77,7 +84,7 @@ class QwenpawWorkspace(BundledSkillFilterMixin, WorkspaceSpec):
     @property
     def workspace_root(self) -> Path:
         # root-per-agent: derive the per-agent workspace from the data root.
-        base = self.root / "workspaces"
+        base = self.root / 'workspaces'
         if self._is_all():
             return base
         return base / self.agent_name
@@ -85,23 +92,23 @@ class QwenpawWorkspace(BundledSkillFilterMixin, WorkspaceSpec):
     @property
     def patterns(self) -> list[str]:
         return [
-            "AGENTS.md",
-            "SOUL.md",
-            "PROFILE.md",
-            "BOOTSTRAP.md",
-            "MEMORY.md",
-            "HEARTBEAT.md",
-            "memory/*.md",
-            "agent.json",
-            "skill.json",
+            'AGENTS.md',
+            'SOUL.md',
+            'PROFILE.md',
+            'BOOTSTRAP.md',
+            'MEMORY.md',
+            'HEARTBEAT.md',
+            'memory/*.md',
+            'agent.json',
+            'skill.json',
             # fnmatch ``*`` spans ``/`` so ``skills/*`` recurses the
             # whole skill tree (SKILL.md + references/assets/scripts).
-            "skills/*",
+            'skills/*',
         ]
 
     def _effective_patterns(self) -> list[str]:
         if self._is_all():
-            return [f"*/{p}" for p in self.patterns]
+            return [f'*/{p}' for p in self.patterns]
         return self.patterns
 
     @property
@@ -110,16 +117,16 @@ class QwenpawWorkspace(BundledSkillFilterMixin, WorkspaceSpec):
 
     def split_all_path(self, rel_path: str) -> tuple[str | None, str]:
         # agent directory name IS the agent name: ``<agent>/<bare>``.
-        if "/" in rel_path:
-            head, rest = rel_path.split("/", 1)
+        if '/' in rel_path:
+            head, rest = rel_path.split('/', 1)
             return (head, rest)
         return (None, rel_path)
 
     def join_all_path(self, agent_name: str, bare_path: str) -> str:
-        return f"{agent_name}/{bare_path}"
+        return f'{agent_name}/{bare_path}'
 
     def list_agents(self) -> list[str]:
-        base = self.root / "workspaces"
+        base = self.root / 'workspaces'
         if not base.is_dir():
             return [DEFAULT_AGENT_NAME]
         agents = [d.name for d in sorted(base.iterdir()) if d.is_dir()]
@@ -139,30 +146,31 @@ class QwenpawWorkspace(BundledSkillFilterMixin, WorkspaceSpec):
         try:
             data: Any = json.loads(content)
         except (json.JSONDecodeError, ValueError):
-            logger.warning("agent.json is not valid JSON; writing as-is")
+            logger.warning('agent.json is not valid JSON; writing as-is')
             return content
         if not isinstance(data, dict):
             return content
         # Rebind identity/location to the local target agent.
-        data["id"] = agent_name
-        data["workspace_dir"] = str(self.root / "workspaces" / agent_name)
+        data['id'] = agent_name
+        data['workspace_dir'] = str(self.root / 'workspaces' / agent_name)
         # Strip secrets from every channel config.
-        channels = data.get("channels")
+        channels = data.get('channels')
         if isinstance(channels, dict):
             for ch in channels.values():
                 if not isinstance(ch, dict):
                     continue
                 for key in list(ch.keys()):
                     if key in self._CHANNEL_SECRET_KEYS:
-                        ch[key] = ""
+                        ch[key] = ''
         # Strip MCP env secrets (API keys live under mcp.clients.*.env).
-        mcp = data.get("mcp")
+        mcp = data.get('mcp')
         if isinstance(mcp, dict):
-            clients = mcp.get("clients")
+            clients = mcp.get('clients')
             if isinstance(clients, dict):
                 for client in clients.values():
-                    if isinstance(client, dict) and isinstance(client.get("env"), dict):
-                        client["env"] = {k: "" for k in client["env"]}
+                    if isinstance(client, dict) and isinstance(
+                            client.get('env'), dict):
+                        client['env'] = {k: '' for k in client['env']}
         return json.dumps(data, ensure_ascii=False, indent=2)
 
     def _register_agent(self, agent_name: str) -> None:
@@ -174,50 +182,54 @@ class QwenpawWorkspace(BundledSkillFilterMixin, WorkspaceSpec):
         """
         if agent_name in (ALL_AGENT_NAME, GLOBAL_AGENT_NAME):
             return
-        config_path = self.root / "config.json"
+        config_path = self.root / 'config.json'
         if not config_path.is_file():
             logger.warning(
-                "QwenPaw config.json not found at %s; agent %r written but not "
-                "registered (it will be invisible in the UI until QwenPaw "
-                "rescans).", config_path, agent_name,
+                'QwenPaw config.json not found at %s; agent %r written but not '
+                'registered (it will be invisible in the UI until QwenPaw '
+                'rescans).',
+                config_path,
+                agent_name,
             )
             return
         try:
-            cfg = json.loads(config_path.read_text(encoding="utf-8"))
+            cfg = json.loads(config_path.read_text(encoding='utf-8'))
         except (OSError, json.JSONDecodeError, ValueError) as e:
-            logger.warning("Cannot read QwenPaw config.json (%s); skip register", e)
+            logger.warning(
+                'Cannot read QwenPaw config.json (%s); skip register', e)
             return
         if not isinstance(cfg, dict):
             return
-        agents = cfg.get("agents")
+        agents = cfg.get('agents')
         if not isinstance(agents, dict):
             agents = {}
-            cfg["agents"] = agents
-        profiles = agents.get("profiles")
+            cfg['agents'] = agents
+        profiles = agents.get('profiles')
         if not isinstance(profiles, dict):
             profiles = {}
-            agents["profiles"] = profiles
-        workspace_dir = str(self.root / "workspaces" / agent_name)
+            agents['profiles'] = profiles
+        workspace_dir = str(self.root / 'workspaces' / agent_name)
         existing = profiles.get(agent_name)
         profile = existing if isinstance(existing, dict) else {}
         profile.update({
-            "id": agent_name,
-            "workspace_dir": workspace_dir,
-            "enabled": True,
+            'id': agent_name,
+            'workspace_dir': workspace_dir,
+            'enabled': True,
         })
         profiles[agent_name] = profile
-        order = agents.get("agent_order")
+        order = agents.get('agent_order')
         if not isinstance(order, list):
             order = list(profiles.keys())
-            agents["agent_order"] = order
+            agents['agent_order'] = order
         if agent_name not in order:
             order.append(agent_name)
         try:
             config_path.write_text(
-                json.dumps(cfg, ensure_ascii=False, indent=2), encoding="utf-8"
-            )
+                json.dumps(cfg, ensure_ascii=False, indent=2),
+                encoding='utf-8')
         except OSError as e:
-            logger.warning("Cannot write QwenPaw config.json (%s); skip register", e)
+            logger.warning(
+                'Cannot write QwenPaw config.json (%s); skip register', e)
 
     def sanitize_inbound_file(self, rel_path: str, content: bytes) -> bytes:
         """Sanitize inbound ``agent.json`` (strip secrets, rebind identity).
@@ -228,18 +240,18 @@ class QwenpawWorkspace(BundledSkillFilterMixin, WorkspaceSpec):
         """
         if self._is_all():
             agent, bare = self.split_all_path(rel_path)
-            if not (agent and bare == "agent.json"):
+            if not (agent and bare == 'agent.json'):
                 return content
             target_agent = agent
         else:
-            if rel_path != "agent.json":
+            if rel_path != 'agent.json':
                 return content
             target_agent = self.agent_name or DEFAULT_AGENT_NAME
         try:
-            text = content.decode("utf-8")
+            text = content.decode('utf-8')
         except UnicodeDecodeError:
             return content
-        return self._sanitize_agent_json(target_agent, text).encode("utf-8")
+        return self._sanitize_agent_json(target_agent, text).encode('utf-8')
 
     def apply(self, resources: dict[str, str]) -> list[str]:
         """Write files (``agent.json`` sanitized via the inbound hook) then
@@ -261,13 +273,12 @@ class QwenpawWorkspace(BundledSkillFilterMixin, WorkspaceSpec):
         written = super().apply(resources)
         if self._is_all():
             logger.info(
-                "Applied %d file(s) in all-mode; registry left unchanged "
-                "(agent visibility is owned by the QwenPaw UI).", len(written)
-            )
+                'Applied %d file(s) in all-mode; registry left unchanged '
+                '(agent visibility is owned by the QwenPaw UI).', len(written))
             return written
         agent_name = self.agent_name or DEFAULT_AGENT_NAME
         self._register_agent(agent_name)
         return written
 
 
-register_framework("qwenpaw", QwenpawWorkspace)
+register_framework('qwenpaw', QwenpawWorkspace)

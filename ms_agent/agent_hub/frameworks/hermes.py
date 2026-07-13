@@ -17,13 +17,12 @@ out of scope for agent-home migration.
 """
 from __future__ import annotations
 
+import yaml
 from pathlib import Path
 
-import yaml
-
-from .._workspace import WorkspaceSpec, register_framework, DEFAULT_AGENT_NAME
-from ._bundled_skills import BundledSkillFilterMixin
 from ms_agent.utils.logger import get_logger
+from .._workspace import DEFAULT_AGENT_NAME, WorkspaceSpec, register_framework
+from ._bundled_skills import BundledSkillFilterMixin
 
 logger = get_logger()
 
@@ -42,24 +41,30 @@ class HermesWorkspace(BundledSkillFilterMixin, WorkspaceSpec):
     # carried across machines. Everything under ``mcp_servers.*.env`` is also
     # treated as a secret bag (API keys live there).
     _CONFIG_SECRET_KEYS = frozenset([
-        "api_key", "api_keys", "openrouter_api_key", "anthropic_api_key",
-        "openai_api_key", "token", "secret", "password",
+        'api_key',
+        'api_keys',
+        'openrouter_api_key',
+        'anthropic_api_key',
+        'openai_api_key',
+        'token',
+        'secret',
+        'password',
     ])
 
     @property
     def product_name(self) -> str:
-        return "hermes"
+        return 'hermes'
 
     @property
     def default_root(self) -> Path:
-        return Path.home() / ".hermes"
+        return Path.home() / '.hermes'
 
     @property
     def workspace_root(self) -> Path:
         base = self.root
-        if self._is_all() or self.agent_name in ("", DEFAULT_AGENT_NAME):
+        if self._is_all() or self.agent_name in ('', DEFAULT_AGENT_NAME):
             return base
-        return base / "profiles" / self.agent_name
+        return base / 'profiles' / self.agent_name
 
     @property
     def patterns(self) -> list[str]:
@@ -81,12 +86,12 @@ class HermesWorkspace(BundledSkillFilterMixin, WorkspaceSpec):
         # their own path, match no target pattern, and are dropped by the
         # ``dst_spec`` filter -- never folded into the catch-all persona file.
         return [
-            "SOUL.md",
-            "memories/*.md",
-            "skills/*",
-            "optional-skills/*",
-            "config.yaml",
-            "hooks/*",
+            'SOUL.md',
+            'memories/*.md',
+            'skills/*',
+            'optional-skills/*',
+            'config.yaml',
+            'hooks/*',
         ]
 
     def _effective_patterns(self) -> list[str]:
@@ -96,7 +101,7 @@ class HermesWorkspace(BundledSkillFilterMixin, WorkspaceSpec):
         # ``profiles/x/SOUL.md`` (literal prefix differs) and ``profiles/*/...``
         # never matches the root files.
         if self._is_all():
-            return self.patterns + [f"profiles/*/{p}" for p in self.patterns]
+            return self.patterns + [f'profiles/*/{p}' for p in self.patterns]
         return self.patterns
 
     @property
@@ -106,28 +111,28 @@ class HermesWorkspace(BundledSkillFilterMixin, WorkspaceSpec):
     def split_all_path(self, rel_path: str) -> tuple[str | None, str]:
         # Named agents live under ``profiles/<name>/``; anything else is the
         # default agent living at the root.
-        if rel_path.startswith("profiles/"):
-            rest = rel_path[len("profiles/"):]
-            if "/" in rest:
-                head, bare = rest.split("/", 1)
+        if rel_path.startswith('profiles/'):
+            rest = rel_path[len('profiles/'):]
+            if '/' in rest:
+                head, bare = rest.split('/', 1)
                 return (head, bare)
             return (None, rel_path)
         return (DEFAULT_AGENT_NAME, rel_path)
 
     def join_all_path(self, agent_name: str, bare_path: str) -> str:
-        if agent_name in ("", DEFAULT_AGENT_NAME):
+        if agent_name in ('', DEFAULT_AGENT_NAME):
             return bare_path
-        return f"profiles/{agent_name}/{bare_path}"
+        return f'profiles/{agent_name}/{bare_path}'
 
     def list_agents(self) -> list[str]:
         base = self.root
         agents: list[str] = []
-        if (base / "SOUL.md").is_file():
+        if (base / 'SOUL.md').is_file():
             agents.append(DEFAULT_AGENT_NAME)
-        profiles = base / "profiles"
+        profiles = base / 'profiles'
         if profiles.is_dir():
             for d in sorted(profiles.iterdir()):
-                if d.is_dir() and not d.name.startswith("."):
+                if d.is_dir() and not d.name.startswith('.'):
                     agents.append(d.name)
         return agents or [DEFAULT_AGENT_NAME]
 
@@ -147,7 +152,8 @@ class HermesWorkspace(BundledSkillFilterMixin, WorkspaceSpec):
         try:
             data = yaml.safe_load(text)
         except yaml.YAMLError:
-            logger.warning("hermes config.yaml is not valid YAML; writing as-is")
+            logger.warning(
+                'hermes config.yaml is not valid YAML; writing as-is')
             return text
         if not isinstance(data, dict):
             return text
@@ -158,8 +164,9 @@ class HermesWorkspace(BundledSkillFilterMixin, WorkspaceSpec):
             if isinstance(node, dict):
                 for key in list(node.keys()):
                     val = node[key]
-                    if key in self._CONFIG_SECRET_KEYS and not isinstance(val, (dict, list)):
-                        node[key] = ""
+                    if key in self._CONFIG_SECRET_KEYS and not isinstance(
+                            val, (dict, list)):
+                        node[key] = ''
                     else:
                         _scrub(val)
             elif isinstance(node, list):
@@ -169,27 +176,27 @@ class HermesWorkspace(BundledSkillFilterMixin, WorkspaceSpec):
         _scrub(data)
         # ``mcp_servers.*.env`` is a free-form secret bag (API keys live under
         # arbitrary key names), so blank every value regardless of key name.
-        servers = data.get("mcp_servers")
+        servers = data.get('mcp_servers')
         if isinstance(servers, dict):
             for srv in servers.values():
-                if isinstance(srv, dict) and isinstance(srv.get("env"), dict):
-                    srv["env"] = {k: "" for k in srv["env"]}
+                if isinstance(srv, dict) and isinstance(srv.get('env'), dict):
+                    srv['env'] = {k: '' for k in srv['env']}
         return yaml.safe_dump(data, allow_unicode=True, sort_keys=False)
 
     def sanitize_inbound_file(self, rel_path: str, content: bytes) -> bytes:
         """Strip secrets from inbound ``config.yaml`` (root or profiles/<name>/)."""
         if self._is_all():
             _agent, bare = self.split_all_path(rel_path)
-            if bare != "config.yaml":
+            if bare != 'config.yaml':
                 return content
         else:
-            if rel_path != "config.yaml":
+            if rel_path != 'config.yaml':
                 return content
         try:
-            text = content.decode("utf-8")
+            text = content.decode('utf-8')
         except UnicodeDecodeError:
             return content
-        return self._sanitize_config_yaml(text).encode("utf-8")
+        return self._sanitize_config_yaml(text).encode('utf-8')
 
 
-register_framework("hermes", HermesWorkspace)
+register_framework('hermes', HermesWorkspace)

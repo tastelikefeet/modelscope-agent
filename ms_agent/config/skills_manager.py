@@ -36,7 +36,8 @@ class SkillsConfigManager:
     def load_project(self, project_path: str) -> Dict[str, Any]:
         return self._read(self._project_path(project_path))
 
-    def load_merged(self, project_path: Optional[str] = None) -> Dict[str, Any]:
+    def load_merged(self,
+                    project_path: Optional[str] = None) -> Dict[str, Any]:
         g = self.load_global()
         p = self.load_project(project_path) if project_path else {}
         return merge_skills_configs(g, p)

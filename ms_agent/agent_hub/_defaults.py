@@ -8,7 +8,7 @@ from ms_agent.utils.logger import get_logger
 
 logger = get_logger()
 
-_DEFAULTS_DIR = Path(__file__).parent / "default_configs"
+_DEFAULTS_DIR = Path(__file__).parent / 'default_configs'
 
 
 def get_defaults(framework: str) -> Dict[str, str]:
@@ -20,12 +20,12 @@ def get_defaults(framework: str) -> Dict[str, str]:
     if not framework_dir.is_dir():
         return {}
     result: Dict[str, str] = {}
-    for f in sorted(framework_dir.rglob("*")):
+    for f in sorted(framework_dir.rglob('*')):
         if not f.is_file():
             continue
         try:
             rel = str(f.relative_to(framework_dir))
-            result[rel] = f.read_text(encoding="utf-8")
+            result[rel] = f.read_text(encoding='utf-8')
         except (OSError, UnicodeDecodeError) as e:
-            logger.debug("Skip default file %s: %s", f, e)
+            logger.debug('Skip default file %s: %s', f, e)
     return result

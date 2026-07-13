@@ -65,7 +65,8 @@ class OpenAICompatTransport(Transport):
         # 'prefix' is only valid on DeepSeek's beta endpoint; downgrade to the
         # generic 'partial' continuation when not on a beta base_url so a
         # continuation doesn't 400 on the standard /v1 endpoint.
-        if continue_gen_mode == 'prefix' and 'beta' not in self.base_url.lower():
+        if continue_gen_mode == 'prefix' and 'beta' not in self.base_url.lower(
+        ):
             logger.info(
                 'continue_gen_mode="prefix" requires a beta endpoint; '
                 'falling back to "partial" continuation for %s', self.base_url)
@@ -135,9 +136,9 @@ class OpenAICompatTransport(Transport):
     # ------------------------------------------------------------------ #
     # formatting
     # ------------------------------------------------------------------ #
-    def format_tools(
-            self,
-            tools: Optional[List[Tool]] = None) -> Optional[List[Dict]]:
+    def format_tools(self,
+                     tools: Optional[List[Tool]] = None
+                     ) -> Optional[List[Dict]]:
         if tools:
             return [{
                 'type': 'function',
@@ -149,8 +150,8 @@ class OpenAICompatTransport(Transport):
             } for tool in tools]
         return None
 
-    def _format_input_message(
-            self, messages: List[Message]) -> List[Dict[str, Any]]:
+    def _format_input_message(self,
+                              messages: List[Message]) -> List[Dict[str, Any]]:
         add_cache_control = self._prefix_cache_provider is not None
 
         cache_indice = None
@@ -264,8 +265,8 @@ class OpenAICompatTransport(Transport):
         return message
 
     def _postprocess_stream(
-            self, gen: Generator[Message, None, None]
-    ) -> Generator[Message, None, None]:
+            self, gen: Generator[Message, None,
+                                 None]) -> Generator[Message, None, None]:
         # Operate on a copy so the streaming accumulator stays intact.
         for message in gen:
             yield self._postprocess(deepcopy(message))
@@ -337,15 +338,15 @@ class OpenAICompatTransport(Transport):
         # None += str raises TypeError.
         message.reasoning_content = (message.reasoning_content or '') + (
             message_chunk.reasoning_content or '')
-        message.content = (message.content or '') + (message_chunk.content
-                                                     or '')
+        message.content = (message.content or '') + (
+            message_chunk.content or '')
         if message_chunk.tool_calls:
             if message.tool_calls:
                 if message.tool_calls[-1]['index'] == message_chunk.tool_calls[
                         0]['index']:
                     if message_chunk.tool_calls[0]['id']:
-                        message.tool_calls[-1]['id'] = message_chunk.tool_calls[
-                            0]['id']
+                        message.tool_calls[-1][
+                            'id'] = message_chunk.tool_calls[0]['id']
                     if message_chunk.tool_calls[0]['arguments']:
                         if message.tool_calls[-1]['arguments']:
                             message.tool_calls[-1][
@@ -371,13 +372,12 @@ class OpenAICompatTransport(Transport):
                 message.tool_calls = message_chunk.tool_calls
         return message
 
-    def _stream_continue_generate(
-            self,
-            messages: List[Message],
-            completion: Iterable,
-            tools: Optional[List[Tool]] = None,
-            max_runs: Optional[int] = None,
-            **kwargs) -> Generator[Message, None, None]:
+    def _stream_continue_generate(self,
+                                  messages: List[Message],
+                                  completion: Iterable,
+                                  tools: Optional[List[Tool]] = None,
+                                  max_runs: Optional[int] = None,
+                                  **kwargs) -> Generator[Message, None, None]:
         flag = self._continue_flag
         message = None
         for chunk in completion:
@@ -407,10 +407,10 @@ class OpenAICompatTransport(Transport):
                     message.reasoning_tokens += self._extract_reasoning_tokens(
                         usage)
                 first_run = not messages[-1].to_dict().get(flag, False)
-                if self.continue_gen_mode and chunk.choices[
-                        0].finish_reason in [
-                        'length', 'null'
-                ] and (max_runs is None or max_runs != 0):
+                finish_reason = chunk.choices[0].finish_reason
+                needs_continue = finish_reason in ['length', 'null']
+                if self.continue_gen_mode and needs_continue and (
+                        max_runs is None or max_runs != 0):
                     logger.info(
                         f'finish_reason: {chunk.choices[0].finish_reason}, '
                         f'continue generate.')

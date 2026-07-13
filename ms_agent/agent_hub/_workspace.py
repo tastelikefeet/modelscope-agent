@@ -44,9 +44,9 @@ logger = get_logger()
 
 MAX_FILE_SIZE = 1 * 1024 * 1024  # 1 MB
 
-DEFAULT_AGENT_NAME = "default"
-ALL_AGENT_NAME = "all"
-GLOBAL_AGENT_NAME = "__global__"
+DEFAULT_AGENT_NAME = 'default'
+ALL_AGENT_NAME = 'all'
+GLOBAL_AGENT_NAME = '__global__'
 
 
 class WorkspaceSpec(ABC):
@@ -64,9 +64,9 @@ class WorkspaceSpec(ABC):
         from it (e.g. qwenpaw ``workspaces/<name>``).
     """
 
-    def __init__(
-        self, agent_name: str = DEFAULT_AGENT_NAME, local_dir: Path | None = None
-    ):
+    def __init__(self,
+                 agent_name: str = DEFAULT_AGENT_NAME,
+                 local_dir: Path | None = None):
         self.agent_name = agent_name or DEFAULT_AGENT_NAME
         self._local_dir = Path(local_dir).expanduser() if local_dir else None
 
@@ -182,8 +182,8 @@ class WorkspaceSpec(ABC):
         remain.
         """
         if self._is_global():
-            return [p for p in self._effective_patterns() if "{name}" not in p]
-        name = "*" if self._is_all() else self.agent_name
+            return [p for p in self._effective_patterns() if '{name}' not in p]
+        name = '*' if self._is_all() else self.agent_name
         return [p.format(name=name) for p in self._effective_patterns()]
 
     def matches(self, rel_path: str, patterns: list[str]) -> bool:
@@ -201,9 +201,9 @@ class WorkspaceSpec(ABC):
         patterns = self.resolved_patterns()
         matched: list[tuple[str, Path]] = []
         for dirpath, dirnames, filenames in os.walk(root):
-            dirnames[:] = sorted(d for d in dirnames if not d.startswith("."))
+            dirnames[:] = sorted(d for d in dirnames if not d.startswith('.'))
             for fname in sorted(filenames):
-                if fname.startswith("."):
+                if fname.startswith('.'):
                     continue
                 f = Path(dirpath) / fname
                 if f.is_symlink():
@@ -238,9 +238,9 @@ class WorkspaceSpec(ABC):
         result: dict[str, str] = {}
         for rel, f in self._walk_matched():
             try:
-                result[rel] = f.read_text(encoding="utf-8")
+                result[rel] = f.read_text(encoding='utf-8')
             except (OSError, UnicodeDecodeError) as e:
-                logger.warning("Skip %s: %s", f, e)
+                logger.warning('Skip %s: %s', f, e)
         return result
 
     def collect_bytes(self) -> dict[str, bytes]:
@@ -254,7 +254,7 @@ class WorkspaceSpec(ABC):
             try:
                 result[rel] = f.read_bytes()
             except OSError as e:
-                logger.warning("Skip %s: %s", f, e)
+                logger.warning('Skip %s: %s', f, e)
         return result
 
     def list_agents(self) -> list[str]:
@@ -297,9 +297,10 @@ class WorkspaceSpec(ABC):
         for rel_path, content in resources.items():
             target = (root / rel_path).resolve()
             if not target.is_relative_to(root):
-                logger.warning("Path traversal blocked: %s", rel_path)
+                logger.warning('Path traversal blocked: %s', rel_path)
                 continue
-            raw = content if isinstance(content, bytes) else content.encode("utf-8")
+            raw = content if isinstance(content,
+                                        bytes) else content.encode('utf-8')
             sanitized = self.sanitize_inbound_file(rel_path, raw)
             target.parent.mkdir(parents=True, exist_ok=True)
             target.write_bytes(sanitized)
@@ -311,7 +312,7 @@ def _list_agent_files(agents_dir: Path) -> list[str]:
     """Return the stems of ``*.md`` files in an ``agents/`` directory."""
     if not agents_dir.is_dir():
         return []
-    return sorted(f.stem for f in agents_dir.glob("*.md") if f.is_file())
+    return sorted(f.stem for f in agents_dir.glob('*.md') if f.is_file())
 
 
 # ---------------------------------------------------------------------------

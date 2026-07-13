@@ -18,15 +18,20 @@ from __future__ import annotations
 
 import json
 import os
-from typing import Any, Dict, Optional
-
 from omegaconf import OmegaConf
+from typing import Any, Dict, Optional
 
 # UI/meta fields on a managed MCP entry that must not reach the runtime server
 # config (the runtime just connects whatever is in mcpServers).
 _MCP_META = frozenset({
-    'enabled', 'meta', 'source', '_scope', 'mcp', 'implementation',
-    'trust_remote_code', '_removed',
+    'enabled',
+    'meta',
+    'source',
+    '_scope',
+    'mcp',
+    'implementation',
+    'trust_remote_code',
+    '_removed',
 })
 
 
@@ -49,7 +54,8 @@ def resolve_mcp_config(
             if entry.get('enabled', True) is False:
                 continue  # UI-disabled → do not connect
             servers[name] = {
-                k: v for k, v in entry.items() if k not in _MCP_META
+                k: v
+                for k, v in entry.items() if k not in _MCP_META
             }
     except Exception:
         pass
@@ -58,7 +64,8 @@ def resolve_mcp_config(
         try:
             with open(explicit_file, 'r', encoding='utf-8') as f:
                 data = json.load(f)
-            src = data.get('mcpServers', data) if isinstance(data, dict) else {}
+            src = data.get('mcpServers', data) if isinstance(data,
+                                                             dict) else {}
             if isinstance(src, dict):
                 servers.update(src)
         except Exception:
@@ -66,14 +73,15 @@ def resolve_mcp_config(
     return {'mcpServers': servers} if servers else None
 
 
-def merge_skills_into_config(config, global_home: str, work_dir: Optional[str]):
+def merge_skills_into_config(config, global_home: str,
+                             work_dir: Optional[str]):
     """Append managed skill sources + disabled from skills.json into
     ``config.skills`` (in place, returns config). Catalog dedups by skill_id."""
     try:
         from ms_agent.config.skills_manager import SkillsConfigManager
         from ms_agent.skill.sources import parse_skill_source
-        merged = SkillsConfigManager(global_dir=global_home).load_merged(
-            work_dir)
+        merged = SkillsConfigManager(
+            global_dir=global_home).load_merged(work_dir)
     except Exception:
         return config
     src_strings = merged.get('sources') or []
@@ -104,12 +112,11 @@ def merge_skills_into_config(config, global_home: str, work_dir: Optional[str]):
         existing_disabled = list(getattr(skills, 'disabled', []) or [])
 
     combined_sources = list(existing_sources) + new_sources
-    combined_disabled = list(
-        dict.fromkeys(existing_disabled + list(disabled)))
+    combined_disabled = list(dict.fromkeys(existing_disabled + list(disabled)))
     if combined_sources:
-        OmegaConf.update(config, 'skills.sources', combined_sources,
-                         merge=False)
+        OmegaConf.update(
+            config, 'skills.sources', combined_sources, merge=False)
     if combined_disabled:
-        OmegaConf.update(config, 'skills.disabled', combined_disabled,
-                         merge=False)
+        OmegaConf.update(
+            config, 'skills.disabled', combined_disabled, merge=False)
     return config

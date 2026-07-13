@@ -16,8 +16,8 @@ openai
 pandas
 pillow
 prompt_toolkit
-pyyaml
 pytz
+pyyaml
 requests
 rich
 sentence-transformers

@@ -27,29 +27,34 @@ class OpenhumanWorkspace(WorkspaceSpec):
     # ``config.toml`` keys whose value is a machine-local secret and must be
     # blanked before the file leaves / enters a machine.
     _CONFIG_SECRET_KEYS = frozenset([
-        "api_key", "openai_api_key", "anthropic_api_key", "composio_api_key",
-        "token", "secret", "password",
+        'api_key',
+        'openai_api_key',
+        'anthropic_api_key',
+        'composio_api_key',
+        'token',
+        'secret',
+        'password',
     ])
 
     @property
     def product_name(self) -> str:
-        return "openhuman"
+        return 'openhuman'
 
     @property
     def default_root(self) -> Path:
-        return Path.home() / ".openhuman"
+        return Path.home() / '.openhuman'
 
     @property
     def patterns(self) -> list[str]:
         # fnmatch ``*`` spans ``/`` so ``wiki/*`` / ``skills/*`` recurse the
         # whole vault / skill tree.
         return [
-            "SOUL.md",
-            "IDENTITY.md",
-            "HEARTBEAT.md",
-            "config.toml",
-            "wiki/*",
-            "skills/*",
+            'SOUL.md',
+            'IDENTITY.md',
+            'HEARTBEAT.md',
+            'config.toml',
+            'wiki/*',
+            'skills/*',
         ]
 
     # ------------------------------------------------------------------
@@ -64,26 +69,24 @@ class OpenhumanWorkspace(WorkspaceSpec):
         preserving the rest of the file verbatim. Non-TOML content is left
         untouched.
         """
-        if rel_path != "config.toml":
+        if rel_path != 'config.toml':
             return content
         try:
-            text = content.decode("utf-8")
+            text = content.decode('utf-8')
         except UnicodeDecodeError:
             return content
-        return self._scrub_toml_secrets(text).encode("utf-8")
+        return self._scrub_toml_secrets(text).encode('utf-8')
 
     def _scrub_toml_secrets(self, text: str) -> str:
-        pattern = re.compile(
-            r"^(\s*(?P<key>[A-Za-z0-9_-]+)\s*=\s*).*$"
-        )
+        pattern = re.compile(r'^(\s*(?P<key>[A-Za-z0-9_-]+)\s*=\s*).*$')
         out: list[str] = []
-        for line in text.split("\n"):
+        for line in text.split('\n'):
             m = pattern.match(line)
-            if m and m.group("key").lower() in self._CONFIG_SECRET_KEYS:
+            if m and m.group('key').lower() in self._CONFIG_SECRET_KEYS:
                 out.append(m.group(1) + '""')
             else:
                 out.append(line)
-        return "\n".join(out)
+        return '\n'.join(out)
 
 
-register_framework("openhuman", OpenhumanWorkspace)
+register_framework('openhuman', OpenhumanWorkspace)

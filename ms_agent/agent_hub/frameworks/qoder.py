@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from .._workspace import WorkspaceSpec, register_framework, DEFAULT_AGENT_NAME
+from .._workspace import DEFAULT_AGENT_NAME, WorkspaceSpec, register_framework
 
 
 class QoderWorkspace(WorkspaceSpec):
@@ -18,7 +18,7 @@ class QoderWorkspace(WorkspaceSpec):
 
     @property
     def product_name(self) -> str:
-        return "qoder"
+        return 'qoder'
 
     @property
     def supports_individual_watch(self) -> bool:
@@ -26,22 +26,22 @@ class QoderWorkspace(WorkspaceSpec):
 
     @property
     def default_root(self) -> Path:
-        return Path.home() / ".qoder"
+        return Path.home() / '.qoder'
 
     @property
     def patterns(self) -> list[str]:
         return [
-            "AGENTS.md",
-            "agents/{name}.md",
-            "commands/*.md",
-            "rules/*.md",
-            "skills/*/SKILL.md",
-            "skills/*/scripts/*",
-            "skills/*/references/*",
+            'AGENTS.md',
+            'agents/{name}.md',
+            'commands/*.md',
+            'rules/*.md',
+            'skills/*/SKILL.md',
+            'skills/*/scripts/*',
+            'skills/*/references/*',
         ]
 
     def list_agents(self) -> list[str]:
-        return self._list_agents_from_dir(self.workspace_root / "agents")
+        return self._list_agents_from_dir(self.workspace_root / 'agents')
 
 
-register_framework("qoder", QoderWorkspace)
+register_framework('qoder', QoderWorkspace)

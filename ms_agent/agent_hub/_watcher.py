@@ -10,21 +10,16 @@ import sys
 import threading
 import time
 from logging.handlers import RotatingFileHandler
+from modelscope_hub.errors import APIError
 
 from ms_agent.utils.logger import get_logger
-from ._cache import load_sync_state, log_file, pid_file, save_sync_state, stop_file
-from modelscope_hub.errors import APIError
-from ._sync import (
-    backup_local,
-    detect_local_changes,
-    drop_unchanged_defaults,
-    pull_incremental,
-    push_incremental,
-    push_resources,
-    sha256_content,
-)
+from ._cache import (load_sync_state, log_file, pid_file, save_sync_state,
+                     stop_file)
+from ._sync import (backup_local, detect_local_changes,
+                    drop_unchanged_defaults, pull_incremental,
+                    push_incremental, push_resources, sha256_content)
 
-__all__ = ["watch_loop", "daemonize", "stop_daemon"]
+__all__ = ['watch_loop', 'daemonize', 'stop_daemon']
 
 _logger: logging.Logger | None = None
 
@@ -36,14 +31,24 @@ def _get_logger() -> logging.Logger:
     _logger = get_logger()
     _logger.setLevel(logging.INFO)
     fh = RotatingFileHandler(
-        str(log_file()), maxBytes=5 * 1024 * 1024, backupCount=3, encoding="utf-8"
-    )
-    fh.setFormatter(logging.Formatter("[%(asctime)s] %(levelname)s: %(message)s"))
+        str(log_file()),
+        maxBytes=5 * 1024 * 1024,
+        backupCount=3,
+        encoding='utf-8')
+    fh.setFormatter(
+        logging.Formatter('[%(asctime)s] %(levelname)s: %(message)s'))
     _logger.addHandler(fh)
     return _logger
 
 
-def watch_loop(spec, client, username: str, repo: str, framework: str, interval: int = 120, *, push_only: bool = True):
+def watch_loop(spec,
+               client,
+               username: str,
+               repo: str,
+               framework: str,
+               interval: int = 120,
+               *,
+               push_only: bool = True):
     """Sync loop: push local changes, optionally pull remote changes.
 
     Args:
@@ -57,10 +62,12 @@ def watch_loop(spec, client, username: str, repo: str, framework: str, interval:
     # be invoked directly (tests / foreground).  Rebuild the client so we always
     # start with a clean requests.Session connection pool.
     from modelscope_hub.agent import AgentApi
-    client = AgentApi(endpoint=client.server, token=client.token, timeout=client.timeout)
+    client = AgentApi(
+        endpoint=client.server, token=client.token, timeout=client.timeout)
 
-    logger.info("Watch started for %s/%s (root=%s, interval=%ds, push_only=%s)",
-                username, repo, spec.workspace_root, interval, push_only)
+    logger.info(
+        'Watch started for %s/%s (root=%s, interval=%ds, push_only=%s)',
+        username, repo, spec.workspace_root, interval, push_only)
 
     state = load_sync_state(repo)
     running = True
@@ -73,7 +80,7 @@ def watch_loop(spec, client, username: str, repo: str, framework: str, interval:
         stop_event.set()
 
     if threading.current_thread() is threading.main_thread():
-        if hasattr(signal, "SIGTERM"):
+        if hasattr(signal, 'SIGTERM'):
             signal.signal(signal.SIGTERM, _handle_term)
         signal.signal(signal.SIGINT, _handle_term)
 
@@ -100,23 +107,24 @@ def watch_loop(spec, client, username: str, repo: str, framework: str, interval:
         # instead of a single fragile call silently wedging the daemon or an
         # uncaught non-APIError killing the loop while the process lingers.
         try:
-            _poll_once(client, username, repo, framework, spec,
-                       push_only, state, logger)
+            _poll_once(client, username, repo, framework, spec, push_only,
+                       state, logger)
         except Exception:
-            logger.exception("Sync poll failed (will retry next cycle)")
+            logger.exception('Sync poll failed (will retry next cycle)')
 
-    logger.info("Watch stopped (signal received).")
+    logger.info('Watch stopped (signal received).')
     pf = pid_file()
     if pf.exists():
         try:
-            if pf.read_text(encoding="utf-8").strip() == str(os.getpid()):
+            if pf.read_text(encoding='utf-8').strip() == str(os.getpid()):
                 pf.unlink(missing_ok=True)
         except Exception:
             pass
     sf.unlink(missing_ok=True)
 
 
-def _poll_once(client, username, repo, framework, spec, push_only, state, logger) -> None:
+def _poll_once(client, username, repo, framework, spec, push_only, state,
+               logger) -> None:
     """Run one sync poll: list remote, detect changes, sync, refresh baseline.
 
     Raised exceptions propagate to :func:`watch_loop`, which logs them with a
@@ -135,15 +143,16 @@ def _poll_once(client, username, repo, framework, spec, push_only, state, logger
         if e.status_code in (400, 404, 500):
             remote_files = []
         else:
-            logger.error("Failed to list remote files: %s", e)
+            logger.error('Failed to list remote files: %s', e)
             return
 
     # ---- Collect local resources & detect changes ----
     # Track only the user's customized files: unchanged framework defaults
     # are not synced (same rule as upload/convert), so they are neither
     # pushed nor counted when mirror-deleting local files on pull.
-    local_resources = drop_unchanged_defaults(spec.collect_bytes(), framework, spec)
-    baseline = state.get("remote_files", {})
+    local_resources = drop_unchanged_defaults(spec.collect_bytes(), framework,
+                                              spec)
+    baseline = state.get('remote_files', {})
     # A remote file counts toward change detection if it was in our baseline
     # (so edits/deletions are seen) OR it is a workspace file the collect
     # patterns would pick up (so a file *added* on the remote gets pulled).
@@ -152,100 +161,165 @@ def _poll_once(client, username, repo, framework, spec, push_only, state, logger
     # spurious pull.
     patterns = spec.resolved_patterns()
     remote_sha_map = {
-        f.path: f.sha256 for f in remote_files
-        if f.path in baseline
-        or (spec.matches(f.path, patterns) and not spec._is_excluded_asset(f.path))
+        f.path: f.sha256
+        for f in remote_files
+        if f.path in baseline or (spec.matches(f.path, patterns)
+                                  and not spec._is_excluded_asset(f.path))
     }
 
     remote_changed = (remote_sha_map != baseline)
-    local_changed = bool(detect_local_changes(local_resources, state["remote_files"]))
-    logger.debug("poll: local=%d remote=%d remote_changed=%s local_changed=%s",
-                 len(local_resources), len(remote_files), remote_changed, local_changed)
+    local_changed = bool(
+        detect_local_changes(local_resources, state['remote_files']))
+    logger.debug('poll: local=%d remote=%d remote_changed=%s local_changed=%s',
+                 len(local_resources), len(remote_files), remote_changed,
+                 local_changed)
 
     # ---- Sync decision ----
     did_sync = _sync_action(
-        push_only, remote_changed, local_changed,
-        client, username, repo, framework, spec,
-        remote_files, local_resources, logger,
+        push_only,
+        remote_changed,
+        local_changed,
+        client,
+        username,
+        repo,
+        framework,
+        spec,
+        remote_files,
+        local_resources,
+        logger,
         state,
     )
 
     # ---- Update baseline on successful sync ----
     if did_sync:
         if not push_only:
-            local_resources = drop_unchanged_defaults(spec.collect_bytes(), framework, spec)
+            local_resources = drop_unchanged_defaults(spec.collect_bytes(),
+                                                      framework, spec)
         _refresh_baseline(local_resources, state)
-        save_sync_state(repo, state["remote_files"])
+        save_sync_state(repo, state['remote_files'])
 
 
-def _push_local(client, username, name, framework, local_resources, state, logger, *, remote_paths=None, remote_lfs_paths=None, prune_patterns=None) -> bool:
+def _push_local(client,
+                username,
+                name,
+                framework,
+                local_resources,
+                state,
+                logger,
+                *,
+                remote_paths=None,
+                remote_lfs_paths=None,
+                prune_patterns=None) -> bool:
     """Push local changes: full upload on first time, incremental thereafter."""
     if not local_resources:
-        logger.debug("No local resources to push -- skipping.")
+        logger.debug('No local resources to push -- skipping.')
         return False
-    if not state.get("remote_files"):
-        push_resources(client, username, name, framework, local_resources,
-                       prune_patterns=prune_patterns)
-        logger.info("Pushed local changes (full upload -- first time).")
+    if not state.get('remote_files'):
+        push_resources(
+            client,
+            username,
+            name,
+            framework,
+            local_resources,
+            prune_patterns=prune_patterns)
+        logger.info('Pushed local changes (full upload -- first time).')
         return True
     else:
-        changed = detect_local_changes(local_resources, state["remote_files"])
+        changed = detect_local_changes(local_resources, state['remote_files'])
         if changed:
             # Filter stale DELETEs: only delete files that actually exist on
             # the remote.  The baseline may be stale if the remote was
             # modified outside watch (e.g. via upload or manual deletion).
             if remote_paths is not None:
                 stale = {
-                    p for p, c in changed.items()
+                    p
+                    for p, c in changed.items()
                     if c is None and p not in remote_paths
                 }
                 for p in sorted(stale):
-                    logger.warning("  SKIP DELETE: %s (not on remote, stale baseline)", p)
+                    logger.warning(
+                        '  SKIP DELETE: %s (not on remote, stale baseline)', p)
                     del changed[p]
             if not changed:
-                logger.info("No real changes to push after filtering stale deletes.")
+                logger.info(
+                    'No real changes to push after filtering stale deletes.')
                 return False
             # Use actual remote paths (not stale baseline) for CREATE vs UPDATE.
-            actual = remote_paths if remote_paths is not None else set(state["remote_files"].keys())
-            push_incremental(client, username, name, changed, actual,
-                             remote_lfs_paths=remote_lfs_paths)
-            logger.info("Pushed local changes (incremental commit).")
+            actual = remote_paths if remote_paths is not None else set(
+                state['remote_files'].keys())
+            push_incremental(
+                client,
+                username,
+                name,
+                changed,
+                actual,
+                remote_lfs_paths=remote_lfs_paths)
+            logger.info('Pushed local changes (incremental commit).')
             return True
         return False
 
 
 def _sync_action(
-    push_only, remote_changed, local_changed,
-    client, username, name, framework, spec,
-    remote_files, local_resources, logger,
+    push_only,
+    remote_changed,
+    local_changed,
+    client,
+    username,
+    name,
+    framework,
+    spec,
+    remote_files,
+    local_resources,
+    logger,
     state,
 ) -> bool:
     """Execute the appropriate sync action. Returns True if something changed."""
     # Backup naming convention: {framework}_{agent_name} so that
     # ``cmd_recover --framework`` can filter watch-created backups.
-    backup_label = f"{framework}_{spec.agent_name}"
+    backup_label = f'{framework}_{spec.agent_name}'
     remote_paths = {f.path for f in remote_files}
-    remote_lfs_paths = {f.path for f in remote_files if getattr(f, 'is_lfs', False)}
+    remote_lfs_paths = {
+        f.path
+        for f in remote_files if getattr(f, 'is_lfs', False)
+    }
 
     if push_only:
         if not local_changed:
             return False
-        return _push_local(client, username, name, framework, local_resources, state, logger,
-                           remote_paths=remote_paths, remote_lfs_paths=remote_lfs_paths,
-                           prune_patterns=spec.resolved_patterns())
+        return _push_local(
+            client,
+            username,
+            name,
+            framework,
+            local_resources,
+            state,
+            logger,
+            remote_paths=remote_paths,
+            remote_lfs_paths=remote_lfs_paths,
+            prune_patterns=spec.resolved_patterns())
 
     if remote_changed and local_changed:
         backup_path = backup_local(spec, backup_label)
-        pull_incremental(client, username, name, spec, remote_files, local_resources)
-        logger.warning("Conflict: remote wins. Local backup: %s", backup_path)
+        pull_incremental(client, username, name, spec, remote_files,
+                         local_resources)
+        logger.warning('Conflict: remote wins. Local backup: %s', backup_path)
     elif remote_changed:
         backup_path = backup_local(spec, backup_label)
-        pull_incremental(client, username, name, spec, remote_files, local_resources)
-        logger.info("Pulled remote changes (backup: %s).", backup_path)
+        pull_incremental(client, username, name, spec, remote_files,
+                         local_resources)
+        logger.info('Pulled remote changes (backup: %s).', backup_path)
     elif local_changed:
-        _push_local(client, username, name, framework, local_resources, state, logger,
-                    remote_paths=remote_paths, remote_lfs_paths=remote_lfs_paths,
-                    prune_patterns=spec.resolved_patterns())
+        _push_local(
+            client,
+            username,
+            name,
+            framework,
+            local_resources,
+            state,
+            logger,
+            remote_paths=remote_paths,
+            remote_lfs_paths=remote_lfs_paths,
+            prune_patterns=spec.resolved_patterns())
     else:
         return False
     return True
@@ -260,8 +334,9 @@ def _refresh_baseline(local_resources: dict, state: dict) -> None:
     be momentarily inconsistent right after a commit -- and keeps change
     detection purely sha256-based.
     """
-    state["remote_files"] = {
-        rel: sha256_content(content) for rel, content in local_resources.items()
+    state['remote_files'] = {
+        rel: sha256_content(content)
+        for rel, content in local_resources.items()
     }
 
 
@@ -281,31 +356,35 @@ def daemonize(target, *args, **kwargs):
 
     spec_obj = args[0] if len(args) > 0 else None
     client_obj = args[1] if len(args) > 1 else None
-    local_dir = getattr(spec_obj, "_local_dir", None) if spec_obj else None
+    local_dir = getattr(spec_obj, '_local_dir', None) if spec_obj else None
     payload = {
-        "username": args[2] if len(args) > 2 else kwargs.get("username", ""),
-        "repo": args[3] if len(args) > 3 else kwargs.get("repo", ""),
-        "framework": args[4] if len(args) > 4 else kwargs.get("framework", ""),
-        "interval": args[5] if len(args) > 5 else kwargs.get("interval", 120),
-        "push_only": kwargs.get("push_only", True),
-        "local_name": getattr(spec_obj, "agent_name", "") if spec_obj else "",
-        "local_dir": str(local_dir) if local_dir else "",
-        "server": getattr(client_obj, "server", "") if client_obj else "",
-        "token": getattr(client_obj, "token", "") if client_obj else "",
+        'username': args[2] if len(args) > 2 else kwargs.get('username', ''),
+        'repo': args[3] if len(args) > 3 else kwargs.get('repo', ''),
+        'framework': args[4] if len(args) > 4 else kwargs.get('framework', ''),
+        'interval': args[5] if len(args) > 5 else kwargs.get('interval', 120),
+        'push_only': kwargs.get('push_only', True),
+        'local_name': getattr(spec_obj, 'agent_name', '') if spec_obj else '',
+        'local_dir': str(local_dir) if local_dir else '',
+        'server': getattr(client_obj, 'server', '') if client_obj else '',
+        'token': getattr(client_obj, 'token', '') if client_obj else '',
     }
-    fd, param_path = tempfile.mkstemp(suffix=".json", prefix="ms_agent_watch_")
-    with os.fdopen(fd, "w") as f:
+    fd, param_path = tempfile.mkstemp(suffix='.json', prefix='ms_agent_watch_')
+    with os.fdopen(fd, 'w') as f:
         json.dump(payload, f)
 
-    cmd = [sys.executable, "-m", "ms_agent.agent_hub._watcher", "_daemon", param_path]
+    cmd = [
+        sys.executable, '-m', 'ms_agent.agent_hub._watcher', '_daemon',
+        param_path
+    ]
     pf = pid_file()
 
-    if hasattr(os, "fork"):
+    if hasattr(os, 'fork'):
         # Unix: detach into a new session (setsid equivalent) and redirect the
         # daemon's stdio to the log file so tracebacks are never lost.
         lf = log_file()
         lf.parent.mkdir(parents=True, exist_ok=True)
-        log_fd = os.open(str(lf), os.O_WRONLY | os.O_CREAT | os.O_APPEND, 0o644)
+        log_fd = os.open(
+            str(lf), os.O_WRONLY | os.O_CREAT | os.O_APPEND, 0o644)
         try:
             proc = subprocess.Popen(
                 cmd,
@@ -329,13 +408,13 @@ def daemonize(target, *args, **kwargs):
             stdin=subprocess.DEVNULL,
         )
 
-    pf.write_text(str(proc.pid), encoding="utf-8")
+    pf.write_text(str(proc.pid), encoding='utf-8')
 
 
 _DEFAULT_WATCH_PATTERNS = [
-    "agent watch",
-    "ms agent watch",
-    "modelscope agent watch",
+    'agent watch',
+    'ms agent watch',
+    'modelscope agent watch',
 ]
 
 
@@ -349,19 +428,19 @@ def stop_daemon(extra_patterns: list[str] | None = None) -> bool:
     pf = pid_file()
     sf = stop_file()
 
-    sf.write_text("stop", encoding="utf-8")
+    sf.write_text('stop', encoding='utf-8')
 
     tracked_pid = None
     if pf.exists():
         try:
             tracked_pid = int(pf.read_text().strip())
-            if hasattr(os, "fork"):
+            if hasattr(os, 'fork'):
                 os.kill(tracked_pid, signal.SIGTERM)
             stopped = True
         except (ValueError, OSError, ProcessLookupError):
             tracked_pid = None
 
-    if hasattr(os, "fork"):
+    if hasattr(os, 'fork'):
         my_pid = os.getpid()
         for found_pid in _find_watch_pids(extra_patterns):
             if found_pid in (my_pid, tracked_pid):
@@ -392,16 +471,19 @@ def stop_daemon(extra_patterns: list[str] | None = None) -> bool:
 
 def _find_watch_pids(extra_patterns: list[str] | None = None) -> list[int]:
     """Find PIDs of running watch daemon processes via pgrep (Unix only)."""
-    patterns = list(dict.fromkeys(_DEFAULT_WATCH_PATTERNS + (extra_patterns or [])))
+    patterns = list(
+        dict.fromkeys(_DEFAULT_WATCH_PATTERNS + (extra_patterns or [])))
     pids: set = set()
     for pattern in patterns:
         try:
             result = subprocess.run(
-                ["pgrep", "-f", "--", pattern],
-                capture_output=True, text=True, timeout=5,
+                ['pgrep', '-f', '--', pattern],
+                capture_output=True,
+                text=True,
+                timeout=5,
             )
             if result.returncode == 0:
-                for p in result.stdout.strip().split("\n"):
+                for p in result.stdout.strip().split('\n'):
                     if p.strip().isdigit():
                         pids.add(int(p.strip()))
         except (OSError, subprocess.TimeoutExpired, ValueError):
@@ -409,15 +491,21 @@ def _find_watch_pids(extra_patterns: list[str] | None = None) -> list[int]:
     return list(pids)
 
 
-def _find_watch_pids_windows(extra_patterns: list[str] | None = None) -> list[int]:
+def _find_watch_pids_windows(
+        extra_patterns: list[str] | None = None) -> list[int]:
     """Find PIDs of running watch daemon processes on Windows via wmic."""
-    patterns = list(dict.fromkeys(_DEFAULT_WATCH_PATTERNS + (extra_patterns or [])))
+    patterns = list(
+        dict.fromkeys(_DEFAULT_WATCH_PATTERNS + (extra_patterns or [])))
     pids: set = set()
     try:
         result = subprocess.run(
-            ["wmic", "process", "where", "name like '%python%'",
-             "get", "processid,commandline"],
-            capture_output=True, text=True, timeout=10,
+            [
+                'wmic', 'process', 'where', "name like '%python%'", 'get',
+                'processid,commandline'
+            ],
+            capture_output=True,
+            text=True,
+            timeout=10,
         )
         if result.returncode != 0:
             return []
@@ -438,8 +526,9 @@ def _terminate_pid_windows(pid: int) -> None:
     """Terminate a process on Windows using taskkill."""
     try:
         subprocess.run(
-            ["taskkill", "/PID", str(pid), "/F"],
-            capture_output=True, timeout=5,
+            ['taskkill', '/PID', str(pid), '/F'],
+            capture_output=True,
+            timeout=5,
         )
     except (OSError, subprocess.TimeoutExpired):
         pass
@@ -459,7 +548,7 @@ def _wait_for_exit(pid: int | None, timeout: int = 8) -> None:
     if pid is None:
         time.sleep(2)
         return
-    for _ in range(timeout * 2):
+    for _i in range(timeout * 2):
         if not _is_alive(pid):
             return
         time.sleep(0.5)
@@ -467,9 +556,9 @@ def _wait_for_exit(pid: int | None, timeout: int = 8) -> None:
 
 def _force_kill(pid: int) -> None:
     """Force-kill a process (SIGKILL on Unix, taskkill /F on Windows)."""
-    if hasattr(os, "fork"):
+    if hasattr(os, 'fork'):
         try:
-            os.kill(pid, getattr(signal, "SIGKILL", signal.SIGTERM))
+            os.kill(pid, getattr(signal, 'SIGKILL', signal.SIGTERM))
         except (ProcessLookupError, PermissionError, OSError):
             pass
     else:
@@ -479,33 +568,36 @@ def _force_kill(pid: int) -> None:
 # ---------------------------------------------------------------------------
 # Windows daemon entry point
 # ---------------------------------------------------------------------------
-if __name__ == "__main__":
+if __name__ == '__main__':
     import json
 
-    if len(sys.argv) >= 3 and sys.argv[1] == "_daemon":
+    if len(sys.argv) >= 3 and sys.argv[1] == '_daemon':
         param_path = sys.argv[2]
-        with open(param_path, "r") as _f:
+        with open(param_path, 'r') as _f:
             _params = json.load(_f)
         os.unlink(param_path)
 
         from modelscope_hub.agent import AgentApi
-        from ._workspace import FRAMEWORK_REGISTRY
-        from . import frameworks as _  # noqa: F401 — trigger registration
 
-        _fw = _params["framework"]
+        from . import frameworks as _  # noqa: F401 — trigger registration
+        from ._workspace import FRAMEWORK_REGISTRY
+
+        _fw = _params['framework']
         _spec_cls = FRAMEWORK_REGISTRY[_fw]
-        _spec = _spec_cls(agent_name=_params.get("local_name", "all"),
-                          local_dir=_params.get("local_dir") or None)
-        _client = AgentApi(endpoint=_params["server"], token=_params["token"])
+        _spec = _spec_cls(
+            agent_name=_params.get('local_name', 'all'),
+            local_dir=_params.get('local_dir') or None)
+        _client = AgentApi(endpoint=_params['server'], token=_params['token'])
 
         _pf = pid_file()
-        _pf.write_text(str(os.getpid()), encoding="utf-8")
+        _pf.write_text(str(os.getpid()), encoding='utf-8')
 
         watch_loop(
-            _spec, _client,
-            username=_params["username"],
-            repo=_params["repo"],
+            _spec,
+            _client,
+            username=_params['username'],
+            repo=_params['repo'],
             framework=_fw,
-            interval=_params.get("interval", 120),
-            push_only=_params.get("push_only", True),
+            interval=_params.get('interval', 120),
+            push_only=_params.get('push_only', True),
         )
