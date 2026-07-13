@@ -8,6 +8,7 @@ markdown
 matplotlib
 mcp
 modelscope>=1.35.2
+modelscope-hub
 moviepy
 numpy
 omegaconf
