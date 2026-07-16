@@ -12,7 +12,7 @@ to an empty string).
 from __future__ import annotations
 
 import inspect
-from typing import (Any, Dict, Generator, Iterator, List, Optional, Union)
+from typing import Any, Dict, Generator, Iterator, List, Optional, Union
 
 from ms_agent.llm.transport.base import Transport
 from ms_agent.llm.utils import Message, Tool, ToolCall
@@ -52,8 +52,8 @@ class AnthropicMessagesTransport(Transport):
             }
         } for tool in tools]
 
-    def _format_input_message(
-            self, messages: List[Message]) -> List[Dict[str, Any]]:
+    def _format_input_message(self,
+                              messages: List[Message]) -> List[Dict[str, Any]]:
         formatted_messages = []
         for msg in messages:
             content = []
