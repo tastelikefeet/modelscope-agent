@@ -22,6 +22,7 @@ __all__ = [
     'backup_local',
     'sha256_content',
     'detect_local_changes',
+    'sanitize_outbound',
     'push_resources',
     'push_incremental',
     'push_mirror',
@@ -61,6 +62,27 @@ def backup_local(spec, name: str) -> Path:
     zip_path = cache_dir() / f'{name}_{timestamp}.zip'
     zip_path.write_bytes(zip_resources(resources))
     return zip_path
+
+
+def sanitize_outbound(resources: dict, spec) -> dict:
+    """Strip machine-local secrets from local files before they are pushed.
+
+    Symmetric to the per-file inbound sanitize hook: applies
+    ``spec.sanitize_outbound_file`` to every collected file so secrets a user
+    left in a local config (e.g. hermes ``config.yaml``, openhuman
+    ``config.toml``, qwenpaw ``agent.json``) are never uploaded to the remote
+    repo -- and therefore never written into its git history.
+
+    Accepts and returns the same ``{rel_path: bytes}`` mapping
+    ``collect_bytes`` produces (``str`` values are encoded as UTF-8, matching
+    the push path which uploads bytes).
+    """
+    out: dict = {}
+    for rel, content in resources.items():
+        raw = content if isinstance(content,
+                                    bytes) else content.encode('utf-8')
+        out[rel] = spec.sanitize_outbound_file(rel, raw)
+    return out
 
 
 def drop_unchanged_defaults(resources: dict, framework: str, spec) -> dict:
@@ -158,6 +180,7 @@ def push_resources(
     framework: str,
     resources: dict[str, bytes],
     prune_patterns: list[str] | None = None,
+    visibility: str = 'public',
 ) -> None:
     """Full upload via commit interface (normal + LFS).
 
@@ -182,9 +205,10 @@ def push_resources(
     # Ensure repo exists (idempotent create).
     try:
         if not client.check_repo(username, name):
-            client.create_repo(username, name, framework=framework)
-            logger.info('Created empty agent repo %s/%s (framework=%s).',
-                        username, name, framework)
+            client.create_repo(
+                username, name, framework=framework, visibility=visibility)
+            logger.info('Created empty agent repo %s/%s (framework=%s, %s).',
+                        username, name, framework, visibility)
     except Exception as exc:
         logger.warning('create_repo check failed (%s), proceeding anyway.',
                        exc)
@@ -428,6 +452,7 @@ def push_mirror(
     framework: str,
     resources: dict[str, bytes],
     prune_patterns: list[str] | None = None,
+    visibility: str = 'public',
 ) -> None:
     """Incremental mirror push (local -> remote) with sha256 diffing.
 
@@ -469,7 +494,8 @@ def push_mirror(
             name,
             framework,
             resources,
-            prune_patterns=prune_patterns)
+            prune_patterns=prune_patterns,
+            visibility=visibility)
         return
 
     remote_sha_map = {f.path: f.sha256 for f in remote_files}

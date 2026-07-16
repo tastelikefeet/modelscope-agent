@@ -183,6 +183,7 @@ class _StubClient:
 
     def __init__(self, *args, **kwargs):
         self.created = []
+        self.created_visibility = []
         self.committed_actions = []
         self.uploaded_resources = None
         self.lfs_uploads = []
@@ -199,8 +200,9 @@ class _StubClient:
         self.deleted.append(file_path)
         return {"success": True}
 
-    def create_repo(self, path, name, framework=None):
+    def create_repo(self, path, name, framework=None, visibility="public"):
         self.created.append((path, name, framework))
+        self.created_visibility.append(visibility)
         return {"success": True}
 
     def commit_files(self, path, name, actions, **kwargs):
@@ -378,6 +380,30 @@ class TestUploadCmd(unittest.TestCase):
         client = _StubClient.instances[0]
         self.assertEqual(client.created[0][0], "u")
         self.assertEqual(client.created[0][1], "qoder-reviewer")
+
+    @mock.patch("ms_agent.agent_hub._commands.AgentApi", _StubClient)
+    def test_upload_default_visibility_public(self):
+        """create_repo defaults to public visibility when not specified."""
+        rc = cmd_upload(
+            framework="qoder", name="reviewer",
+            local_dir=str(self.root),
+            endpoint="http://s", token="tok", username="u",
+        )
+        self.assertEqual(rc, 0)
+        client = _StubClient.instances[0]
+        self.assertEqual(client.created_visibility, ["public"])
+
+    @mock.patch("ms_agent.agent_hub._commands.AgentApi", _StubClient)
+    def test_upload_visibility_private_forwarded(self):
+        """visibility='private' is threaded through to create_repo."""
+        rc = cmd_upload(
+            framework="qoder", name="reviewer",
+            local_dir=str(self.root), visibility="private",
+            endpoint="http://s", token="tok", username="u",
+        )
+        self.assertEqual(rc, 0)
+        client = _StubClient.instances[0]
+        self.assertEqual(client.created_visibility, ["private"])
 
     @mock.patch("ms_agent.agent_hub._commands.AgentApi", _StubClient)
     def test_upload_global_only_no_agents_dir(self):
@@ -889,6 +915,176 @@ class TestFrameworkUploadCoverage(unittest.TestCase):
         client = self._upload("qwenpaw", self.LAYOUTS["qwenpaw"])
         self.assertEqual(client.created[0], ("u", "qwenpaw-default", "qwenpaw"))
         self.assertIn("PROFILE.md", client.uploaded_resources)
+
+
+class TestUploadSanitization(unittest.TestCase):
+    """Outbound (local -> remote) secret scrubbing MUST happen *at upload time*.
+
+    These assert against ``client.uploaded_resources`` -- the exact bytes the
+    stubbed commit interface received -- so a secret left in a local config file
+    (hermes ``config.yaml``, qwenpaw ``agent.json``) is proven to never leave the
+    machine.  Upload wires the scrub via ``sanitize_outbound`` in ``cmd_upload``
+    *before* anything is handed to the client.
+    """
+
+    def setUp(self):
+        self.tmp = tempfile.TemporaryDirectory()
+        _StubClient.instances = []
+
+    def tearDown(self):
+        self.tmp.cleanup()
+
+    def _write_ws(self, framework, files):
+        root = Path(self.tmp.name) / framework
+        ws = build_spec(framework, "default", str(root)).workspace_root
+        for rel, content in files.items():
+            fp = ws / rel
+            fp.parent.mkdir(parents=True, exist_ok=True)
+            fp.write_text(content)
+        return root
+
+    @mock.patch("ms_agent.agent_hub._commands.AgentApi", _StubClient)
+    def test_upload_scrubs_hermes_config_secrets(self):
+        """config.yaml api_key + mcp_servers.*.env values are blanked on push;
+        structure / non-secret content survives."""
+        config = (
+            "# my custom hermes config\n"
+            "model:\n"
+            "  name: qwen-max\n"
+            "  api_key: sk-SUPERSECRET123\n"
+            "mcp_servers:\n"
+            "  fetch:\n"
+            "    command: fetch-server\n"
+            "    env:\n"
+            "      FETCH_TOKEN: tok-LEAKME456\n"
+        )
+        root = self._write_ws(
+            "hermes", {"SOUL.md": "# Soul\ncustom\n", "config.yaml": config})
+        rc = cmd_upload(
+            framework="hermes", name=None, local_dir=str(root),
+            endpoint="http://s", token="tok", username="u",
+        )
+        self.assertEqual(rc, 0)
+        client = _StubClient.instances[0]
+        self.assertIn("config.yaml", client.uploaded_resources)
+        pushed = client.uploaded_resources["config.yaml"].decode("utf-8")
+        # Secrets are gone from what actually left the machine.
+        self.assertNotIn("sk-SUPERSECRET123", pushed)
+        self.assertNotIn("tok-LEAKME456", pushed)
+        # Non-secret structure / values are preserved.
+        self.assertIn("name: qwen-max", pushed)
+        self.assertIn("mcp_servers:", pushed)
+        self.assertIn("api_key:", pushed)
+
+    @mock.patch("ms_agent.agent_hub._commands.AgentApi", _StubClient)
+    def test_upload_scrubs_qwenpaw_agent_json_secrets(self):
+        """agent.json channel secrets + MCP env are blanked on push, while local
+        identity (id / workspace_dir) is kept (rebound only on download)."""
+        import json
+        agent_json = json.dumps({
+            "id": "default",
+            "workspace_dir": "/Users/me/.copaw/workspaces/default",
+            "channels": {
+                "telegram": {
+                    "token": "tg-LEAKME789",
+                    "db_path": "/Users/me/telegram.sqlite",
+                },
+            },
+            "mcp": {
+                "clients": {
+                    "srv": {"env": {"API_KEY": "mcp-LEAKME000"}},
+                },
+            },
+        })
+        root = self._write_ws(
+            "qwenpaw", {"SOUL.md": "# Soul\ncustom\n", "agent.json": agent_json})
+        rc = cmd_upload(
+            framework="qwenpaw", name=None, local_dir=str(root),
+            endpoint="http://s", token="tok", username="u",
+        )
+        self.assertEqual(rc, 0)
+        client = _StubClient.instances[0]
+        self.assertIn("agent.json", client.uploaded_resources)
+        pushed = json.loads(client.uploaded_resources["agent.json"].decode("utf-8"))
+        # Channel + MCP secrets blanked in the pushed payload.
+        self.assertEqual(pushed["channels"]["telegram"]["token"], "")
+        self.assertEqual(pushed["channels"]["telegram"]["db_path"], "")
+        self.assertEqual(pushed["mcp"]["clients"]["srv"]["env"]["API_KEY"], "")
+        # Raw secret strings never appear anywhere in the bytes.
+        raw = client.uploaded_resources["agent.json"].decode("utf-8")
+        self.assertNotIn("tg-LEAKME789", raw)
+        self.assertNotIn("mcp-LEAKME000", raw)
+        self.assertNotIn("/Users/me/telegram.sqlite", raw)
+        # Local identity is NOT rebound/stripped on upload (kept as-is).
+        self.assertEqual(pushed["id"], "default")
+
+    @mock.patch("ms_agent.agent_hub._commands.AgentApi", _StubClient)
+    def test_upload_scrubs_ms_agent_yaml_secrets(self):
+        """ms-agent agent.yaml/config.yaml llm.*_api_key + mcpServers env are
+        blanked on push; non-secret structure survives."""
+        agent_yaml = (
+            "llm:\n"
+            "  service: modelscope\n"
+            "  model: Qwen/Qwen3-235B-A22B-Instruct-2507\n"
+            "  modelscope_api_key: ms-LEAKME111\n"
+            "mcpServers:\n"
+            "  fetch:\n"
+            "    command: fetch-server\n"
+            "    env:\n"
+            "      FETCH_TOKEN: env-LEAKME222\n"
+        )
+        root = self._write_ws(
+            "ms-agent",
+            {"profile.md": "# Profile\ncustom\n", "agent.yaml": agent_yaml})
+        rc = cmd_upload(
+            framework="ms-agent", name=None, local_dir=str(root),
+            endpoint="http://s", token="tok", username="u",
+        )
+        self.assertEqual(rc, 0)
+        client = _StubClient.instances[0]
+        self.assertIn("agent.yaml", client.uploaded_resources)
+        pushed = client.uploaded_resources["agent.yaml"].decode("utf-8")
+        # Both the llm api_key and the mcpServers env secret are gone.
+        self.assertNotIn("ms-LEAKME111", pushed)
+        self.assertNotIn("env-LEAKME222", pushed)
+        # Non-secret structure / values preserved.
+        self.assertIn("service: modelscope", pushed)
+        self.assertIn("modelscope_api_key:", pushed)
+        self.assertIn("mcpServers:", pushed)
+
+    @mock.patch("ms_agent.agent_hub._commands.AgentApi", _StubClient)
+    def test_upload_scrubs_ms_agent_settings_json_secrets(self):
+        """ms-agent settings.json secret keys + mcpServers env are blanked on
+        push; non-secret values survive."""
+        import json
+        settings = json.dumps({
+            "openai_api_key": "sk-LEAKME333",
+            "model": "gpt-4o",
+            "mcpServers": {
+                "srv": {
+                    "command": "run",
+                    "env": {"API_KEY": "env-LEAKME444"},
+                },
+            },
+        })
+        root = self._write_ws(
+            "ms-agent",
+            {"profile.md": "# Profile\ncustom\n", "settings.json": settings})
+        rc = cmd_upload(
+            framework="ms-agent", name=None, local_dir=str(root),
+            endpoint="http://s", token="tok", username="u",
+        )
+        self.assertEqual(rc, 0)
+        client = _StubClient.instances[0]
+        self.assertIn("settings.json", client.uploaded_resources)
+        raw = client.uploaded_resources["settings.json"].decode("utf-8")
+        pushed = json.loads(raw)
+        # Secret key + mcpServers env blanked; non-secret value preserved.
+        self.assertEqual(pushed["openai_api_key"], "")
+        self.assertEqual(pushed["mcpServers"]["srv"]["env"]["API_KEY"], "")
+        self.assertEqual(pushed["model"], "gpt-4o")
+        self.assertNotIn("sk-LEAKME333", raw)
+        self.assertNotIn("env-LEAKME444", raw)
 
 
 class _OpenclawStub(_RepoStub):

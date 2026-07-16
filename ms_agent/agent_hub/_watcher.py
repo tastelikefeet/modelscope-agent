@@ -17,7 +17,8 @@ from ._cache import (load_sync_state, log_file, pid_file, save_sync_state,
                      stop_file)
 from ._sync import (backup_local, detect_local_changes,
                     drop_unchanged_defaults, pull_incremental,
-                    push_incremental, push_resources, sha256_content)
+                    push_incremental, push_resources, sanitize_outbound,
+                    sha256_content)
 
 __all__ = ['watch_loop', 'daemonize', 'stop_daemon']
 
@@ -150,8 +151,11 @@ def _poll_once(client, username, repo, framework, spec, push_only, state,
     # Track only the user's customized files: unchanged framework defaults
     # are not synced (same rule as upload/convert), so they are neither
     # pushed nor counted when mirror-deleting local files on pull.
-    local_resources = drop_unchanged_defaults(spec.collect_bytes(), framework,
-                                              spec)
+    # Sanitize first so a secret left in a local config is never pushed, and
+    # never enters the sync baseline as pushable content (which would
+    # otherwise re-push it every cycle).
+    local_resources = drop_unchanged_defaults(
+        sanitize_outbound(spec.collect_bytes(), spec), framework, spec)
     baseline = state.get('remote_files', {})
     # A remote file counts toward change detection if it was in our baseline
     # (so edits/deletions are seen) OR it is a workspace file the collect
@@ -193,8 +197,8 @@ def _poll_once(client, username, repo, framework, spec, push_only, state,
     # ---- Update baseline on successful sync ----
     if did_sync:
         if not push_only:
-            local_resources = drop_unchanged_defaults(spec.collect_bytes(),
-                                                      framework, spec)
+            local_resources = drop_unchanged_defaults(
+                sanitize_outbound(spec.collect_bytes(), spec), framework, spec)
         _refresh_baseline(local_resources, state)
         save_sync_state(repo, state['remote_files'])
 

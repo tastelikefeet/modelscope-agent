@@ -8,7 +8,8 @@ from typing import Any
 
 from ms_agent.utils.logger import get_logger
 from .._workspace import (ALL_AGENT_NAME, DEFAULT_AGENT_NAME,
-                          GLOBAL_AGENT_NAME, WorkspaceSpec, register_framework)
+                          GLOBAL_AGENT_NAME, WorkspaceSpec, is_secret_key,
+                          register_framework)
 from ._bundled_skills import BundledSkillFilterMixin
 
 logger = get_logger()
@@ -44,26 +45,10 @@ class QwenpawWorkspace(BundledSkillFilterMixin, WorkspaceSpec):
     # ``.copaw``; default to it when neither exists yet (fresh install).
     _CONFIG_DIRNAMES = ('.copaw', '.qwenpaw')
 
-    # channel keys whose values are machine-specific secrets/paths and must
-    # never be carried across machines.
-    _CHANNEL_SECRET_KEYS = frozenset([
-        'bot_token',
-        'bot_token_file',
-        'app_secret',
-        'client_secret',
-        'access_token',
-        'secret',
-        'sk',
-        'encrypt_key',
-        'verification_token',
-        'twilio_auth_token',
-        'sip_password',
-        'password',
-        'dashscope_api_key',
-        'livekit_api_key',
-        'livekit_api_secret',
-        'db_path',
-    ])
+    # Channel keys that are machine-local but whose name has no secret suffix
+    # :func:`is_secret_key` would catch: a local sqlite path. Blanked in
+    # addition to the shared secret-suffix rule.
+    _CHANNEL_LOCAL_KEYS = frozenset(['db_path'])
 
     @property
     def product_name(self) -> str:
@@ -136,6 +121,32 @@ class QwenpawWorkspace(BundledSkillFilterMixin, WorkspaceSpec):
     # agent.json sanitization + config.json registration on apply
     # ------------------------------------------------------------------
 
+    def _strip_agent_json_secrets(self, data: dict) -> None:
+        """Blank per-channel + MCP-env secrets in an ``agent.json`` dict in place.
+
+        Shared by the inbound (download) and outbound (upload) sanitizers so a
+        key never lands on disk from a remote agent, and a local key is never
+        pushed to the remote repo / its git history.
+        """
+        # Strip secrets from every channel config.
+        channels = data.get('channels')
+        if isinstance(channels, dict):
+            for ch in channels.values():
+                if not isinstance(ch, dict):
+                    continue
+                for key in list(ch.keys()):
+                    if is_secret_key(key) or key in self._CHANNEL_LOCAL_KEYS:
+                        ch[key] = ''
+        # Strip MCP env secrets (API keys live under mcp.clients.*.env).
+        mcp = data.get('mcp')
+        if isinstance(mcp, dict):
+            clients = mcp.get('clients')
+            if isinstance(clients, dict):
+                for client in clients.values():
+                    if isinstance(client, dict) and isinstance(
+                            client.get('env'), dict):
+                        client['env'] = {k: '' for k in client['env']}
+
     def _sanitize_agent_json(self, agent_name: str, content: str) -> str:
         """Rewrite machine-specific fields and strip per-channel secrets.
 
@@ -153,24 +164,24 @@ class QwenpawWorkspace(BundledSkillFilterMixin, WorkspaceSpec):
         # Rebind identity/location to the local target agent.
         data['id'] = agent_name
         data['workspace_dir'] = str(self.root / 'workspaces' / agent_name)
-        # Strip secrets from every channel config.
-        channels = data.get('channels')
-        if isinstance(channels, dict):
-            for ch in channels.values():
-                if not isinstance(ch, dict):
-                    continue
-                for key in list(ch.keys()):
-                    if key in self._CHANNEL_SECRET_KEYS:
-                        ch[key] = ''
-        # Strip MCP env secrets (API keys live under mcp.clients.*.env).
-        mcp = data.get('mcp')
-        if isinstance(mcp, dict):
-            clients = mcp.get('clients')
-            if isinstance(clients, dict):
-                for client in clients.values():
-                    if isinstance(client, dict) and isinstance(
-                            client.get('env'), dict):
-                        client['env'] = {k: '' for k in client['env']}
+        self._strip_agent_json_secrets(data)
+        return json.dumps(data, ensure_ascii=False, indent=2)
+
+    def _strip_outbound_agent_json(self, content: str) -> str:
+        """Strip secrets from an ``agent.json`` for upload (no identity rebind).
+
+        Only the secret-bearing fields are blanked; ``id`` / ``workspace_dir``
+        keep their local values (they are rebound on the next download). On
+        parse failure the original text is returned unchanged.
+        """
+        try:
+            data: Any = json.loads(content)
+        except (json.JSONDecodeError, ValueError):
+            logger.warning('agent.json is not valid JSON; writing as-is')
+            return content
+        if not isinstance(data, dict):
+            return content
+        self._strip_agent_json_secrets(data)
         return json.dumps(data, ensure_ascii=False, indent=2)
 
     def _register_agent(self, agent_name: str) -> None:
@@ -252,6 +263,27 @@ class QwenpawWorkspace(BundledSkillFilterMixin, WorkspaceSpec):
         except UnicodeDecodeError:
             return content
         return self._sanitize_agent_json(target_agent, text).encode('utf-8')
+
+    def sanitize_outbound_file(self, rel_path: str, content: bytes) -> bytes:
+        """Strip secrets from outbound ``agent.json`` before it is pushed.
+
+        Mirrors the file-selection logic of :meth:`sanitize_inbound_file` but
+        only blanks secrets -- identity is NOT rebound on upload (the local
+        file already carries the correct identity), so a user's channel / MCP
+        keys never reach the remote repo or its git history.
+        """
+        if self._is_all():
+            agent, bare = self.split_all_path(rel_path)
+            if not (agent and bare == 'agent.json'):
+                return content
+        else:
+            if rel_path != 'agent.json':
+                return content
+        try:
+            text = content.decode('utf-8')
+        except UnicodeDecodeError:
+            return content
+        return self._strip_outbound_agent_json(text).encode('utf-8')
 
     def apply(self, resources: dict[str, str]) -> list[str]:
         """Write files (``agent.json`` sanitized via the inbound hook) then

@@ -2,7 +2,7 @@
 """Core command logic for agent workspace management.
 
 This module contains the business logic for agent upload, download, convert,
-watch, stop, and recover operations.  The CLI adapter (``modelscope_hub.cli.agent``)
+watch, stop, and recover operations.  The CLI adapter (``ms_agent.cli.agent``)
 calls these functions to perform the actual work.
 """
 from __future__ import annotations
@@ -283,6 +283,7 @@ def cmd_upload(
     repo: str | None = None,
     dry_run: bool = False,
     *,
+    visibility: str = 'public',
     endpoint: str | None = None,
     token: str | None = None,
     username: str | None = None,
@@ -306,12 +307,19 @@ def cmd_upload(
             f'no files found for {framework}/{display_name} under {root}. '
             f'Check the path or pass --local_dir.')
 
+    # Strip machine-local secrets (API keys / tokens the user left in a local
+    # config file) BEFORE anything leaves the machine, so they are never pushed
+    # to the remote repo or written into its git history. Sanitizing first also
+    # lets a config that differs from its default template only by a secret
+    # drop out below as an "unchanged default".
+    #
     # Upload the user-customized subset only: drop files identical to the
     # framework default templates (same rule convert uses), so untouched
     # boilerplate is never pushed -- keeps upload and convert 1:1-consistent
     # about what "the user's own files" are.
-    from ._sync import drop_unchanged_defaults
-    resources = drop_unchanged_defaults(resources, framework, spec)
+    from ._sync import drop_unchanged_defaults, sanitize_outbound
+    resources = drop_unchanged_defaults(
+        sanitize_outbound(resources, spec), framework, spec)
     if not resources:
         display_name = local_name if local_name != GLOBAL_AGENT_NAME else 'global'
         return _fail(
@@ -364,6 +372,7 @@ def cmd_upload(
             framework,
             resources,
             prune_patterns=spec.resolved_patterns(),
+            visibility=visibility,
         )
     except APIError as e:
         return _fail(api_error_message(e, 'upload'))
@@ -1215,8 +1224,8 @@ def cmd_list(
         repo_id = f'{owner_name}/{repo_name}' if owner_name else repo_name
         fw = item.get('Framework') or item.get('framework') or '-'
         vis = item.get('Visibility') or item.get('visibility') or '-'
-        updated = item.get('LastUpdatedDate') or item.get(
-            'last_updated_date') or '-'
+        updated = item.get('GmtModified') or item.get(
+            'LastUpdatedDate') or item.get('last_updated_date') or '-'
         if isinstance(updated, str) and 'T' in updated:
             updated = updated.split('T')[0]
         rows.append((repo_id, fw, vis, updated))

@@ -5,7 +5,7 @@ from __future__ import annotations
 import re
 from pathlib import Path
 
-from .._workspace import WorkspaceSpec, register_framework
+from .._workspace import WorkspaceSpec, is_secret_key, register_framework
 
 
 class OpenhumanWorkspace(WorkspaceSpec):
@@ -23,18 +23,6 @@ class OpenhumanWorkspace(WorkspaceSpec):
     history (``sessions/`` / ``session_raw/``) -- binary / run-time state that
     does not migrate across frameworks (the wiki is the readable mirror).
     """
-
-    # ``config.toml`` keys whose value is a machine-local secret and must be
-    # blanked before the file leaves / enters a machine.
-    _CONFIG_SECRET_KEYS = frozenset([
-        'api_key',
-        'openai_api_key',
-        'anthropic_api_key',
-        'composio_api_key',
-        'token',
-        'secret',
-        'password',
-    ])
 
     @property
     def product_name(self) -> str:
@@ -58,16 +46,20 @@ class OpenhumanWorkspace(WorkspaceSpec):
         ]
 
     # ------------------------------------------------------------------
-    # config.toml secret sanitization on the inbound path
+    # config.toml secret sanitization (inbound + outbound)
     # ------------------------------------------------------------------
 
     def sanitize_inbound_file(self, rel_path: str, content: bytes) -> bytes:
-        """Blank machine-local secrets in inbound ``config.toml``.
+        """Blank machine-local secrets in ``config.toml``.
 
         Line-level rewrite (stdlib has no TOML writer): any ``key = <value>``
-        assignment whose key is a known secret has its value cleared to ``""``,
-        preserving the rest of the file verbatim. Non-TOML content is left
-        untouched.
+        assignment whose key name matches :func:`is_secret_key` has its value
+        cleared to ``""``, preserving the rest of the file verbatim. Non-TOML
+        content is left untouched.
+
+        OpenHuman does no machine-local identity rebinding, so the base-class
+        outbound hook (which delegates here) reuses this same cleaning on the
+        upload path -- no separate outbound override is needed.
         """
         if rel_path != 'config.toml':
             return content
@@ -78,12 +70,15 @@ class OpenhumanWorkspace(WorkspaceSpec):
         return self._scrub_toml_secrets(text).encode('utf-8')
 
     def _scrub_toml_secrets(self, text: str) -> str:
-        pattern = re.compile(r'^(\s*(?P<key>[A-Za-z0-9_-]+)\s*=\s*).*$')
+        # Allow dotted keys (``model.api_key = ...``) and test the last segment
+        # so ``a.b.api_key`` is caught, not just a bare top-level ``api_key``.
+        pattern = re.compile(
+            r'^(?P<pre>\s*(?P<key>[A-Za-z0-9_.-]+)\s*=\s*).*$')
         out: list[str] = []
         for line in text.split('\n'):
             m = pattern.match(line)
-            if m and m.group('key').lower() in self._CONFIG_SECRET_KEYS:
-                out.append(m.group(1) + '""')
+            if m and is_secret_key(m.group('key').split('.')[-1]):
+                out.append(m.group('pre') + '""')
             else:
                 out.append(line)
         return '\n'.join(out)

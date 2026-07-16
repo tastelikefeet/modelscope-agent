@@ -34,6 +34,7 @@ from __future__ import annotations
 
 import fnmatch
 import os
+import re
 from abc import ABC, abstractmethod
 from pathlib import Path
 from typing import Type
@@ -47,6 +48,124 @@ MAX_FILE_SIZE = 1 * 1024 * 1024  # 1 MB
 DEFAULT_AGENT_NAME = 'default'
 ALL_AGENT_NAME = 'all'
 GLOBAL_AGENT_NAME = '__global__'
+
+_SECRET_KEY_RE = re.compile(
+    r'(?:^|[_-])'
+    r'(?:api[_-]?key|apikey|access[_-]?key|secret[_-]?key|client[_-]?secret|'
+    r'access[_-]?token|auth[_-]?token|token[_-]?file|'
+    r'key|token|secret|password|passwd|credentials?|sk)$',
+    re.IGNORECASE,
+)
+
+
+def is_secret_key(name: str) -> bool:
+    """Whether a config key name denotes a machine-local secret to blank.
+
+    Shared by every framework's config sanitizer so the inbound and outbound
+    paths use one secret vocabulary. See :data:`_SECRET_KEY_RE` for the exact
+    (secret-suffix) matching policy.
+    """
+    return bool(_SECRET_KEY_RE.search(name.strip()))
+
+
+def scrub_yaml_secrets(
+    text: str, mcp_block_keys: tuple[str, ...] = ('mcp_servers', 'mcpServers')
+) -> str:
+    """Blank secret values in a YAML config *text*, line-by-line.
+
+    Regex/line based (not a YAML round-trip) so user comments, key order and
+    formatting are preserved -- only the secret *values* are cleared. Two rules
+    are applied per ``key: value`` line:
+
+    * a key whose name matches :func:`is_secret_key` -> value cleared, anywhere
+      in the tree (e.g. top-level ``model.api_key`` or ``llm.modelscope_api_key``);
+    * every scalar nested inside an MCP-server ``env`` mapping (a block opened
+      by any key in *mcp_block_keys*, then a nested ``env:``) -> value cleared
+      regardless of key name (that block is a free-form secret bag where API
+      keys live under arbitrary names).
+
+    Lines that are not a simple ``key: <scalar>`` (comments, blank lines, list
+    items, mapping/block openers) are emitted verbatim. Flow-style mappings
+    (``env: {API_KEY: x}``) and block scalars are a known limitation of the
+    line-based approach and are left untouched.
+
+    Shared by every framework whose config is YAML (hermes ``config.yaml``,
+    ms-agent ``config.yaml`` / ``agent.yaml``) so they use one secret vocabulary.
+    """
+    kv = re.compile(
+        r'^(?P<indent>[ \t]*)(?P<key>[^\s:#][^:]*?)(?P<sep>[ \t]*:[ \t]*)'
+        r'(?P<val>\S.*)?$')
+    # Indent of the active mcp-servers / nested ``env:`` block openers;
+    # ``None`` means we are not currently inside that block.
+    mcp_indent: int | None = None
+    env_indent: int | None = None
+    out: list[str] = []
+    for line in text.split('\n'):
+        stripped = line.strip()
+        # Comments / blank lines never carry secrets nor change block scope.
+        if not stripped or stripped.startswith('#'):
+            out.append(line)
+            continue
+        m = kv.match(line)
+        if not m:
+            out.append(line)
+            continue
+        indent = len(m.group('indent'))
+        # Dedenting to <= a block opener's indent leaves that block.
+        if env_indent is not None and indent <= env_indent:
+            env_indent = None
+        if mcp_indent is not None and indent <= mcp_indent:
+            mcp_indent = None
+        key = m.group('key').strip()
+        val = m.group('val')
+        has_scalar = val is not None and val.strip() not in ('|', '>', '{}',
+                                                             '[]')
+        # A key with no scalar value opens a mapping/list block: track the
+        # mcp-servers and nested ``env`` openers so their descendants can be
+        # scoped, then emit the opener line unchanged.
+        if not has_scalar:
+            if key in mcp_block_keys:
+                mcp_indent = indent
+            elif key == 'env' and mcp_indent is not None:
+                env_indent = indent
+            out.append(line)
+            continue
+        secret_key = is_secret_key(key)
+        in_env = env_indent is not None and indent > env_indent
+        if secret_key or in_env:
+            out.append(
+                f"{m.group('indent')}{m.group('key')}{m.group('sep')}''")
+        else:
+            out.append(line)
+    return '\n'.join(out)
+
+
+def scrub_json_secrets(obj) -> None:
+    """Recursively blank secret values in a parsed JSON structure, in place.
+
+    Mirrors the YAML/TOML scrubbers' vocabulary so JSON config files (ms-agent
+    ``settings.json``) use one secret policy:
+
+    * a key matching :func:`is_secret_key` whose value is a scalar -> value set
+      to ``''`` (e.g. ``openai_api_key``, ``*_token``);
+    * every value inside an ``env`` mapping -> blanked regardless of key name
+      (an ``env`` block, e.g. under an MCP server, is a free-form secret bag).
+
+    Non-secret structure and values are preserved; nested dicts / lists are
+    walked recursively.
+    """
+    if isinstance(obj, dict):
+        for key, val in obj.items():
+            if key == 'env' and isinstance(val, dict):
+                obj[key] = {k: '' for k in val}
+            elif is_secret_key(key) and isinstance(val,
+                                                   (str, int, float, bool)):
+                obj[key] = ''
+            else:
+                scrub_json_secrets(val)
+    elif isinstance(obj, list):
+        for item in obj:
+            scrub_json_secrets(item)
 
 
 class WorkspaceSpec(ABC):
@@ -289,6 +408,24 @@ class WorkspaceSpec(ABC):
         byte-preserving for files they do not care about.
         """
         return content
+
+    def sanitize_outbound_file(self, rel_path: str, content: bytes) -> bytes:
+        """Sanitize a single outbound (local -> remote) file before it is pushed.
+
+        Symmetric to :meth:`sanitize_inbound_file`: this is the choke point the
+        upload / watch push paths pass local files through, so machine-local
+        secrets (API keys / tokens a user left in a local config file) are
+        stripped BEFORE anything leaves the machine -- never uploaded to the
+        remote repo, and therefore never written into its git history.
+
+        The base implementation delegates to :meth:`sanitize_inbound_file`, so a
+        framework whose inbound cleaning does no machine-local identity rebinding
+        (hermes ``config.yaml``, openhuman ``config.toml``) gets a correct
+        outbound sanitize for free. Frameworks whose inbound hook DOES rebind
+        identity (qwenpaw ``agent.json``) must override this to blank secrets
+        WITHOUT writing machine-local identity into the upload.
+        """
+        return self.sanitize_inbound_file(rel_path, content)
 
     def apply(self, resources: dict) -> list[str]:
         """Write resource files back to the workspace.  Returns list of written paths.

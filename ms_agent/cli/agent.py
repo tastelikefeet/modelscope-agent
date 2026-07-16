@@ -123,6 +123,12 @@ class AgentCMD(CLICommand):
             help=
             'Override local workspace root (default: framework standard path)')
         p_upload.add_argument(
+            '--visibility',
+            choices=['public', 'private'],
+            default='public',
+            help='Visibility of the remote repo when created (default: public)'
+        )
+        p_upload.add_argument(
             '--dry-run',
             action='store_true',
             help='List files that would be uploaded, without actually uploading'
@@ -421,6 +427,7 @@ class AgentCMD(CLICommand):
                 local_dir=args.local_dir,
                 repo=args.repo,
                 dry_run=args.dry_run,
+                visibility=args.visibility,
                 endpoint=endpoint,
                 token=token,
                 username=username,

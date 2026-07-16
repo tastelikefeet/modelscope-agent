@@ -158,12 +158,12 @@ ms-agent cron list --all
 ## agent — Agent Hub File Management
 
 Manage agent files between the local workspace and remote repositories: upload,
-download, background sync, cross-framework conversion, local status, backups and
-restore. Format: `ms-agent agent <action> [<args>]`.
+download, background sync, list remote repositories, cross-framework conversion,
+local status, backups and restore. Format: `ms-agent agent <action> [<args>]`.
 
 **Supported frameworks**: `qoder`, `qwenpaw`, `openclaw`, `hermes`, `nanobot`, `openhuman`, `ms-agent`.
 
-**Shared credential options** (common to the network subcommands `upload` / `download` / `watch`):
+**Shared credential options** (common to the network subcommands `upload` / `download` / `watch` / `list`):
 
 | Argument | Description | Default |
 | --- | --- | --- |
@@ -185,6 +185,7 @@ ms-agent agent convert --from-framework qoder --target-framework qwenpaw
 | `-r`, `--repo` | Remote repo identifier, supports `owner/name` (**required**) | |
 | `-n`, `--name` | Local agent name; auto-selected if only one exists, errors if multiple | `None` |
 | `--local-dir` | Override local workspace root (default: framework standard path) | `None` |
+| `--visibility` | Visibility of the remote repo when created: `public` / `private` | `public` |
 | `--dry-run` | List files that would be uploaded without uploading (flag) | `false` |
 | `--token` / `--endpoint` | See shared credential options above | `None` |
 
@@ -212,6 +213,17 @@ Launch a background daemon that watches local changes and pushes to remote; with
 | `-n`, `--name` | Agent name to sync (default: ALL agents in the workspace) | `None` |
 | `--local-dir` | Override local workspace root (default: framework standard path) | `None` |
 | `--pull` | Enable bidirectional sync; pull remote changes to local (default: push-only, flag) | `false` |
+| `--token` / `--endpoint` | See shared credential options above | `None` |
+
+### list — List remote agent repositories
+
+Query and display remote agent repositories with pagination.
+
+| Argument | Description | Default |
+| --- | --- | --- |
+| `--owner` | Filter by owner username or organization name | `None` |
+| `--page` | Page number for pagination | `1` |
+| `--page-size` | Number of items per page | `10` |
 | `--token` / `--endpoint` | See shared credential options above | `None` |
 
 ### status — Show local agent status

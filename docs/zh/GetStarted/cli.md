@@ -154,12 +154,12 @@ ms-agent cron list --all
 
 ## agent — Agent Hub 文件管理
 
-在本地工作区与远端仓库之间管理 Agent 文件：上传、下载、后台同步、跨框架转换、
-本地状态、备份与恢复。调用格式：`ms-agent agent <子命令> [<args>]`。
+在本地工作区与远端仓库之间管理 Agent 文件：上传、下载、后台同步、列出远端仓库、
+跨框架转换、本地状态、备份与恢复。调用格式：`ms-agent agent <子命令> [<args>]`。
 
 **支持的框架**：`qoder`、`qwenpaw`、`openclaw`、`hermes`、`nanobot`、`openhuman`、`ms-agent`。
 
-**共享凭据参数**（网络类子命令 `upload` / `download` / `watch` 通用）：
+**共享凭据参数**（网络类子命令 `upload` / `download` / `watch` / `list` 通用）：
 
 | 参数 | 说明 | 默认值 |
 | --- | --- | --- |
@@ -181,6 +181,7 @@ ms-agent agent convert --from-framework qoder --target-framework qwenpaw
 | `-r`, `--repo` | 远端仓库标识，支持 `owner/name` 格式（**必填**） | |
 | `-n`, `--name` | 本地 Agent 名称；仅一个时自动选择，多个则报错 | `None` |
 | `--local-dir` | 覆盖本地工作区根目录（默认为框架标准路径） | `None` |
+| `--visibility` | 创建远端仓库时的可见性：`public` / `private` | `public` |
 | `--dry-run` | 仅列出将上传的文件，不实际上传（开关） | `false` |
 | `--token` / `--endpoint` | 见上方共享凭据参数 | `None` |
 
@@ -207,6 +208,17 @@ ms-agent agent convert --from-framework qoder --target-framework qwenpaw
 | `-n`, `--name` | 要同步的 Agent 名称（默认工作区内的全部 Agent） | `None` |
 | `--local-dir` | 覆盖本地工作区根目录（默认为框架标准路径） | `None` |
 | `--pull` | 启用双向同步，将远端变更拉取到本地（默认仅推送，开关） | `false` |
+| `--token` / `--endpoint` | 见上方共享凭据参数 | `None` |
+
+### list — 列出远端 Agent 仓库
+
+分页查询并展示远端 Agent 仓库。
+
+| 参数 | 说明 | 默认值 |
+| --- | --- | --- |
+| `--owner` | 按拥有者用户名或组织名过滤 | `None` |
+| `--page` | 分页页码 | `1` |
+| `--page-size` | 每页条目数 | `10` |
 | `--token` / `--endpoint` | 见上方共享凭据参数 | `None` |
 
 ### status — 查看本地 Agent 状态

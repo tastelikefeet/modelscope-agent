@@ -17,14 +17,11 @@ out of scope for agent-home migration.
 """
 from __future__ import annotations
 
-import yaml
 from pathlib import Path
 
-from ms_agent.utils.logger import get_logger
-from .._workspace import DEFAULT_AGENT_NAME, WorkspaceSpec, register_framework
+from .._workspace import (DEFAULT_AGENT_NAME, WorkspaceSpec,
+                          register_framework, scrub_yaml_secrets)
 from ._bundled_skills import BundledSkillFilterMixin
-
-logger = get_logger()
 
 
 class HermesWorkspace(BundledSkillFilterMixin, WorkspaceSpec):
@@ -36,20 +33,6 @@ class HermesWorkspace(BundledSkillFilterMixin, WorkspaceSpec):
     In ``all`` mode, ``workspace_root`` lifts to ``~/.hermes/`` and patterns
     match both the root (default agent) and ``profiles/<name>/`` (named agents).
     """
-
-    # ``config.yaml`` keys that are machine-local secrets and must never be
-    # carried across machines. Everything under ``mcp_servers.*.env`` is also
-    # treated as a secret bag (API keys live there).
-    _CONFIG_SECRET_KEYS = frozenset([
-        'api_key',
-        'api_keys',
-        'openrouter_api_key',
-        'anthropic_api_key',
-        'openai_api_key',
-        'token',
-        'secret',
-        'password',
-    ])
 
     @property
     def product_name(self) -> str:
@@ -76,7 +59,8 @@ class HermesWorkspace(BundledSkillFilterMixin, WorkspaceSpec):
         #
         # ``config.yaml`` carries the ``mcp_servers`` MCP block (plus model /
         # terminal settings); it is collected here and stripped of secrets on
-        # the inbound path via ``sanitize_inbound_file``.
+        # both the inbound and outbound path via ``sanitize_inbound_file`` /
+        # ``sanitize_outbound_file``.
         #
         # ``hooks/*`` are Hermes lifecycle hook definitions/scripts (a genuine
         # HERMES_HOME feature, cf. ``hermes_cli/hooks.py``). They shape runtime
@@ -137,54 +121,24 @@ class HermesWorkspace(BundledSkillFilterMixin, WorkspaceSpec):
         return agents or [DEFAULT_AGENT_NAME]
 
     # ------------------------------------------------------------------
-    # config.yaml secret sanitization on the inbound path
+    # config.yaml secret sanitization (inbound + outbound)
     # ------------------------------------------------------------------
 
-    def _sanitize_config_yaml(self, text: str) -> str:
-        """Blank out machine-local secrets in ``config.yaml``.
+    def _scrub_yaml_secrets(self, text: str) -> str:
+        """Blank secret values in ``config.yaml`` line-by-line.
 
-        Keeps the structure intact (model / terminal / mcp_servers) but empties
-        API keys / tokens, both at the top level and inside every
-        ``mcp_servers.*.env`` block. On parse failure the original text is
-        returned unchanged (best-effort; a malformed file must not abort the
-        whole download).
+        Thin wrapper over the shared :func:`scrub_yaml_secrets` (which every
+        YAML-config framework reuses) scoped to hermes' ``mcp_servers`` block.
         """
-        try:
-            data = yaml.safe_load(text)
-        except yaml.YAMLError:
-            logger.warning(
-                'hermes config.yaml is not valid YAML; writing as-is')
-            return text
-        if not isinstance(data, dict):
-            return text
+        return scrub_yaml_secrets(text, mcp_block_keys=('mcp_servers', ))
 
-        def _scrub(node) -> None:
-            # Recursively blank secret-looking scalar values anywhere in the
-            # tree (e.g. top-level ``model.api_key`` as well as nested blocks).
-            if isinstance(node, dict):
-                for key in list(node.keys()):
-                    val = node[key]
-                    if key in self._CONFIG_SECRET_KEYS and not isinstance(
-                            val, (dict, list)):
-                        node[key] = ''
-                    else:
-                        _scrub(val)
-            elif isinstance(node, list):
-                for item in node:
-                    _scrub(item)
+    def _sanitize_config_file(self, rel_path: str, content: bytes) -> bytes:
+        """Blank secrets in ``config.yaml`` (identical on up- and download).
 
-        _scrub(data)
-        # ``mcp_servers.*.env`` is a free-form secret bag (API keys live under
-        # arbitrary key names), so blank every value regardless of key name.
-        servers = data.get('mcp_servers')
-        if isinstance(servers, dict):
-            for srv in servers.values():
-                if isinstance(srv, dict) and isinstance(srv.get('env'), dict):
-                    srv['env'] = {k: '' for k in srv['env']}
-        return yaml.safe_dump(data, allow_unicode=True, sort_keys=False)
-
-    def sanitize_inbound_file(self, rel_path: str, content: bytes) -> bytes:
-        """Strip secrets from inbound ``config.yaml`` (root or profiles/<name>/)."""
+        Hermes performs no machine-local identity rebinding, so the inbound and
+        outbound sanitize are the same: strip secrets, keep everything else.
+        Non-``config.yaml`` files (and undecodable bytes) pass through verbatim.
+        """
         if self._is_all():
             _agent, bare = self.split_all_path(rel_path)
             if bare != 'config.yaml':
@@ -196,7 +150,16 @@ class HermesWorkspace(BundledSkillFilterMixin, WorkspaceSpec):
             text = content.decode('utf-8')
         except UnicodeDecodeError:
             return content
-        return self._sanitize_config_yaml(text).encode('utf-8')
+        return self._scrub_yaml_secrets(text).encode('utf-8')
+
+    def sanitize_inbound_file(self, rel_path: str, content: bytes) -> bytes:
+        """Strip secrets from inbound ``config.yaml`` (root or profiles/<name>/).
+
+        Hermes does no machine-local identity rebinding, so the base-class
+        outbound hook (which delegates here) reuses this same cleaning on the
+        upload path -- no separate outbound override is needed.
+        """
+        return self._sanitize_config_file(rel_path, content)
 
 
 register_framework('hermes', HermesWorkspace)
