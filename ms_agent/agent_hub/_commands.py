@@ -38,15 +38,20 @@ def _fail(message: str) -> int:
 def api_error_message(e: APIError, action: str = 'request') -> str:
     """Return a user-friendly message based on the HTTP status code."""
     status = e.status_code or 0
+    rid = f' (request_id={e.request_id})' if getattr(e, 'request_id',
+                                                      None) else ''
     if status == 401:
-        return 'authentication failed. Please login again.'
+        return 'authentication failed. Please login again.' + rid
     if status == 403:
-        return 'permission denied. You do not have access to this resource.'
+        return ('permission denied. You do not have access to this resource.'
+                + rid)
     if status == 404:
-        return 'resource not found. Check the repository name and try again.'
+        return ('resource not found. Check the repository name and try again.'
+                + rid)
     if status >= 500:
-        return 'server encountered an issue. Please wait a moment and try again.'
-    return f'{action} failed (HTTP {status}: {e.message})'
+        return ('server encountered an issue. Please wait a moment and try '
+                'again.' + rid)
+    return f'{action} failed (HTTP {status}: {e.message}){rid}'
 
 
 def repo_name(framework: str, name: str) -> str:
