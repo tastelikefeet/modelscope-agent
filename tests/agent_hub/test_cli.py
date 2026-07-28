@@ -637,6 +637,67 @@ class TestRestoreBehaviour(unittest.TestCase):
         self.assertEqual(self._read("bot-a", "SOUL.md"), "# Soul\nbot-a all-restored.\n")
         self.assertEqual(self._read("bot-b", "SOUL.md"), "# Soul\nbot-b all-restored.\n")
 
+    @mock.patch("pathlib.Path.home")
+    @mock.patch("ms_agent.agent_hub._sync.cache_dir")
+    @mock.patch("ms_agent.agent_hub._cache.cache_dir")
+    def test_pre_restore_backup_has_framework_prefix(self, mock_cache, mock_sync_cache, mock_home):
+        """The automatic pre-restore backup must follow the shared naming
+        convention ``{fw}_{name}_{date}_{time}.zip`` so ``backups -f <fw>``
+        can find it (bug: it was named ``{name}_...`` and got parsed as
+        framework='paw' for name='paw_qa_01')."""
+        mock_cache.return_value = self.cache_dir
+        mock_sync_cache.return_value = self.cache_dir
+        mock_home.return_value = self.home
+        # agent whose name contains '_' -- the original mis-parse trigger.
+        agent_dir = self.ws / "paw_qa_01"
+        agent_dir.mkdir()
+        (agent_dir / "SOUL.md").write_text("# Soul\ncurrent state.\n")
+        self._make_backup(
+            "qwenpaw_paw_qa_01_20260702_170208",
+            {"SOUL.md": "# Soul\nfrom backup.\n"},
+        )
+        rc = cmd_recover(target="last", framework="qwenpaw", name="paw_qa_01")
+        self.assertEqual(rc, 0)
+        pre = [
+            f for f in self.cache_dir.glob("*.zip")
+            if f.stem != "qwenpaw_paw_qa_01_20260702_170208"
+        ]
+        self.assertEqual(len(pre), 1, "exactly one pre-restore backup expected")
+        # named like every other backup: framework prefix + agent name.
+        self.assertTrue(
+            pre[0].name.startswith("qwenpaw_paw_qa_01_"),
+            f"pre-restore backup misnamed: {pre[0].name}")
+        # and the backups -f filter parses the right framework out of it.
+        from ms_agent.agent_hub._commands import _parse_backup_meta
+        fw, nm = _parse_backup_meta(pre[0].stem)
+        self.assertEqual(fw, "qwenpaw")
+
+    @mock.patch("pathlib.Path.home")
+    @mock.patch("ms_agent.agent_hub._sync.cache_dir")
+    @mock.patch("ms_agent.agent_hub._cache.cache_dir")
+    def test_pre_restore_backup_all_scope_uses_framework_only(self, mock_cache, mock_sync_cache, mock_home):
+        """Restoring an all-scope backup names its pre-restore backup
+        ``{fw}_{date}_{time}.zip`` (no name segment), matching the all-scope
+        convention."""
+        mock_cache.return_value = self.cache_dir
+        mock_sync_cache.return_value = self.cache_dir
+        mock_home.return_value = self.home
+        self._make_backup(
+            "qwenpaw_20260702_170208",
+            {"default/SOUL.md": "# Soul\nall restored.\n"},
+        )
+        rc = cmd_recover(target="qwenpaw_20260702_170208")
+        self.assertEqual(rc, 0)
+        pre = [
+            f for f in self.cache_dir.glob("*.zip")
+            if f.stem != "qwenpaw_20260702_170208"
+        ]
+        self.assertEqual(len(pre), 1)
+        from ms_agent.agent_hub._commands import _parse_backup_meta
+        fw, nm = _parse_backup_meta(pre[0].stem)
+        self.assertEqual(fw, "qwenpaw")
+        self.assertEqual(nm, "")
+
 
 # ---------------------------------------------------------------------------
 # Download command tests (stubbed client)
@@ -671,6 +732,29 @@ class _QwenpawAllStub(_RepoStub):
 
     def __init__(self, *args, **kwargs):
         _QwenpawAllStub.instances.append(self)
+
+
+class _HermesAllStub(_RepoStub):
+    """Serves a hermes repo uploaded with ``-n all``: default agent at bare
+    paths + named agent under ``profiles/coder/`` (bug: download -n coder
+    used to write default's files into coder and drop coder's own)."""
+
+    FRAMEWORK = "hermes"
+    instances = []
+    STORE = {
+        "SOUL.md": "# default soul",
+        "config.yaml": "model: default-model",
+        "memories/2026-07-20.md": "default mem",
+        "skills/daily-ai-news/SKILL.md": "default skill",
+        "hooks/session_start.sh": "echo hook",
+        "optional-skills/git-helper/SKILL.md": "default opt skill",
+        "profiles/coder/SOUL.md": "# coder soul",
+        "profiles/coder/memories/2026-07-26.md": "coder mem",
+        "profiles/coder/skills/code-review/SKILL.md": "coder skill",
+    }
+
+    def __init__(self, *args, **kwargs):
+        _HermesAllStub.instances.append(self)
 
 
 class TestDownload(unittest.TestCase):
@@ -811,6 +895,88 @@ class TestDownload(unittest.TestCase):
         self.assertTrue((self.out / "workspaces" / "bot-a" / "PROFILE.md").is_file())
         # non-spec top-level files are skipped.
         self.assertFalse((self.out / "README.md").exists())
+
+    # ---- named-agent download from an all-layout repo (bug regression) ----
+
+    @mock.patch("ms_agent.agent_hub._commands.AgentApi", _HermesAllStub)
+    def test_download_named_agent_from_all_repo_takes_only_its_files(self):
+        """-n coder must take ONLY profiles/coder/** (prefix stripped) --
+        never default's bare files."""
+        rc = cmd_download(
+            framework="hermes", repo="hm", name="coder",
+            local_dir=str(self.out),
+            endpoint="http://s", token="tok", username="u",
+        )
+        self.assertEqual(rc, 0)
+        coder = self.out / "profiles" / "coder"
+        # coder's own files, prefix stripped:
+        self.assertEqual((coder / "SOUL.md").read_text(), "# coder soul")
+        self.assertEqual(
+            (coder / "memories" / "2026-07-26.md").read_text(), "coder mem")
+        self.assertEqual(
+            (coder / "skills" / "code-review" / "SKILL.md").read_text(),
+            "coder skill")
+        # default's files must NOT leak into coder's directory:
+        self.assertFalse((coder / "config.yaml").exists())
+        self.assertFalse((coder / "hooks").exists())
+        self.assertFalse((coder / "memories" / "2026-07-20.md").exists())
+        self.assertFalse((coder / "skills" / "daily-ai-news").exists())
+        self.assertFalse((coder / "optional-skills").exists())
+
+    @mock.patch("ms_agent.agent_hub._commands.AgentApi", _HermesAllStub)
+    def test_download_default_from_all_repo_excludes_named_agents(self):
+        """Default download from an all repo: bare files only, no profiles/."""
+        rc = cmd_download(
+            framework="hermes", repo="hm",
+            local_dir=str(self.out),
+            endpoint="http://s", token="tok", username="u",
+        )
+        self.assertEqual(rc, 0)
+        self.assertEqual((self.out / "SOUL.md").read_text(), "# default soul")
+        self.assertTrue((self.out / "memories" / "2026-07-20.md").is_file())
+        self.assertFalse((self.out / "profiles").exists())
+
+    @mock.patch("ms_agent.agent_hub._commands.AgentApi", _HermesAllStub)
+    def test_download_missing_agent_from_all_repo_fails(self):
+        """An all repo without the requested agent must error, not silently
+        fill the agent with default's content."""
+        rc = cmd_download(
+            framework="hermes", repo="hm", name="writer",
+            local_dir=str(self.out),
+            endpoint="http://s", token="tok", username="u",
+        )
+        self.assertEqual(rc, 1)
+        self.assertFalse((self.out / "profiles" / "writer").exists())
+
+    @mock.patch("ms_agent.agent_hub._commands.AgentApi", _QwenpawAllStub)
+    def test_download_named_agent_from_qwenpaw_all_repo(self):
+        """Same family bug on qwenpaw: -n bot-a takes only bot-a/**."""
+        rc = cmd_download(
+            framework="qwenpaw", repo="qw", name="bot-a",
+            local_dir=str(self.out),
+            endpoint="http://s", token="tok", username="u",
+        )
+        self.assertEqual(rc, 0)
+        ws = self.out / "workspaces" / "bot-a"
+        self.assertEqual((ws / "SOUL.md").read_text(), "# bot-a soul")
+        self.assertEqual((ws / "AGENTS.md").read_text(), "# bot-a agents")
+        # default's files must not leak into bot-a's workspace:
+        self.assertFalse(
+            (ws / "workspaces").exists(),
+            "no nested workspaces dir expected")
+        self.assertNotEqual((ws / "AGENTS.md").read_text(), "# default agents")
+
+    @mock.patch("ms_agent.agent_hub._commands.AgentApi", _DownloadStub)
+    def test_download_single_agent_repo_with_name_keeps_legacy_behavior(self):
+        """A legacy bare (single-agent) repo downloaded with -n <name> still
+        writes the bare files into that agent's directory."""
+        rc = cmd_download(
+            framework="nanobot", repo="nano", name="myagent",
+            local_dir=str(self.out),
+            endpoint="http://s", token="tok", username="u",
+        )
+        self.assertEqual(rc, 0)
+        self.assertEqual((self.out / "SOUL.md").read_text(), "soul")
 
 
 # ---------------------------------------------------------------------------

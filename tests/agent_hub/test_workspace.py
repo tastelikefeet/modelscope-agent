@@ -1,5 +1,6 @@
 # Copyright (c) Alibaba, Inc. and its affiliates.
 """Sub-agent-aware workspace spec collection tests."""
+import json
 import tempfile
 import unittest
 from pathlib import Path
@@ -255,6 +256,54 @@ class TestQwenpawConfigRoot(unittest.TestCase):
 
     def test_defaults_to_qwenpaw_when_neither_exists(self):
         self.assertEqual(self._root_name([]), ".copaw")
+
+
+class TestQwenpawAgentJsonSecrets(unittest.TestCase):
+    """agent.json sanitize must blank secrets ANYWHERE in the JSON tree.
+
+    Regression for the leak where only ``channels.*`` and
+    ``mcp.clients.*.env`` were walked, so the top-level ``model.api_key``
+    (the primary LLM credential) went to the public repo in plaintext.
+    """
+
+    SRC = json.dumps({
+        "model": {"api_key": "sk-SECRET-1", "model": "qwen-max"},
+        "channels": {
+            "dingtalk": {
+                "client_secret": "SECRET-2",
+                "client_id": "keep-me",
+                "db_path": "/local/db.sqlite",
+            }
+        },
+        "mcp": {"clients": {"c1": {"env": {"ANY_NAME": "SECRET-3"}}}},
+        "plugins": [{"token": "SECRET-4", "name": "p1"}],
+    })
+
+    def setUp(self):
+        self.spec = QwenpawWorkspace(agent_name="paw_qa_01")
+
+    def _assert_scrubbed(self, out: dict):
+        # secrets blanked at every depth:
+        self.assertEqual(out["model"]["api_key"], "")
+        self.assertEqual(out["channels"]["dingtalk"]["client_secret"], "")
+        self.assertEqual(out["mcp"]["clients"]["c1"]["env"], {"ANY_NAME": ""})
+        self.assertEqual(out["plugins"][0]["token"], "")
+        # machine-local channel key blanked:
+        self.assertEqual(out["channels"]["dingtalk"]["db_path"], "")
+        # non-secret fields preserved for post-migration debugging:
+        self.assertEqual(out["model"]["model"], "qwen-max")
+        self.assertEqual(out["channels"]["dingtalk"]["client_id"], "keep-me")
+        self.assertEqual(out["plugins"][0]["name"], "p1")
+
+    def test_outbound_upload_scrubs_whole_tree(self):
+        out = json.loads(self.spec._strip_outbound_agent_json(self.SRC))
+        self._assert_scrubbed(out)
+        self.assertNotIn("SECRET", json.dumps(out))
+
+    def test_inbound_download_scrubs_whole_tree(self):
+        out = json.loads(self.spec._sanitize_agent_json("paw_qa_01", self.SRC))
+        self._assert_scrubbed(out)
+        self.assertNotIn("SECRET", json.dumps(out))
 
 
 if __name__ == "__main__":

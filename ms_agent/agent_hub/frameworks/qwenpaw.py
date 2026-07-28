@@ -122,22 +122,49 @@ class QwenpawWorkspace(BundledSkillFilterMixin, WorkspaceSpec):
     # ------------------------------------------------------------------
 
     def _strip_agent_json_secrets(self, data: dict) -> None:
-        """Blank per-channel + MCP-env secrets in an ``agent.json`` dict in place.
+        """Blank every secret in an ``agent.json`` dict in place.
 
         Shared by the inbound (download) and outbound (upload) sanitizers so a
         key never lands on disk from a remote agent, and a local key is never
         pushed to the remote repo / its git history.
+
+        The whole JSON tree is walked recursively and any key matching
+        :func:`is_secret_key` is blanked wherever it lives (top-level
+        ``model.api_key``, ``channels.*.client_secret``, future additions...).
+        Two structural rules are applied on top of the vocabulary:
+
+        * channel configs additionally blank ``_CHANNEL_LOCAL_KEYS``
+          (machine-local paths such as ``db_path``);
+        * every ``mcp.clients.*.env`` mapping is cleared wholesale -- env var
+          names are arbitrary, so values there are treated as secrets even
+          when the name does not match the vocabulary.
         """
-        # Strip secrets from every channel config.
+
+        def scrub(node: Any) -> None:
+            if isinstance(node, dict):
+                for key, value in node.items():
+                    # Secret-named key: wipe the WHOLE value (even a nested
+                    # mapping) -- credentials blobs must not survive because
+                    # their inner field names happen to look harmless.
+                    if is_secret_key(key):
+                        node[key] = ''
+                    elif isinstance(value, (dict, list)):
+                        scrub(value)
+            elif isinstance(node, list):
+                for item in node:
+                    scrub(item)
+
+        scrub(data)
+        # Channel configs: also blank machine-local (non-secret-named) keys.
         channels = data.get('channels')
         if isinstance(channels, dict):
             for ch in channels.values():
                 if not isinstance(ch, dict):
                     continue
                 for key in list(ch.keys()):
-                    if is_secret_key(key) or key in self._CHANNEL_LOCAL_KEYS:
+                    if key in self._CHANNEL_LOCAL_KEYS:
                         ch[key] = ''
-        # Strip MCP env secrets (API keys live under mcp.clients.*.env).
+        # MCP env blocks: clear every value regardless of the env var name.
         mcp = data.get('mcp')
         if isinstance(mcp, dict):
             clients = mcp.get('clients')

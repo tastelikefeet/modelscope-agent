@@ -39,7 +39,7 @@ def api_error_message(e: APIError, action: str = 'request') -> str:
     """Return a user-friendly message based on the HTTP status code."""
     status = e.status_code or 0
     rid = f' (request_id={e.request_id})' if getattr(e, 'request_id',
-                                                      None) else ''
+                                                     None) else ''
     if status == 401:
         return 'authentication failed. Please login again.' + rid
     if status == 403:
@@ -389,6 +389,78 @@ def cmd_upload(
     return 0
 
 
+def _remote_paths_for_agent(
+    framework: str,
+    requested: str,
+    remote_paths: list[str],
+    local_dir=None,
+) -> tuple[dict[str, str] | None, str | None]:
+    """Map remote repo paths to workspace-relative paths for *requested*.
+
+    A repo uploaded with ``-n all`` from a root-per-agent framework stores the
+    default agent at bare paths and every named agent under its per-agent
+    prefix (hermes ``profiles/<name>/``, openclaw ``workspace-<name>/``,
+    qwenpaw ``<name>/``).  When downloading a single agent from such a repo,
+    only that agent's files may be taken (with the prefix stripped) --
+    otherwise another agent's files would be written into the requested
+    agent's directory and its own files silently dropped.
+
+    Returns ``(mapping, error)``: *mapping* is ``{remote_path: relative_path}``
+    restricted to the requested agent (identity mapping for legacy
+    single-agent bare repos), *error* is set when the repo is an all-layout
+    repo that has no files for *requested*.
+    """
+    identity = {p: p for p in remote_paths}
+    if requested in (ALL_AGENT_NAME, GLOBAL_AGENT_NAME):
+        # all: every agent's files are wanted as-is; global: shared files are
+        # selected by the (name-free) pattern filter downstream.
+        return identity, None
+    probe = build_spec(framework, requested, local_dir)
+    if not probe.is_root_per_agent:
+        return identity, None
+
+    prefix = probe.join_all_path(requested, '')
+    if not prefix:
+        # Requested agent lives at bare paths in all mode (hermes default):
+        # keep bare files, exclude every named-agent prefix.
+        selected = {
+            p: p
+            for p in remote_paths
+            if probe.split_all_path(p)[0] in (requested, None)
+        }
+        return (selected, None) if selected else (
+            None, f"repository has no files for agent '{requested}'.")
+
+    selected = {
+        p: p[len(prefix):]
+        for p in remote_paths if p.startswith(prefix) and p != prefix
+    }
+    if selected:
+        return selected, None
+
+    # No prefixed files for the requested agent. Either this is a legacy
+    # single-agent repo (bare paths ARE the requested agent's files) or an
+    # all-layout repo that simply lacks this agent. Named-agent paths that do
+    # NOT match the framework's bare workspace patterns are unambiguous
+    # all-layout evidence (bare-pattern matches such as qwenpaw's
+    # ``skills/x/SKILL.md`` would split like an agent prefix but are regular
+    # single-agent content).
+    bare_patterns = probe.resolved_patterns()
+    other_agents: set[str] = set()
+    has_bare = False
+    for p in remote_paths:
+        agent, _ = probe.split_all_path(p)
+        if probe.matches(p, bare_patterns):
+            has_bare = True
+        elif agent not in (None, DEFAULT_AGENT_NAME):
+            other_agents.add(agent)
+    if other_agents:
+        found = (['default'] if has_bare else []) + sorted(other_agents)
+        return None, (f"repository has no agent named '{requested}' "
+                      f"(agents in repo: {', '.join(found)}).")
+    return identity, None
+
+
 def cmd_download(
     framework: str,
     repo: str,
@@ -444,6 +516,7 @@ def cmd_download(
     # Conversion needs the full remote payload, so it stays full-download.
     incremental = (target or framework) == framework
     remote_all_paths: set[str] | None = None
+    requested = name or DEFAULT_AGENT_NAME
     try:
         info = client.repo_info(group, repo_n)
         if info is None:
@@ -453,7 +526,24 @@ def cmd_download(
             remote_detail = client.list_repo_files_detail(group, repo_n)
             if not remote_detail:
                 return _fail(f'repository {group}/{repo_n} has no files.')
-            remote_all_paths = {f.path for f in remote_detail}
+            # Restrict an all-layout repo to the requested agent's files
+            # (prefix stripped); identity mapping for single-agent repos.
+            remote_map, map_err = _remote_paths_for_agent(
+                framework, requested, [f.path for f in remote_detail],
+                local_dir)
+            if map_err:
+                return _fail(map_err)
+            excluded = sorted({f.path
+                               for f in remote_detail} - set(remote_map))
+            if excluded:
+                display.file_list(
+                    'Excluded',
+                    excluded,
+                    color=display.COLOR_SKIP,
+                    marker='[skip]',
+                    note=f"belongs to other agents (requested '{requested}')")
+            remote_detail = [f for f in remote_detail if f.path in remote_map]
+            remote_all_paths = {remote_map[f.path] for f in remote_detail}
             # Local baseline for sha comparison (raw bytes -> sha256).
             probe_spec = build_spec(framework, name or DEFAULT_AGENT_NAME,
                                     local_dir)
@@ -463,8 +553,9 @@ def cmd_download(
             skipped_same: list[str] = []
             to_download = []
             for f in remote_detail:
-                if f.path in local_sha and local_sha[f.path] == f.sha256:
-                    skipped_same.append(f.path)
+                rel = remote_map[f.path]
+                if rel in local_sha and local_sha[rel] == f.sha256:
+                    skipped_same.append(rel)
                 else:
                     to_download.append(f)
             if skipped_same:
@@ -478,17 +569,31 @@ def cmd_download(
             total = len(to_download)
             for i, f in enumerate(to_download, 1):
                 print(f'  [{i}/{total}] downloading {f.path}', flush=True)
-                resources[f.path] = client.download_repo_file(
+                resources[remote_map[f.path]] = client.download_repo_file(
                     group, repo_n, f.path)
         else:
             paths = client.list_repo_files(group, repo_n)
             if not paths:
                 return _fail(f'repository {group}/{repo_n} has no files.')
+            remote_map, map_err = _remote_paths_for_agent(
+                framework, requested, paths, local_dir)
+            if map_err:
+                return _fail(map_err)
+            excluded = sorted(set(paths) - set(remote_map))
+            if excluded:
+                display.file_list(
+                    'Excluded',
+                    excluded,
+                    color=display.COLOR_SKIP,
+                    marker='[skip]',
+                    note=f"belongs to other agents (requested '{requested}')")
+            paths = [p for p in paths if p in remote_map]
             resources = {}
             total = len(paths)
             for i, pth in enumerate(paths, 1):
                 print(f'  [{i}/{total}] downloading {pth}', flush=True)
-                resources[pth] = client.download_repo_file(group, repo_n, pth)
+                resources[remote_map[pth]] = client.download_repo_file(
+                    group, repo_n, pth)
     except APIError as e:
         return _fail(api_error_message(e, 'download'))
     except Exception as e:
@@ -1105,17 +1210,22 @@ def cmd_recover(
     # workspaces/ parent and, because a single-agent zip stores bare (unprefixed)
     # paths, wrongly treat every sibling agent's files as "extra" and delete them.
     restore_name = name or parsed_name or ALL_AGENT_NAME
-    if not name:
-        name = parsed_name or parsed_fw
 
     spec = build_spec(framework, restore_name, local_dir)
     root = spec.workspace_root
 
-    # Backup current local files
+    # Backup current local files. The label must follow the shared backup
+    # naming convention ``{fw}_{name}_{date}_{time}`` (all-scope: ``{fw}_...``)
+    # used by convert and watch -- ``backups -f <fw>`` parses the framework
+    # from the filename, so an unprefixed name would make this safety backup
+    # invisible under the framework filter (and unusable to undo a restore).
     from ._sync import backup_local
     current_resources = spec.collect()
     if current_resources:
-        pre_restore_backup = backup_local(spec, name)
+        backup_label = (
+            framework if restore_name == ALL_AGENT_NAME else
+            f'{framework}_{restore_name}')
+        pre_restore_backup = backup_local(spec, backup_label)
         print(f'Pre-restore backup: {pre_restore_backup.name}')
     else:
         print('No existing files to backup.')
