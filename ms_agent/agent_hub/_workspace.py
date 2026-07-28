@@ -146,8 +146,9 @@ def scrub_json_secrets(obj) -> None:
     Mirrors the YAML/TOML scrubbers' vocabulary so JSON config files (ms-agent
     ``settings.json``) use one secret policy:
 
-    * a key matching :func:`is_secret_key` whose value is a scalar -> value set
-      to ``''`` (e.g. ``openai_api_key``, ``*_token``);
+    * a key matching :func:`is_secret_key` -> value blanked to ``''`` whatever
+      its type (a nested mapping under e.g. ``credentials`` is wiped wholesale
+      -- its inner field names may look harmless);
     * every value inside an ``env`` mapping -> blanked regardless of key name
       (an ``env`` block, e.g. under an MCP server, is a free-form secret bag).
 
@@ -158,8 +159,7 @@ def scrub_json_secrets(obj) -> None:
         for key, val in obj.items():
             if key == 'env' and isinstance(val, dict):
                 obj[key] = {k: '' for k in val}
-            elif is_secret_key(key) and isinstance(val,
-                                                   (str, int, float, bool)):
+            elif is_secret_key(key):
                 obj[key] = ''
             else:
                 scrub_json_secrets(val)
