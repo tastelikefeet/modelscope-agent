@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 # Copyright (c) ModelScope Contributors. All rights reserved.
 import asyncio
 import importlib
@@ -226,6 +228,17 @@ class ToolManager:
                     # Find cls which base class is `ToolBase`
                     if issubclass(cls, ToolBase) and cls.__module__ == _plugin:
                         self.register_tool(cls(self.config))
+        # Used temporarily during async initialization; the actual client is managed in self.servers
+        self.mcp_client = mcp_client
+        self.mcp_config = mcp_config
+        self.servers = None
+        self._managed_client = mcp_client is None
+
+        # Initialize concurrency limiter (will be set in connect)
+        self._concurrent_limiter = None
+        self._init_lock = None
+        self._sync_lock = asyncio.Lock()
+
         self._tool_index = {}
         self._mcp_index_keys: set[str] = set()
         self._skip_mcp_reindex = False
@@ -265,16 +278,28 @@ class ToolManager:
             has_add = hasattr(self.servers, 'add_mcp_config')
             is_mcp = MCPClient is not None and isinstance(
                 self.mcp_client, MCPClient)
-            if self.mcp_config and self.mcp_config.get('mcpServers') and (
-                    is_mcp or has_add):
+            if (isinstance(self.mcp_config, dict)
+                    and self.mcp_config.get('mcpServers')
+                    and (is_mcp or has_add)):
                 await self.servers.add_mcp_config(self.mcp_config)
                 if hasattr(self.servers, 'mcp_config'):
                     self.mcp_config = self.servers.mcp_config
         elif MCPClient is not None:
             self.servers = MCPClient(self.mcp_config, self.config)
             await self.servers.connect()
+        elif (isinstance(self.mcp_config, dict)
+              and self.mcp_config.get('mcpServers')):
+            logger.warning_once(
+                'mcp package not installed; MCP tools disabled for this run'
+            )
         for tool in self.extra_tools:
-            await tool.connect()
+            try:
+                await tool.connect()
+            except Exception as e:
+                logger.warning(
+                    f'Tool {getattr(tool, "name", type(tool).__name__)} '
+                    f'failed to connect: {e}; disabling.'
+                )
 
         if not self._skip_mcp_reindex:
             await self.reindex_tool()
@@ -557,6 +582,16 @@ class ToolManager:
                         tool_args=call_args),
                     timeout=wait_sec)
 
+                # Truncate excessively long tool outputs to prevent context window explosion
+                max_len = int(os.getenv('MAX_TOOL_OUTPUT_LEN', 20000))
+                if isinstance(response, str) and len(response) > max_len:
+                    half = max_len // 2
+                    trunc_notice = (
+                        f"\n\n...[SYSTEM: Output truncated, {len(response)} chars total, "
+                        f"showing first and last {half} chars]...\n\n"
+                    )
+                    response = response[:half] + trunc_notice + response[-half:]
+
                 if (self.mcp_success_handler is not None
                         and tool_ins is self.servers):
                     await self.mcp_success_handler(server_name)
@@ -604,10 +639,26 @@ class ToolManager:
                             tool_info.get('tool_name', ''), self.TOOL_SPLITER),
                         exc=asyncio.TimeoutError(timeout_msg),
                     )
-                return timeout_msg
+                return json.dumps({
+                    'success': False,
+                    'error': 'timeout',
+                    'tool_name': tn,
+                    'message': timeout_msg,
+                    'recovery_hint': (
+                        'The tool took too long. Try: (1) add "timeout" field with a larger value in seconds '
+                        f'(max {self.tool_call_timeout_max:.0f}s), (2) break the task into smaller steps, '
+                        'or (3) simplify the command/input.'
+                    ),
+                }, ensure_ascii=False)
             except Exception as e:
                 import traceback
-                logger.warning(traceback.format_exc())
+                tb_str = traceback.format_exc()
+                logger.warning(tb_str)
+                exc_type_name = type(e).__name__
+                exc_msg = str(e) or '(no error message)'
+                tn = tool_info.get('tool_name', '(unknown)')
+                tb_lines = tb_str.strip().splitlines()
+                tb_tail = '\n'.join(tb_lines[-6:]) if len(tb_lines) > 6 else '\n'.join(tb_lines)
                 if tool_ins is not None and tool_ins is self.servers:
                     await self._report_mcp_failure(
                         server_name,
@@ -617,7 +668,20 @@ class ToolManager:
                             tool_info.get('tool_name', ''), self.TOOL_SPLITER),
                         exc=e,
                     )
-                return f'Tool calling failed: {brief_info}, details: {str(e)}'
+                return json.dumps({
+                    'success': False,
+                    'error': exc_type_name,
+                    'tool_name': tn,
+                    'message': f'{exc_type_name}: {exc_msg}',
+                    'call_info': brief_info,
+                    'traceback_tail': tb_tail,
+                    'recovery_hint': (
+                        f'The tool "{tn}" raised {exc_type_name}. '
+                        'Review the error and traceback above, check your input parameters, '
+                        'verify prerequisites (files, dependencies, running services), '
+                        'and retry with corrected arguments or a different approach.'
+                    ),
+                }, ensure_ascii=False, default=str)
 
     async def parallel_call_tool(self, tool_list: List[ToolCall]):
         tasks = [self.single_call_tool(tool) for tool in tool_list]
