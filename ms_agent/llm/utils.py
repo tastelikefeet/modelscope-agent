@@ -63,6 +63,12 @@ class Message:
     # needed for output
     reasoning_content: str = ''
 
+    # Anthropic extended-thinking blocks carry an opaque signature that must be
+    # sent back verbatim in a multi-turn tool conversation (the provider rejects
+    # a thinking block whose signature is missing/altered). Captured from the
+    # streaming response and replayed by AnthropicMessagesTransport.
+    reasoning_signature: str = ''
+
     # Opaque output items from the Responses API that must be passed back
     # in multi-turn tool-calling conversations (e.g. reasoning items).
     _responses_output_items: List[Dict[str, Any]] = field(default_factory=list)
@@ -96,6 +102,11 @@ class Message:
     # Hook attachments for UI / LLM condensation; omitted from to_dict_clean().
     hook_attachments: List[Any] = field(default_factory=list)
 
+    # role=tool: the tool call failed (the error text is in ``content``).
+    # UI/persistence only — omitted from to_dict_clean() so it is never sent to
+    # the model provider (the model still sees the failure via ``content``).
+    is_error: bool = False
+
     def to_dict(self):
         return asdict(self)
 
@@ -124,6 +135,7 @@ class Message:
             'api_calls',
             'tool_detail',
             'hook_attachments',
+            'is_error',
             'searching_detail',
             'search_result',
             '_responses_output_items',
@@ -148,6 +160,7 @@ class ToolResult:
     extra: dict = field(default_factory=dict)
     tool_detail: Optional[str] = None
     hook_attachments: List[Any] = field(default_factory=list)
+    is_error: bool = False
 
     @staticmethod
     def from_raw(raw):
@@ -163,14 +176,13 @@ class ToolResult:
                 resources=raw.get('resources', []),
                 tool_detail=None if td is None else str(td),
                 hook_attachments=raw.get('hook_attachments', []),
+                is_error=bool(raw.get('is_error', False)),
                 extra={
                     k: v
-                    for k, v in raw.items() if k not in [
-                        'text',
-                        'resources',
-                        'result',
-                        'tool_detail',
-                        'hook_attachments',
+                    for k, v in raw.items()
+                    if k not in [
+                        'text', 'resources', 'result', 'tool_detail',
+                        'hook_attachments', 'is_error',
                     ]
                 })
         raise TypeError('tool_call_result must be str or dict')

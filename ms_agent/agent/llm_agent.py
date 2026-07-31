@@ -7,9 +7,10 @@ import json
 import os.path
 import sys
 import threading
+import time
 import uuid
 from contextlib import contextmanager
-from copy import copy, deepcopy
+from copy import deepcopy
 from omegaconf import DictConfig, OmegaConf
 from pathlib import Path
 from typing import Any, AsyncGenerator, Dict, List, Optional, Tuple, Union
@@ -50,6 +51,88 @@ from .base import Agent
 logger = get_logger()
 
 _MISSING_ENABLE_SNAPSHOTS = object()
+
+# Neutral, model-facing placeholder for an interrupted round that produced no
+# visible content. UIs should render rows flagged ``interrupted`` from their
+# metadata (not this literal), so the placeholder never needs localization.
+INTERRUPTED_PLACEHOLDER = '[interrupted]'
+_INTERRUPTED_TOOL_RESULT = '[Interrupted: tool execution was cancelled]'
+
+
+def build_partial_round_records(rows: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+    """Turn an interrupted round's in-memory rows into protocol-valid log records.
+
+    ``rows`` are the ``_msg_to_dict`` serializations of ``messages[pre_step_len:]``
+    at cancellation time. Rules (each keeps replay valid on BOTH transports):
+
+    - assistant ``tool_calls`` are kept only when their ``arguments`` parse as
+      JSON (an interrupted openai-compat stream can leave truncated argument
+      deltas) and they carry an id; every kept call that has no real result row
+      in the segment gets a synthesized ``role:"tool"`` error result — Anthropic
+      rejects a replayed ``tool_use`` without a ``tool_result`` in the next user
+      message, and OpenAI equally requires a tool row per call id.
+    - partial ``reasoning_content`` without a ``reasoning_signature`` moves to
+      ``interrupted_reasoning`` (display-only): Anthropic thinking replay
+      rejects a thinking block whose signature is missing, and the signature is
+      only assigned at message_stop — which an interrupt never reached.
+    - an empty segment (cancelled before the first chunk) or an assistant row
+      with no content and no kept calls gets the neutral placeholder content so
+      the turn reads as closed (an empty assistant block would be rejected on
+      Anthropic replay, and a dangling user row would be re-answered on resume).
+    - every row is flagged ``interrupted: true`` — an extra key that survives in
+      the log for UI replay but is filtered out of the LLM context rebuild.
+    """
+    present_results = {
+        row.get('tool_call_id')
+        for row in rows if row.get('role') == 'tool' and row.get('tool_call_id')
+    }
+    records: List[Dict[str, Any]] = []
+    for row in rows:
+        rec = dict(row)
+        rec['interrupted'] = True
+        if rec.get('role') != 'assistant':
+            records.append(rec)
+            continue
+        kept_calls = []
+        for tc in rec.get('tool_calls') or []:
+            if not isinstance(tc, dict) or not tc.get('id'):
+                continue
+            args = tc.get('arguments')
+            if isinstance(args, dict):
+                kept_calls.append(tc)
+                continue
+            try:
+                json.loads(args or '')
+            except (TypeError, ValueError):
+                continue
+            kept_calls.append(tc)
+        if kept_calls:
+            rec['tool_calls'] = kept_calls
+        else:
+            rec.pop('tool_calls', None)
+        if rec.get('reasoning_content') and not rec.get('reasoning_signature'):
+            rec['interrupted_reasoning'] = rec.pop('reasoning_content')
+        if not rec.get('content') and not kept_calls:
+            rec['content'] = INTERRUPTED_PLACEHOLDER
+        records.append(rec)
+        for tc in kept_calls:
+            if tc.get('id') in present_results:
+                continue
+            records.append({
+                'role': 'tool',
+                'content': _INTERRUPTED_TOOL_RESULT,
+                'tool_call_id': tc.get('id'),
+                'name': tc.get('tool_name', ''),
+                'is_error': True,
+                'interrupted': True,
+            })
+    if not records:
+        records.append({
+            'role': 'assistant',
+            'content': INTERRUPTED_PLACEHOLDER,
+            'interrupted': True,
+        })
+    return records
 
 
 class LLMAgent(Agent):
@@ -213,8 +296,10 @@ class LLMAgent(Agent):
         self._skill_catalog.load_from_config(skills_config)
 
         prompt_injection = getattr(skills_config, 'prompt_injection', 'all')
+        update_notice = bool(getattr(skills_config, 'update_notice', False))
         self._skill_injector = SkillPromptInjector(
-            self._skill_catalog, prompt_injection=prompt_injection)
+            self._skill_catalog, prompt_injection=prompt_injection,
+            update_notice=update_notice)
 
         search_cfg = getattr(skills_config, 'search', None)
         search_backend = getattr(search_cfg, 'backend',
@@ -238,18 +323,10 @@ class LLMAgent(Agent):
         await skill_toolset.connect()
         self.tool_manager.register_tool(skill_toolset)
 
-        # Index the newly added tool into the live tool registry.
-        # We cannot call reindex_tool() because it would duplicate
-        # already-indexed tools; instead we index just this one.
-        tools = await skill_toolset.get_tools()
-        spliter = self.tool_manager.TOOL_SPLITER
-        for server_name, tool_list in tools.items():
-            for tool in tool_list:
-                key = f"{server_name}{spliter}{tool['tool_name']}"
-                tool = copy(tool)
-                tool['tool_name'] = key
-                self.tool_manager._tool_index[key] = (skill_toolset,
-                                                      server_name, tool)
+        # Index just this newly added tool into the live registry; a full
+        # reindex_tool() would re-touch already-indexed (and runtime-owned MCP)
+        # tools.
+        await self.tool_manager.index_extra_tool(skill_toolset)
 
         self._check_skill_tool_dependencies()
 
@@ -257,6 +334,10 @@ class LLMAgent(Agent):
             catalog=self._skill_catalog,
             injector=self._skill_injector,
         )
+        # Notice mode: the host announces skill changes inside the
+        # conversation, so the system prompt stays byte-stable per session
+        # (tail-only updates; prefix cache never breaks).
+        self._skill_runtime.head_refresh_enabled = not update_notice
         self._skill_runtime.set_system_content_builder(
             self._build_system_content)
         if getattr(self, '_plugin_runtime', None) is not None:
@@ -599,6 +680,7 @@ class LLMAgent(Agent):
                 resources=tool_call_result_format.resources,
                 tool_detail=tool_call_result_format.tool_detail,
                 hook_attachments=tool_call_result_format.hook_attachments,
+                is_error=tool_call_result_format.is_error,
             )
 
             if _new_message.tool_call_id is None:
@@ -881,6 +963,9 @@ class LLMAgent(Agent):
     # before the seam existed, so CLI output stays byte-identical.
 
     def _emit_reasoning_start(self) -> None:
+        # Wall-clock the reasoning stream so its elapsed time can be persisted
+        # (display/replay only — see handle_new_response + _msg_to_dict).
+        self._reasoning_started_at = time.monotonic()
         if self._event_sink is not None:
             self._event_sink.emit(ReasoningStarted())
         else:
@@ -893,6 +978,10 @@ class LLMAgent(Agent):
             self._write_reasoning(text, dim=True)
 
     def _emit_reasoning_end(self) -> None:
+        started = getattr(self, '_reasoning_started_at', None)
+        if started is not None:
+            self._last_reasoning_duration = round(time.monotonic() - started)
+            self._reasoning_started_at = None
         if self._event_sink is not None:
             self._event_sink.emit(ReasoningEnded())
         else:
@@ -1126,11 +1215,25 @@ class LLMAgent(Agent):
             orchestrator.set_llm(self.llm)
             orchestrator.init_update_queue()
 
+        # Tool-less backends (e.g. mem0: ingestion via on_messages, retrieval
+        # via inject) get neither the MemoryTool registration nor the usage
+        # prompt — injecting "use the memory tools" guidance without tools
+        # would mislead the model.
+        try:
+            has_tools = bool(orchestrator.get_tool_schemas())
+        except Exception:
+            has_tools = False
+        if not has_tools:
+            return
+
         # Register memory tool into the agent's tool system
         if self.tool_manager is not None:
             mem_tool = MemoryTool(self.config, orchestrator)
             self.tool_manager.register_tool(mem_tool)
-            await self.tool_manager.reindex_tool()
+            # Index only the new tool. A full reindex_tool() would re-list every
+            # MCP server, duplicating the runtime-owned MCP index and possibly
+            # resurfacing tools for disabled/degraded servers.
+            await self.tool_manager.index_extra_tool(mem_tool)
             logger.info('[unified_memory] Memory tool registered')
 
         # Inject usage guidance into system prompt
@@ -1393,6 +1496,15 @@ class LLMAgent(Agent):
                 and response_message.tool_calls):
             messages[-1].content = 'Let me do a tool calling.'
 
+        # Stamp the reasoning elapsed time onto the assistant message so it can
+        # be persisted for replay (display only — never re-enters the LLM, see
+        # _msg_to_dict; the attribute is not a dataclass field so to_dict_clean
+        # skips it). Cleared after use so it doesn't leak to the next message.
+        dur = getattr(self, '_last_reasoning_duration', None)
+        if dur is not None and getattr(response_message, 'reasoning_content', ''):
+            response_message._reasoning_duration = dur
+        self._last_reasoning_duration = None
+
     def _append_task_notifications(self,
                                    messages: List[Message]) -> List[Message]:
         """Inject drained TaskManager completion notices as a user message."""
@@ -1474,36 +1586,70 @@ class LLMAgent(Agent):
                 _response_message = None
                 _printed_reasoning_header = False
                 _printed_reasoning_footer = False
-                for _response_message in self.llm.generate(
-                        messages, tools=tools):
-                    if is_first:
-                        messages.append(_response_message)
-                        is_first = False
+                _gen = self.llm.generate(messages, tools=tools)
+                _loop = asyncio.get_running_loop()
+                _NO_MORE = object()
 
-                    if self.stream_output and self.show_reasoning:
-                        reasoning_text = (
-                            getattr(_response_message, 'reasoning_content', '')
-                            or '')
-                        # Some providers may reset / shorten content across chunks.
-                        if len(reasoning_text) < len(_reasoning):
-                            _reasoning = ''
-                        new_reasoning = reasoning_text[len(_reasoning):]
-                        if new_reasoning:
-                            if not _printed_reasoning_header:
-                                self._emit_reasoning_start()
-                                _printed_reasoning_header = True
-                            self._emit_reasoning_delta(new_reasoning)
-                            _reasoning = reasoning_text
+                def _next_chunk(_g=_gen):
+                    # Step the BLOCKING sync LLM stream off the event loop, so
+                    # each chunk flushes incrementally (SSE / UI) and the server
+                    # stays responsive during generation. Awaited sequentially,
+                    # so the generator is only ever touched by one thread at a
+                    # time. (Without this the whole event loop is frozen for the
+                    # entire generation and everything arrives at once.)
+                    try:
+                        return next(_g)
+                    except StopIteration:
+                        return _NO_MORE
 
-                    new_content = _response_message.content[len(_content):]
-                    if self.stream_output and new_content:
-                        if _printed_reasoning_header and not _printed_reasoning_footer:
-                            self._emit_reasoning_end()
-                            _printed_reasoning_footer = True
-                        self._emit_content(new_content)
-                    _content = _response_message.content
-                    messages[-1] = _response_message
-                    yield messages
+                try:
+                    while True:
+                        _chunk = await _loop.run_in_executor(None, _next_chunk)
+                        if _chunk is _NO_MORE:
+                            break
+                        _response_message = _chunk
+                        if is_first:
+                            messages.append(_response_message)
+                            is_first = False
+
+                        if self.stream_output and self.show_reasoning:
+                            reasoning_text = (
+                                getattr(_response_message, 'reasoning_content', '')
+                                or '')
+                            # Some providers may reset / shorten content across chunks.
+                            if len(reasoning_text) < len(_reasoning):
+                                _reasoning = ''
+                            new_reasoning = reasoning_text[len(_reasoning):]
+                            if new_reasoning:
+                                if not _printed_reasoning_header:
+                                    self._emit_reasoning_start()
+                                    _printed_reasoning_header = True
+                                self._emit_reasoning_delta(new_reasoning)
+                                _reasoning = reasoning_text
+
+                        new_content = _response_message.content[len(_content):]
+                        if self.stream_output and new_content:
+                            if _printed_reasoning_header and not _printed_reasoning_footer:
+                                self._emit_reasoning_end()
+                                _printed_reasoning_footer = True
+                            self._emit_content(new_content)
+                        _content = _response_message.content
+                        messages[-1] = _response_message
+                        yield messages
+                finally:
+                    # Turn abandoned mid-stream (client disconnect / stop): ask
+                    # the provider to close the live upstream response so the
+                    # server stops generating, instead of leaving it to run to
+                    # completion into a dropped connection. Only the data-driven
+                    # provider layer implements interrupt(); the legacy LLM does
+                    # not, so this is a no-op there (unchanged). Harmless on a
+                    # normal finish (the stream is already exhausted).
+                    _interrupt = getattr(self.llm, 'interrupt', None)
+                    if callable(_interrupt):
+                        try:
+                            _interrupt()
+                        except Exception:  # noqa: BLE001 - teardown never raises
+                            pass
                 if self.stream_output:
                     if _printed_reasoning_header and not _printed_reasoning_footer:
                         self._emit_reasoning_end()
@@ -1555,19 +1701,31 @@ class LLMAgent(Agent):
                                 tc.get('tool_name') or tc.get('name') or ''),
                             arguments=tc.get('arguments')))
             _tool_start = len(messages)
+            _tool_t0 = time.monotonic()
             messages = await self.parallel_tool_call(messages)
+            # Batch wall-clock: exact for the common single-tool round; for
+            # parallel multi-tool rounds it attributes the batch span to each
+            # (they ran concurrently within it). Stamp for persistence/replay
+            # regardless of sink, and report it live via ToolCallCompleted.
+            _tool_ms = int((time.monotonic() - _tool_t0) * 1000)
+            for m in messages[_tool_start:]:
+                if getattr(m, 'role', None) == 'tool':
+                    m._duration_ms = _tool_ms
             if self._event_sink is not None:
                 for m in messages[_tool_start:]:
                     if getattr(m, 'role', None) == 'tool':
-                        _content = (
-                            m.content
-                            if isinstance(m.content, str) else str(m.content))
+                        _content = (m.content if isinstance(m.content, str)
+                                    else str(m.content))
+                        _is_err = bool(getattr(m, 'is_error', False))
                         self._event_sink.emit(
                             ToolCallCompleted(
                                 call_id=str(
                                     getattr(m, 'tool_call_id', '') or ''),
                                 name=str(getattr(m, 'name', '') or ''),
-                                result=_content or ''))
+                                result=_content or '',
+                                error=(_content or 'tool call failed')
+                                if _is_err else None,
+                                duration_s=round(_tool_ms / 1000, 3)))
                         # todo/split_task tool results drive the plan panel.
                         _plan = self._extract_plan_from_tool_result(m)
                         if _plan is not None:
@@ -1595,7 +1753,12 @@ class LLMAgent(Agent):
             LLMAgent.LAST_COMPLETION_TOKENS = completion_tokens
             LLMAgent.LAST_REASONING_TOKENS = reasoning_tokens
 
-        await self.after_tool_call(messages)
+        # after_tool_call() is invoked by run_loop AFTER this step yields (not
+        # here): its interactive InputCallback blocks awaiting the next prompt,
+        # and step() is under @async_retry, so a quit/EOF here would re-run the
+        # step and re-generate/re-persist. Keeping it out of the retry scope lets
+        # run_loop persist this turn's assistant reply *before* the blocking read
+        # (fixes: last answer lost / resume re-answering the last user turn).
 
         # tokens in the current step
         self.log_output(
@@ -1780,6 +1943,22 @@ class LLMAgent(Agent):
             d['tool_call_id'] = msg.tool_call_id
         if hasattr(msg, 'name') and msg.name:
             d['name'] = msg.name
+        if getattr(msg, 'reasoning_content', ''):
+            d['reasoning_content'] = msg.reasoning_content
+            # Anthropic thinking blocks must be replayed verbatim (with their
+            # signature) in a tool follow-up, so both round-trip. OpenAI-compat
+            # transports drop reasoning via their input_msg allowlist, so this
+            # never re-enters an OpenAI-style call.
+            if getattr(msg, 'reasoning_signature', ''):
+                d['reasoning_signature'] = msg.reasoning_signature
+        # Display-only timings (stamped as plain attributes, not dataclass
+        # fields, so to_dict_clean/asdict never send them to the model).
+        if getattr(msg, '_reasoning_duration', None) is not None:
+            d['reasoning_duration'] = msg._reasoning_duration
+        if getattr(msg, '_duration_ms', None) is not None:
+            d['duration_ms'] = msg._duration_ms
+        if getattr(msg, 'is_error', False):
+            d['is_error'] = True
         prompt_tokens = int(getattr(msg, 'prompt_tokens', 0) or 0)
         completion_tokens = int(getattr(msg, 'completion_tokens', 0) or 0)
         if prompt_tokens:
@@ -1789,6 +1968,28 @@ class LLMAgent(Agent):
         if prompt_tokens or completion_tokens:
             d['tokens'] = prompt_tokens + completion_tokens
         return d
+
+    def _persist_partial_round(self, messages: List[Message],
+                               pre_step_len: int) -> None:
+        """Seal an interrupted round into the SessionLog (best-effort).
+
+        Called from run_loop's cancellation handler, where the normal
+        round-boundary persistence can no longer run. Serializes the round's
+        in-memory rows and appends the protocol-repaired records built by
+        :func:`build_partial_round_records`. Synchronous file I/O only (safe
+        inside a cancelled task); never raises — sealing must not break the
+        cancellation unwind.
+        """
+        if self.session_log is None:
+            return
+        try:
+            rows = [
+                self._msg_to_dict(msg) for msg in messages[pre_step_len:]
+            ]
+            for record in build_partial_round_records(rows):
+                self.session_log.append(record)
+        except Exception:
+            logger.warning('persist partial round failed', exc_info=True)
 
     async def run_loop(self, messages: Union[List[Message], str],
                        **kwargs) -> AsyncGenerator[Any, Any]:
@@ -1964,15 +2165,39 @@ class LLMAgent(Agent):
                 # Captured right before step() so only genuine step outputs are
                 # appended to the SessionLog (ephemeral injections are excluded).
                 pre_step_len = len(messages)
-                async for messages in self.step(messages):
-                    messages = self._apply_pending_rollback(messages)
-                    yield messages
+                try:
+                    async for messages in self.step(messages):
+                        messages = self._apply_pending_rollback(messages)
+                        yield messages
+                except (asyncio.CancelledError, GeneratorExit):
+                    # The turn was interrupted mid-round (task cancelled, or the
+                    # consumer closed the generator). Round persistence below
+                    # never runs, so faithfully seal what this round produced —
+                    # partial assistant text/reasoning, validated tool_calls
+                    # plus synthesized interrupted tool results — before the
+                    # cancellation unwinds. Sync file I/O only; must re-raise.
+                    self._persist_partial_round(messages, pre_step_len)
+                    raise
+
+                # Persist THIS round's step output (assistant + any tool
+                # messages) NOW — before after_tool_call below, whose interactive
+                # InputCallback blocks awaiting the next prompt. Without this a
+                # turn's assistant reply would only be persisted when the next
+                # turn starts (so a session's last answer is lost and resume
+                # re-answers the last user turn). after_tool_call runs here (not
+                # inside step) to stay outside step()'s @async_retry scope.
+                step_end_len = len(messages)
+                if self.session_log is not None:
+                    for msg in messages[pre_step_len:step_end_len]:
+                        self.session_log.append(self._msg_to_dict(msg))
+
+                await self.after_tool_call(messages)
                 self.runtime.round += 1
 
-                # Append new messages to SessionLog and persist the round
-                # counter (in the sidecar) so a later resume picks up here.
+                # Persist whatever after_tool_call appended (the next user
+                # message) and the round counter, so a later resume picks up here.
                 if self.session_log is not None:
-                    for msg in messages[pre_step_len:]:
+                    for msg in messages[step_end_len:]:
                         self.session_log.append(self._msg_to_dict(msg))
                     self.session_log.round = self.runtime.round
 
@@ -2010,8 +2235,24 @@ class LLMAgent(Agent):
 
             logger.warning(traceback.format_exc())
             if self._event_sink is not None:
-                self._event_sink.emit(
-                    ErrorRaised(message=f'{type(e).__name__}: {e}'))
+                # A run_loop turn-abort is non-recoverable (the turn produced no
+                # usable assistant output); mark it so live == persisted/replay.
+                self._event_sink.emit(ErrorRaised(
+                    message=f'{type(e).__name__}: {e}', recoverable=False))
+            # Persist the turn/API error as a display-only record. It is filtered
+            # out of get_all_messages(), so it never re-enters the LLM context on
+            # resume (unrecoverable), but history can replay that it happened.
+            if self.session_log is not None:
+                try:
+                    self.session_log.record_error({
+                        'message': f'{type(e).__name__}: {e}',
+                        'error_type': type(e).__name__,
+                        'recoverable': False,
+                        'round': self.runtime.round,
+                    })
+                    self.session_log.set_metadata_field('status', 'error')
+                except Exception:
+                    pass
             if hasattr(self.config, 'help'):
                 logger.error(
                     f'[{self.tag}] Runtime error, please follow the instructions:\n\n {self.config.help}'

@@ -43,6 +43,17 @@ TOOL_CALL_TIMEOUT_MAX = int(os.getenv('TOOL_CALL_TIMEOUT_MAX', 600))
 MAX_CONCURRENT_TOOLS = int(os.getenv('MAX_CONCURRENT_TOOLS', 20))
 
 
+def _tool_on(config, name: str) -> bool:
+    """Whether a builtin tool should load: its ``tools.<name>`` key is present AND
+    not explicitly disabled via ``tools.<name>.enabled: false``. Default
+    ``enabled=True`` leaves configs without the flag unchanged, while letting a
+    higher config layer turn a tool off (multi-level resolve)."""
+    if not (hasattr(config, 'tools') and hasattr(config.tools, name)):
+        return False
+    tool_cfg = getattr(config.tools, name, None)
+    return getattr(tool_cfg, 'enabled', True) is not False
+
+
 def parse_timeout_from_tool_args(
         tool_args: Optional[Dict[str, Any]]) -> Optional[float]:
     """Read ``tools.arguments.timeout`` if present (even when omitted from JSON schema).
@@ -132,7 +143,7 @@ class ToolManager:
         if hasattr(config, 'tools') and hasattr(config.tools,
                                                 'video_generator'):
             self.extra_tools.append(VideoGenerator(config))
-        if hasattr(config, 'tools') and hasattr(config.tools, 'file_system'):
+        if _tool_on(config, 'file_system'):
             self.extra_tools.append(
                 FileSystemTool(
                     config, trust_remote_code=self.trust_remote_code))
@@ -163,9 +174,9 @@ class ToolManager:
                 config, trust_remote_code=self.trust_remote_code)
             if agent_tool.enabled:
                 self.extra_tools.append(agent_tool)
-        if hasattr(config, 'tools') and hasattr(config.tools, 'todo_list'):
+        if _tool_on(config, 'todo_list'):
             self.extra_tools.append(TodoListTool(config))
-        if hasattr(config, 'tools') and hasattr(config.tools, 'web_search'):
+        if _tool_on(config, 'web_search'):
             self.extra_tools.append(WebSearchTool(config))
         if hasattr(config, 'tools') and hasattr(config.tools, 'cron'):
             cron_cfg = getattr(config.tools, 'cron', None)
@@ -174,7 +185,7 @@ class ToolManager:
                 self.extra_tools.append(CronTool(config))
         if effective_localsearch_settings(config) is not None:
             self.extra_tools.append(LocalSearchTool(config))
-        if hasattr(config, 'tools') and hasattr(config.tools, 'task_control'):
+        if _tool_on(config, 'task_control'):
             from ms_agent.tools.task_control_tool import TaskControlTool
             self.extra_tools.append(TaskControlTool(config))
         try:
@@ -301,8 +312,10 @@ class ToolManager:
                     f'failed to connect: {e}; disabling.'
                 )
 
-        if not self._skip_mcp_reindex:
-            await self.reindex_tool()
+        # reindex_tool() self-gates its MCP portion on _skip_mcp_reindex, so it
+        # is always safe to call here: extra tools get indexed in every path,
+        # while MCP indexing is left to the runtime when it owns it.
+        await self.reindex_tool()
 
         # Initialize concurrency limiter
         self._concurrent_limiter = asyncio.Semaphore(MAX_CONCURRENT_TOOLS)
@@ -352,6 +365,18 @@ class ToolManager:
             exc=exc,
         )
 
+    def _build_index_key(self, server_name: str, tool_name: str) -> str:
+        """Compose the registry key ``<server>---<tool>``.
+
+        The *server* segment is truncated (the tool segment is preserved) so the
+        whole key fits within ``MAX_TOOL_NAME_LEN``.
+        """
+        max_server_len = MAX_TOOL_NAME_LEN - len(tool_name) - len(
+            self.TOOL_SPLITER)
+        if len(server_name) > max_server_len:
+            server_name = server_name[:max(0, max_server_len)]
+        return f'{server_name}{self.TOOL_SPLITER}{tool_name}'
+
     def _extend_mcp_tool_index(
         self,
         tool_ins: ToolBase,
@@ -359,15 +384,21 @@ class ToolManager:
         tool_list: List[Tool],
     ) -> None:
         for tool in tool_list:
-            max_server_len = MAX_TOOL_NAME_LEN - len(tool['tool_name']) - len(
-                self.TOOL_SPLITER)
-            if len(server_name) > max_server_len:
-                key = (f'{server_name[:max(0, max_server_len)]}'
-                       f"{self.TOOL_SPLITER}{tool['tool_name']}")
-            else:
-                key = f"{server_name}{self.TOOL_SPLITER}{tool['tool_name']}"
-            assert key not in self._tool_index, (
-                f'Tool name duplicated {tool["tool_name"]}')
+            key = self._build_index_key(server_name, tool['tool_name'])
+            existing = self._tool_index.get(key)
+            if existing is not None:
+                # Re-adding the *same* server is expected and idempotent (both
+                # sync_mcp_tools and reindex_tool feed this method). A genuine
+                # collision — a *different* server truncated to the same key —
+                # is the real problem the old assert used to surface, so keep it
+                # visible with a warning rather than silently dropping a tool.
+                if existing[1] != server_name:
+                    logger.warning(
+                        'MCP tool key collision on %r: keeping server %r, '
+                        'ignoring %r (server names truncated to fit '
+                        'MAX_TOOL_NAME_LEN=%d)', key, existing[1], server_name,
+                        MAX_TOOL_NAME_LEN)
+                continue
             indexed = copy(tool)
             indexed['tool_name'] = key
             self._tool_index[key] = (tool_ins, server_name, indexed)
@@ -412,33 +443,42 @@ class ToolManager:
                                                 tool_list)
         return failures
 
-    async def reindex_tool(self):
+    async def index_extra_tool(self, tool_ins: ToolBase) -> None:
+        """Index a single already-registered extra tool into the live registry.
 
-        def extend_tool(tool_ins: ToolBase, server_name: str,
-                        tool_list: List[Tool]):
+        Unlike :meth:`reindex_tool` this never re-lists MCP servers, so it is
+        safe to call after startup — e.g. when ``load_memory`` registers the
+        unified-memory tool or ``prepare_skills`` registers the skill toolset —
+        without duplicating or resurfacing MCP entries owned by the runtime.
+        """
+        tools = await tool_ins.get_tools()
+        for server_name, tool_list in tools.items():
             for tool in tool_list:
-                # Subtract the length of the tool name splitter
-                max_server_len = MAX_TOOL_NAME_LEN - len(
-                    tool['tool_name']) - len(self.TOOL_SPLITER)
-                if len(server_name) > max_server_len:
-                    key = f"{server_name[:max(0, max_server_len)]}{self.TOOL_SPLITER}{tool['tool_name']}"
-                else:
-                    key = f"{server_name}{self.TOOL_SPLITER}{tool['tool_name']}"
-                if key in self._tool_index:
+                key = self._build_index_key(server_name, tool['tool_name'])
+                existing = self._tool_index.get(key)
+                if existing is not None:
+                    if existing[0] is not tool_ins or existing[1] != server_name:
+                        logger.warning(
+                            'Tool name collision on %r: keeping owner from %r, '
+                            'ignoring new from %r', key, existing[1],
+                            server_name)
                     continue
-                tool = copy(tool)
-                tool['tool_name'] = key
-                self._tool_index[key] = (tool_ins, server_name, tool)
+                indexed = copy(tool)
+                indexed['tool_name'] = key
+                self._tool_index[key] = (tool_ins, server_name, indexed)
 
-        if self.servers is not None:
+    async def reindex_tool(self):
+        # MCP indexing is owned by the MCP runtime (via sync_mcp_tools) whenever
+        # _skip_mcp_reindex is set; re-listing servers here would duplicate that
+        # work and could resurface tools for servers the runtime deliberately
+        # excluded (disabled/degraded). Extra tools are always (re)indexed.
+        if self.servers is not None and not self._skip_mcp_reindex:
             mcps = await self.servers.get_tools()
             for server_name, tool_list in mcps.items():
                 self._extend_mcp_tool_index(self.servers, server_name,
                                             tool_list)
         for extra_tool in self.extra_tools:
-            tools = await extra_tool.get_tools()
-            for server_name, tool_list in tools.items():
-                extend_tool(extra_tool, server_name, tool_list)
+            await self.index_extra_tool(extra_tool)
 
     async def get_tools(self):
         # Return tools in deterministic order to improve prompt/prefix cache hit rate
@@ -498,16 +538,19 @@ class ToolManager:
                     safety_decision = self._safety_guard.check(
                         tool_name, args_dict)
                     if safety_decision.action == 'deny':
-                        return f'Blocked by safety policy: {safety_decision.reason}'
+                        return {'result': f'Blocked by safety policy: {safety_decision.reason}',
+                                'is_error': True}
                     if safety_decision.action == 'ask':
                         resolved = resolve_ask(safety_decision,
                                                self._permission_mode,
                                                self._read_policy)
                         if resolved.action == 'deny':
-                            return f'Blocked by safety policy: {resolved.reason}'
+                            return {'result': f'Blocked by safety policy: {resolved.reason}',
+                                    'is_error': True}
                         if resolved.action == 'ask':
                             if self._permission_enforcer is None:
-                                return f'Blocked by safety policy (requires confirmation): {resolved.reason}'
+                                return {'result': f'Blocked by safety policy (requires confirmation): {resolved.reason}',
+                                        'is_error': True}
                             # interactive mode: force the enforcer to confirm with
                             # the user; whitelist/memory must not bypass a safety
                             # ask (REVIEW P1-2).
@@ -544,11 +587,15 @@ class ToolManager:
                     permission_config=self._permission_config,
                     hook_runtime=self._hook_runtime,
                     force_decision=safety_force_decision,
+                    # Thread the tool_call id so the handler can correlate its
+                    # decision to the exact call (parallel calls in one round).
+                    call_id=str(tool_info.get('id') or ''),
                 )
                 if isinstance(perm_out, str):
                     return perm_out
                 if perm_out.action == 'deny':
-                    return f'Tool call denied: {perm_out.reason}'
+                    return {'result': f'Tool call denied: {perm_out.reason}',
+                            'is_error': True}
                 if perm_out.updated_args is not None:
                     tool_args = perm_out.updated_args
                     tool_info['arguments'] = tool_args
@@ -639,17 +686,19 @@ class ToolManager:
                             tool_info.get('tool_name', ''), self.TOOL_SPLITER),
                         exc=asyncio.TimeoutError(timeout_msg),
                     )
-                return json.dumps({
-                    'success': False,
-                    'error': 'timeout',
-                    'tool_name': tn,
-                    'message': timeout_msg,
-                    'recovery_hint': (
-                        'The tool took too long. Try: (1) add "timeout" field with a larger value in seconds '
-                        f'(max {self.tool_call_timeout_max:.0f}s), (2) break the task into smaller steps, '
-                        'or (3) simplify the command/input.'
-                    ),
-                }, ensure_ascii=False)
+                # Keep the structured {result, is_error} shape the tool-result
+                # parser (llm/utils.py) and the webui error marking rely on, while
+                # folding in upstream #917's recovery guidance as result text.
+                return {
+                    'result':
+                    (f'{timeout_msg}\n'
+                     'Recovery: (1) add a "timeout" field with a larger value in '
+                     f'seconds (max {self.tool_call_timeout_max:.0f}s), (2) break '
+                     'the task into smaller steps, or (3) simplify the command/input.'
+                     ),
+                    'is_error':
+                    True,
+                }
             except Exception as e:
                 import traceback
                 tb_str = traceback.format_exc()
@@ -668,20 +717,21 @@ class ToolManager:
                             tool_info.get('tool_name', ''), self.TOOL_SPLITER),
                         exc=e,
                     )
-                return json.dumps({
-                    'success': False,
-                    'error': exc_type_name,
-                    'tool_name': tn,
-                    'message': f'{exc_type_name}: {exc_msg}',
-                    'call_info': brief_info,
-                    'traceback_tail': tb_tail,
-                    'recovery_hint': (
-                        f'The tool "{tn}" raised {exc_type_name}. '
-                        'Review the error and traceback above, check your input parameters, '
-                        'verify prerequisites (files, dependencies, running services), '
-                        'and retry with corrected arguments or a different approach.'
-                    ),
-                }, ensure_ascii=False, default=str)
+                # Keep our structured {result, is_error} shape; carry upstream
+                # #917's richer diagnostics (type, message, call info, traceback
+                # tail, recovery hint) inside the result text the model reads.
+                return {
+                    'result':
+                    (f'Tool "{tn}" raised {exc_type_name}: {exc_msg}\n'
+                     f'Call (truncated): {brief_info}\n'
+                     f'Traceback (tail):\n{tb_tail}\n'
+                     'Recovery: review the error and traceback above, check your '
+                     'input parameters, verify prerequisites (files, dependencies, '
+                     'running services), and retry with corrected arguments or a '
+                     'different approach.'),
+                    'is_error':
+                    True,
+                }
 
     async def parallel_call_tool(self, tool_list: List[ToolCall]):
         tasks = [self.single_call_tool(tool) for tool in tool_list]
