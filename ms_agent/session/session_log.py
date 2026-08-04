@@ -94,6 +94,81 @@ class SessionLog:
         }
         self._append_line(record)
 
+    def record_error(self, event: Dict[str, Any]) -> None:
+        """Record an error event — a non-message, display-only marker.
+
+        Like ``record_compaction``, this appends a ``_type``-tagged record that
+        ``get_all_messages`` filters out, so the error is preserved for history
+        replay but never re-enters the LLM context on resume.  Use it for
+        turn-level / API errors that must NOT go back to the model (tool-call
+        errors stay as ordinary ``role="tool"`` messages instead).  ``event``
+        typically carries ``message``, ``error_type``, ``recoverable``, ``round``.
+        """
+        seq = self._next_seq()
+        record = {
+            "_type": "error",
+            "seq": seq,
+            "timestamp": datetime.now(timezone.utc).isoformat(),
+            **event,
+        }
+        self._append_line(record)
+
+    def record_loop_end(self, event: Dict[str, Any]) -> None:
+        """Record a tool-call-loop boundary — a non-message, display-only marker.
+
+        Written when a turn's tool-call loop finishes (the final assistant
+        message with no further tool calls). Like the other ``_type``-tagged
+        markers it is filtered out of ``get_all_messages`` (never re-enters the
+        LLM context), but lets history replay reproduce the live "loop done"
+        summary — most importantly the wall-clock ``duration_ms``, which is not
+        otherwise derivable from the log. ``event`` typically carries
+        ``duration_ms`` and ``changed_files``.
+        """
+        seq = self._next_seq()
+        record = {
+            "_type": "loop_end",
+            "seq": seq,
+            "timestamp": datetime.now(timezone.utc).isoformat(),
+            **event,
+        }
+        self._append_line(record)
+
+    def record_permission(self, event: Dict[str, Any]) -> None:
+        """Record a permission decision — a non-message, display-only marker.
+
+        Like ``record_error``, this appends a ``_type``-tagged record that
+        ``get_all_messages`` filters out, so a restricted-mode authorization
+        (asked and resolved to approve/deny) is preserved for history replay
+        but never re-enters the LLM context on resume.  ``event`` typically
+        carries ``tool_name``, ``arguments``, ``state`` (approved|rejected).
+        """
+        seq = self._next_seq()
+        record = {
+            "_type": "permission",
+            "seq": seq,
+            "timestamp": datetime.now(timezone.utc).isoformat(),
+            **event,
+        }
+        self._append_line(record)
+
+    def record_skill_invocation(self, event: Dict[str, Any]) -> None:
+        """Record a slash-skill invocation — a display-only marker.
+
+        A consumer that expands ``/skill`` into the full skill prompt persists
+        the ENRICHED text as the user row (that is what the model must see on
+        resume). This marker preserves what the user actually typed so history
+        replay can show the original message instead of the expanded wrapper.
+        ``event`` typically carries ``original_text`` and ``skill_ids``.
+        """
+        seq = self._next_seq()
+        record = {
+            "_type": "skill_invocation",
+            "seq": seq,
+            "timestamp": datetime.now(timezone.utc).isoformat(),
+            **event,
+        }
+        self._append_line(record)
+
     # ------------------------------------------------------------------
     # Read path
     # ------------------------------------------------------------------
@@ -131,7 +206,9 @@ class SessionLog:
                 record = json.loads(line)
             except json.JSONDecodeError:
                 continue
-            if record.get('_type') in ('metadata', 'compaction_event'):
+            if record.get("_type") in (
+                    "metadata", "compaction_event", "error", "permission",
+                    "skill_invocation", "loop_end"):
                 continue
             msgs.append(record)
         self._messages = msgs
@@ -171,6 +248,89 @@ class SessionLog:
             if record.get('_type') == 'compaction_event':
                 events.append(record)
         return events
+
+    def get_errors(self) -> List[Dict[str, Any]]:
+        """All error records in chronological order (each keeps its ``seq``).
+
+        These are excluded from ``get_all_messages`` (and thus the LLM context);
+        a UI can merge them back by ``seq`` to replay *when* errors occurred.
+        """
+        errors: List[Dict[str, Any]] = []
+        if not self._path.exists():
+            return errors
+        for line in self._path.read_text(encoding="utf-8").splitlines():
+            line = line.strip()
+            if not line:
+                continue
+            try:
+                record = json.loads(line)
+            except json.JSONDecodeError:
+                continue
+            if record.get("_type") == "error":
+                errors.append(record)
+        return errors
+
+    def get_permissions(self) -> List[Dict[str, Any]]:
+        """All permission-decision records in chronological order (each keeps
+        its ``seq``).  Excluded from ``get_all_messages`` (and the LLM context);
+        a UI merges them back by ``seq`` to replay authorization cards.
+        """
+        perms: List[Dict[str, Any]] = []
+        if not self._path.exists():
+            return perms
+        for line in self._path.read_text(encoding="utf-8").splitlines():
+            line = line.strip()
+            if not line:
+                continue
+            try:
+                record = json.loads(line)
+            except json.JSONDecodeError:
+                continue
+            if record.get("_type") == "permission":
+                perms.append(record)
+        return perms
+
+    def get_loop_ends(self) -> List[Dict[str, Any]]:
+        """All tool-call-loop boundary markers in chronological order (each
+        keeps its ``seq``).  Excluded from ``get_all_messages`` (and the LLM
+        context); a UI merges them back by ``seq`` to reproduce the per-loop
+        "done" summary (duration + changed files) on history replay.
+        """
+        out: List[Dict[str, Any]] = []
+        if not self._path.exists():
+            return out
+        for line in self._path.read_text(encoding="utf-8").splitlines():
+            line = line.strip()
+            if not line:
+                continue
+            try:
+                record = json.loads(line)
+            except json.JSONDecodeError:
+                continue
+            if record.get("_type") == "loop_end":
+                out.append(record)
+        return out
+
+    def get_skill_invocations(self) -> List[Dict[str, Any]]:
+        """All slash-skill invocation markers in chronological order (each
+        keeps its ``seq``).  Excluded from ``get_all_messages`` (and the LLM
+        context); a UI matches each to the user row that follows it by ``seq``
+        to display the original typed text instead of the expanded prompt.
+        """
+        out: List[Dict[str, Any]] = []
+        if not self._path.exists():
+            return out
+        for line in self._path.read_text(encoding="utf-8").splitlines():
+            line = line.strip()
+            if not line:
+                continue
+            try:
+                record = json.loads(line)
+            except json.JSONDecodeError:
+                continue
+            if record.get("_type") == "skill_invocation":
+                out.append(record)
+        return out
 
     def get_metadata(self) -> Dict[str, Any]:
         """Session metadata (title, created_at, status, counts, etc.)."""

@@ -179,20 +179,41 @@ def _slice_visible(all_msgs: List[Dict[str, Any]],
     return []
 
 
+# Legacy placeholder: pre-fix logs filled a tool-call-only assistant turn with
+# this synthetic string to keep the message non-empty. It is framework filler,
+# never model output. New logs no longer write it, but existing session logs on
+# disk still carry it — it must be stripped on restore so it never re-enters the
+# model context (a fake assistant utterance the model would otherwise imitate).
+_LEGACY_TOOLCALL_PLACEHOLDER = 'Let me do a tool calling.'
+
+
 def _dicts_to_messages(dicts: List[Dict[str, Any]]) -> List[Message]:
     result: List[Message] = []
     for d in dicts:
         if isinstance(d, Message):
             result.append(d)
         elif isinstance(d, dict):
-            result.append(
-                Message(
-                    role=d.get('role', 'user'),
-                    content=d.get('content', ''),
-                    tool_calls=d.get('tool_calls'),
-                    tool_call_id=d.get('tool_call_id'),
-                    name=d.get('name'),
-                ))
+            content = d.get("content", "")
+            # Strip the legacy placeholder from OLD logs — but only when the row
+            # actually carries tool_calls (the only case it was ever injected),
+            # so a genuine reply equal to the literal is left untouched. The
+            # blank tool-call turn then serializes to the canonical empty form
+            # (OpenAI: content null; Anthropic: tool_use with no text block).
+            if content == _LEGACY_TOOLCALL_PLACEHOLDER and d.get("tool_calls"):
+                content = ""
+            result.append(Message(
+                role=d.get("role", "user"),
+                content=content,
+                tool_calls=d.get("tool_calls"),
+                tool_call_id=d.get("tool_call_id"),
+                name=d.get("name"),
+                # Carry reasoning + its signature back into the assembled
+                # context. OpenAI-compat transports filter these out (not in
+                # their input_msg allowlist), so only the Anthropic transport
+                # replays them — required for its thinking-mode tool follow-ups.
+                reasoning_content=d.get("reasoning_content", "") or "",
+                reasoning_signature=d.get("reasoning_signature", "") or "",
+            ))
         else:
             result.append(Message(role='user', content=str(d)))
     return result

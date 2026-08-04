@@ -60,6 +60,7 @@ async def resolve_hook_permission_decision(
     permission_config: PermissionConfig | None,
     hook_runtime: HookRuntime | None = None,
     force_decision: PermissionDecision | None = None,
+    call_id: str = '',
 ) -> PermissionDecision | str:
     # ``force_decision`` carries a SafetyGuard ``ask`` (interactive): it must
     # reach the handler even when whitelist/memory would otherwise allow, so a
@@ -80,7 +81,8 @@ async def resolve_hook_permission_decision(
             if rule and rule.action == 'ask':
                 if permission_enforcer:
                     return await permission_enforcer.check(
-                        tool_name, args, force_decision=rule)
+                        tool_name, args, force_decision=rule,
+                        call_id=call_id)
         return PermissionDecision(
             action='allow',
             reason=hook_result.reason or 'Allowed by PreToolUse hook',
@@ -93,6 +95,7 @@ async def resolve_hook_permission_decision(
                 args,
                 force_decision=PermissionDecision(
                     action='ask', reason=hook_result.reason),
+                call_id=call_id,
             )
 
     pr = await _run_permission_request_hook(hook_runtime, tool_name, args,
@@ -103,10 +106,12 @@ async def resolve_hook_permission_decision(
         return await permission_enforcer.check(
             tool_name,
             args,
-            force_decision=PermissionDecision(action='ask', reason=pr.reason),
+            force_decision=PermissionDecision(
+                action='ask', reason=pr.reason),
+            call_id=call_id,
         )
 
     if permission_enforcer:
         return await permission_enforcer.check(
-            tool_name, args, force_decision=force_decision)
+            tool_name, args, force_decision=force_decision, call_id=call_id)
     return PermissionDecision(action='allow', reason='No permission enforcer')

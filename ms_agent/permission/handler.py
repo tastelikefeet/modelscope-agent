@@ -41,8 +41,8 @@ class PermissionHandler(Protocol):
         tool_args: dict[str, Any],
         context: str,
         suggestions: list[str] | None = None,
-    ) -> PermissionResponse:
-        ...
+        call_id: str = '',
+    ) -> PermissionResponse: ...
 
 
 class AutoPermissionHandler:
@@ -54,6 +54,7 @@ class AutoPermissionHandler:
         tool_args: dict[str, Any],
         context: str,
         suggestions: list[str] | None = None,
+        call_id: str = '',
     ) -> PermissionResponse:
         return PermissionResponse(action=PermissionAction.ALLOW_ONCE)
 
@@ -67,6 +68,7 @@ class CLIPermissionHandler:
         tool_args: dict[str, Any],
         context: str,
         suggestions: list[str] | None = None,
+        call_id: str = '',
     ) -> PermissionResponse:
         args_display = json.dumps(tool_args, ensure_ascii=False, indent=2)
         if len(args_display) > 500:
@@ -153,6 +155,7 @@ class WebPermissionHandler:
         tool_args: dict[str, Any],
         context: str,
         suggestions: list[str] | None = None,
+        call_id: str = '',
     ) -> PermissionResponse:
         request_id = uuid4().hex
         loop = asyncio.get_running_loop()
@@ -160,18 +163,13 @@ class WebPermissionHandler:
         self._pending[request_id] = future
 
         self._event_emitter.emit({
-            'type':
-            'permission_request',
-            'request_id':
-            request_id,
-            'tool_name':
-            tool_name,
-            'tool_args':
-            tool_args,
-            'context':
-            context,
-            'suggestions':
-            suggestions or [],
+            'type': 'permission_request',
+            'request_id': request_id,
+            'call_id': call_id,
+            'tool_name': tool_name,
+            'tool_args': tool_args,
+            'context': context,
+            'suggestions': suggestions or [],
             'options': [a.value for a in PermissionAction],
         })
 
