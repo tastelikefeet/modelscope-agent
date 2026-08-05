@@ -11,7 +11,8 @@ import getpass
 import os
 import sys
 import zipfile
-from modelscope_hub.agent import AgentApi
+from modelscope_hub.agent import (AgentApi, agent_last_modified,
+                                  agent_visibility_label)
 from modelscope_hub.errors import APIError
 from pathlib import Path
 
@@ -1454,9 +1455,8 @@ def cmd_list(
         repo_name = item.get('Name') or item.get('name') or ''
         repo_id = f'{owner_name}/{repo_name}' if owner_name else repo_name
         fw = item.get('Framework') or item.get('framework') or '-'
-        vis = item.get('Visibility') or item.get('visibility') or '-'
-        updated = item.get('GmtModified') or item.get(
-            'LastUpdatedDate') or item.get('last_updated_date') or '-'
+        vis = agent_visibility_label(item)
+        updated = agent_last_modified(item)
         if isinstance(updated, str) and 'T' in updated:
             updated = updated.split('T')[0]
         rows.append((repo_id, fw, vis, updated))

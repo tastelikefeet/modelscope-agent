@@ -106,9 +106,9 @@ class SessionLog:
         """
         seq = self._next_seq()
         record = {
-            "_type": "error",
-            "seq": seq,
-            "timestamp": datetime.now(timezone.utc).isoformat(),
+            '_type': 'error',
+            'seq': seq,
+            'timestamp': datetime.now(timezone.utc).isoformat(),
             **event,
         }
         self._append_line(record)
@@ -126,9 +126,9 @@ class SessionLog:
         """
         seq = self._next_seq()
         record = {
-            "_type": "loop_end",
-            "seq": seq,
-            "timestamp": datetime.now(timezone.utc).isoformat(),
+            '_type': 'loop_end',
+            'seq': seq,
+            'timestamp': datetime.now(timezone.utc).isoformat(),
             **event,
         }
         self._append_line(record)
@@ -144,9 +144,9 @@ class SessionLog:
         """
         seq = self._next_seq()
         record = {
-            "_type": "permission",
-            "seq": seq,
-            "timestamp": datetime.now(timezone.utc).isoformat(),
+            '_type': 'permission',
+            'seq': seq,
+            'timestamp': datetime.now(timezone.utc).isoformat(),
             **event,
         }
         self._append_line(record)
@@ -162,9 +162,9 @@ class SessionLog:
         """
         seq = self._next_seq()
         record = {
-            "_type": "skill_invocation",
-            "seq": seq,
-            "timestamp": datetime.now(timezone.utc).isoformat(),
+            '_type': 'skill_invocation',
+            'seq': seq,
+            'timestamp': datetime.now(timezone.utc).isoformat(),
             **event,
         }
         self._append_line(record)
@@ -206,9 +206,9 @@ class SessionLog:
                 record = json.loads(line)
             except json.JSONDecodeError:
                 continue
-            if record.get("_type") in (
-                    "metadata", "compaction_event", "error", "permission",
-                    "skill_invocation", "loop_end"):
+            if record.get('_type') in ('metadata', 'compaction_event', 'error',
+                                       'permission', 'skill_invocation',
+                                       'loop_end'):
                 continue
             msgs.append(record)
         self._messages = msgs
@@ -258,7 +258,7 @@ class SessionLog:
         errors: List[Dict[str, Any]] = []
         if not self._path.exists():
             return errors
-        for line in self._path.read_text(encoding="utf-8").splitlines():
+        for line in self._path.read_text(encoding='utf-8').splitlines():
             line = line.strip()
             if not line:
                 continue
@@ -266,7 +266,7 @@ class SessionLog:
                 record = json.loads(line)
             except json.JSONDecodeError:
                 continue
-            if record.get("_type") == "error":
+            if record.get('_type') == 'error':
                 errors.append(record)
         return errors
 
@@ -278,7 +278,7 @@ class SessionLog:
         perms: List[Dict[str, Any]] = []
         if not self._path.exists():
             return perms
-        for line in self._path.read_text(encoding="utf-8").splitlines():
+        for line in self._path.read_text(encoding='utf-8').splitlines():
             line = line.strip()
             if not line:
                 continue
@@ -286,7 +286,7 @@ class SessionLog:
                 record = json.loads(line)
             except json.JSONDecodeError:
                 continue
-            if record.get("_type") == "permission":
+            if record.get('_type') == 'permission':
                 perms.append(record)
         return perms
 
@@ -299,7 +299,7 @@ class SessionLog:
         out: List[Dict[str, Any]] = []
         if not self._path.exists():
             return out
-        for line in self._path.read_text(encoding="utf-8").splitlines():
+        for line in self._path.read_text(encoding='utf-8').splitlines():
             line = line.strip()
             if not line:
                 continue
@@ -307,7 +307,7 @@ class SessionLog:
                 record = json.loads(line)
             except json.JSONDecodeError:
                 continue
-            if record.get("_type") == "loop_end":
+            if record.get('_type') == 'loop_end':
                 out.append(record)
         return out
 
@@ -320,7 +320,7 @@ class SessionLog:
         out: List[Dict[str, Any]] = []
         if not self._path.exists():
             return out
-        for line in self._path.read_text(encoding="utf-8").splitlines():
+        for line in self._path.read_text(encoding='utf-8').splitlines():
             line = line.strip()
             if not line:
                 continue
@@ -328,7 +328,7 @@ class SessionLog:
                 record = json.loads(line)
             except json.JSONDecodeError:
                 continue
-            if record.get("_type") == "skill_invocation":
+            if record.get('_type') == 'skill_invocation':
                 out.append(record)
         return out
 

@@ -1,4 +1,5 @@
 from __future__ import annotations
+
 # Copyright (c) ModelScope Contributors. All rights reserved.
 import asyncio
 import importlib
@@ -59,7 +60,8 @@ INTERRUPTED_PLACEHOLDER = '[interrupted]'
 _INTERRUPTED_TOOL_RESULT = '[Interrupted: tool execution was cancelled]'
 
 
-def build_partial_round_records(rows: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+def build_partial_round_records(
+        rows: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
     """Turn an interrupted round's in-memory rows into protocol-valid log records.
 
     ``rows`` are the ``_msg_to_dict`` serializations of ``messages[pre_step_len:]``
@@ -84,7 +86,8 @@ def build_partial_round_records(rows: List[Dict[str, Any]]) -> List[Dict[str, An
     """
     present_results = {
         row.get('tool_call_id')
-        for row in rows if row.get('role') == 'tool' and row.get('tool_call_id')
+        for row in rows
+        if row.get('role') == 'tool' and row.get('tool_call_id')
     }
     records: List[Dict[str, Any]] = []
     for row in rows:
@@ -305,7 +308,8 @@ class LLMAgent(Agent):
         prompt_injection = getattr(skills_config, 'prompt_injection', 'all')
         update_notice = bool(getattr(skills_config, 'update_notice', False))
         self._skill_injector = SkillPromptInjector(
-            self._skill_catalog, prompt_injection=prompt_injection,
+            self._skill_catalog,
+            prompt_injection=prompt_injection,
             update_notice=update_notice)
 
         search_cfg = getattr(skills_config, 'search', None)
@@ -1512,7 +1516,8 @@ class LLMAgent(Agent):
         # _msg_to_dict; the attribute is not a dataclass field so to_dict_clean
         # skips it). Cleared after use so it doesn't leak to the next message.
         dur = getattr(self, '_last_reasoning_duration', None)
-        if dur is not None and getattr(response_message, 'reasoning_content', ''):
+        if dur is not None and getattr(response_message, 'reasoning_content',
+                                       ''):
             response_message._reasoning_duration = dur
         self._last_reasoning_duration = None
 
@@ -1625,8 +1630,8 @@ class LLMAgent(Agent):
 
                         if self.stream_output and self.show_reasoning:
                             reasoning_text = (
-                                getattr(_response_message, 'reasoning_content', '')
-                                or '')
+                                getattr(_response_message, 'reasoning_content',
+                                        '') or '')
                             # Some providers may reset / shorten content across chunks.
                             if len(reasoning_text) < len(_reasoning):
                                 _reasoning = ''
@@ -1725,8 +1730,9 @@ class LLMAgent(Agent):
             if self._event_sink is not None:
                 for m in messages[_tool_start:]:
                     if getattr(m, 'role', None) == 'tool':
-                        _content = (m.content if isinstance(m.content, str)
-                                    else str(m.content))
+                        _content = (
+                            m.content
+                            if isinstance(m.content, str) else str(m.content))
                         _is_err = bool(getattr(m, 'is_error', False))
                         self._event_sink.emit(
                             ToolCallCompleted(
@@ -2015,9 +2021,7 @@ class LLMAgent(Agent):
                     msg._reasoning_duration = dur
                     break
         try:
-            rows = [
-                self._msg_to_dict(msg) for msg in messages[pre_step_len:]
-            ]
+            rows = [self._msg_to_dict(msg) for msg in messages[pre_step_len:]]
             for record in build_partial_round_records(rows):
                 self.session_log.append(record)
         except Exception:
@@ -2269,8 +2273,9 @@ class LLMAgent(Agent):
             if self._event_sink is not None:
                 # A run_loop turn-abort is non-recoverable (the turn produced no
                 # usable assistant output); mark it so live == persisted/replay.
-                self._event_sink.emit(ErrorRaised(
-                    message=f'{type(e).__name__}: {e}', recoverable=False))
+                self._event_sink.emit(
+                    ErrorRaised(
+                        message=f'{type(e).__name__}: {e}', recoverable=False))
             # Persist the turn/API error as a display-only record. It is filtered
             # out of get_all_messages(), so it never re-enters the LLM context on
             # resume (unrecoverable), but history can replay that it happened.

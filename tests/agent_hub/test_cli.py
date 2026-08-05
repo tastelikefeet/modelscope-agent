@@ -410,6 +410,87 @@ class TestUploadCmd(unittest.TestCase):
         client = _StubClient.instances[0]
         self.assertEqual(client.created_visibility, ["private"])
 
+    def test_create_repo_sends_boolean_private_not_visibility(self):
+        """The agent API takes a boolean ``private`` (inverted), not the old
+        ``visibility`` string: a string is rejected 400 by the server, and a
+        missing field silently defaults to public. The caller-facing label
+        stays ``public``/``private`` on purpose."""
+        from modelscope_hub.agent import AgentApi
+
+        sent = {}
+
+        class _FakeOpenApi:
+
+            def request(self, method, path=None, **kw):
+                sent.clear()
+                sent.update(kw.get("json_body") or {})
+                return {}
+
+        api = AgentApi.__new__(AgentApi)
+        api._openapi = _FakeOpenApi()
+
+        AgentApi.create_repo(api, "grp", "a", visibility="private")
+        self.assertEqual(sent["private"], True)
+        self.assertNotIn("visibility", sent)
+
+        AgentApi.create_repo(api, "grp", "b")  # default public
+        self.assertEqual(sent["private"], False)
+        self.assertIsInstance(sent["private"], bool)
+        self.assertNotIn("visibility", sent)
+
+        with self.assertRaises(ValueError):
+            AgentApi.create_repo(api, "grp", "c", visibility="Public")
+
+    def test_agent_field_readers_handle_renamed_and_legacy_keys(self):
+        """``private`` is an INVERTED boolean, so ``private=False`` (public)
+        must not be swallowed by a falsy ``or``-chain; renamed download/time
+        fields and the legacy spellings are both accepted."""
+        from modelscope_hub.agent import (agent_downloads, agent_last_modified,
+                                          agent_logo_url,
+                                          agent_visibility_label)
+        self.assertEqual(agent_visibility_label({"private": False}), "public")
+        self.assertEqual(agent_visibility_label({"Private": False}), "public")
+        self.assertEqual(agent_visibility_label({"private": True}), "private")
+        self.assertEqual(agent_visibility_label({"Private": True}), "private")
+        # legacy servers still send the string form, in any casing / with
+        # padding / as the int enum or its numeric string
+        self.assertEqual(
+            agent_visibility_label({"Visibility": "private"}), "private")
+        self.assertEqual(
+            agent_visibility_label({"Visibility": "Public"}), "public")
+        self.assertEqual(
+            agent_visibility_label({"visibility": "PRIVATE"}), "private")
+        self.assertEqual(
+            agent_visibility_label({"Visibility": "  public  "}), "public")
+        self.assertEqual(agent_visibility_label({"Visibility": 5}), "public")
+        self.assertEqual(agent_visibility_label({"Visibility": 1}), "private")
+        self.assertEqual(agent_visibility_label({"Visibility": "5"}), "public")
+        # new field wins over a stale legacy one
+        self.assertEqual(
+            agent_visibility_label({"private": False, "Visibility": "private"}),
+            "public")
+        # unknown / empty values are never guessed into "private"
+        self.assertEqual(agent_visibility_label({"Visibility": "weird"}),
+                         "weird")
+        self.assertEqual(agent_visibility_label({"Visibility": ""}), "-")
+        self.assertEqual(agent_visibility_label({}), "-")
+
+        self.assertEqual(
+            agent_last_modified({"LastModified": "2026-07-16T10:30:00Z"}),
+            "2026-07-16T10:30:00Z")
+        self.assertEqual(
+            agent_last_modified({"GmtModified": "2026-07-16T18:30:00+08:00"}),
+            "2026-07-16T18:30:00+08:00")
+        self.assertEqual(agent_last_modified({}), "-")
+
+        self.assertEqual(agent_downloads({"Downloads": 42}), 42)
+        self.assertEqual(agent_downloads({"DownloadCount": 7}), 7)
+        self.assertEqual(agent_downloads({}), 0)
+
+        self.assertEqual(agent_logo_url({"LogoUrl": "u"}), "u")
+        self.assertEqual(agent_logo_url({"logo": "old"}), "old")
+        self.assertEqual(agent_logo_url({}), "")
+
     @mock.patch("ms_agent.agent_hub._commands.AgentApi", _StubClient)
     def test_upload_global_only_no_agents_dir(self):
         """When no agents/ directory exists, upload only shared (global) files."""
