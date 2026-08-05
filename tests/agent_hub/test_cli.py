@@ -443,10 +443,9 @@ class TestUploadCmd(unittest.TestCase):
 
     def test_agent_field_readers_handle_renamed_and_legacy_keys(self):
         """``private`` is an INVERTED boolean, so ``private=False`` (public)
-        must not be swallowed by a falsy ``or``-chain; renamed download/time
-        fields and the legacy spellings are both accepted."""
-        from modelscope_hub.agent import (agent_downloads, agent_last_modified,
-                                          agent_logo_url,
+        must not be swallowed by a falsy ``or``-chain; the renamed time field
+        and the legacy spellings are both accepted."""
+        from modelscope_hub.agent import (agent_last_modified,
                                           agent_visibility_label)
         self.assertEqual(agent_visibility_label({"private": False}), "public")
         self.assertEqual(agent_visibility_label({"Private": False}), "public")
@@ -482,14 +481,6 @@ class TestUploadCmd(unittest.TestCase):
             agent_last_modified({"GmtModified": "2026-07-16T18:30:00+08:00"}),
             "2026-07-16T18:30:00+08:00")
         self.assertEqual(agent_last_modified({}), "-")
-
-        self.assertEqual(agent_downloads({"Downloads": 42}), 42)
-        self.assertEqual(agent_downloads({"DownloadCount": 7}), 7)
-        self.assertEqual(agent_downloads({}), 0)
-
-        self.assertEqual(agent_logo_url({"LogoUrl": "u"}), "u")
-        self.assertEqual(agent_logo_url({"logo": "old"}), "old")
-        self.assertEqual(agent_logo_url({}), "")
 
     @mock.patch("ms_agent.agent_hub._commands.AgentApi", _StubClient)
     def test_upload_global_only_no_agents_dir(self):
