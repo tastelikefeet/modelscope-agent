@@ -1,5 +1,7 @@
 # Copyright (c) ModelScope Contributors. All rights reserved.
 """CLI command tests: helper functions, upload/download/convert flows (stubbed client)."""
+import io
+import os
 import tempfile
 import unittest
 import zipfile
@@ -9,6 +11,7 @@ from unittest import mock
 from ms_agent.agent_hub._commands import (
     available_frameworks,
     build_spec,
+    check_framework,
     cmd_convert,
     cmd_download,
     cmd_list,
@@ -58,6 +61,68 @@ class _RepoStub:
 # ---------------------------------------------------------------------------
 # Helper function unit tests
 # ---------------------------------------------------------------------------
+
+
+class TestExperimentalFrameworkGate(unittest.TestCase):
+    """Only ms-agent / qwenpaw are exposed unless TRY_EXP_FRAMEWORKS is set.
+
+    conftest turns the gate ON for the rest of the suite (the gated frameworks
+    still need their regressions), so each test here pins the env var itself
+    rather than relying on the ambient value.
+    """
+
+    def _clear(self):
+        return mock.patch.dict(os.environ, {"TRY_EXP_FRAMEWORKS": ""})
+
+    def _enable(self, value="True"):
+        return mock.patch.dict(os.environ, {"TRY_EXP_FRAMEWORKS": value})
+
+    def test_stable_frameworks_always_allowed(self):
+        with self._clear():
+            for fw in ("ms-agent", "qwenpaw"):
+                self.assertIsNone(check_framework(fw))
+
+    def test_gated_frameworks_rejected_by_default(self):
+        with self._clear():
+            for fw in ("qoder", "hermes", "nanobot", "openclaw", "openhuman"):
+                err = check_framework(fw)
+                self.assertIsNotNone(err, f"{fw} should be gated by default")
+                # points at the opt-in, and does not pretend the name is bogus
+                self.assertIn("TRY_EXP_FRAMEWORKS", err)
+                self.assertNotIn("unknown", err)
+
+    def test_gated_frameworks_allowed_when_enabled(self):
+        for value in ("True", "true", "1", "yes", "on"):
+            with self._enable(value):
+                self.assertIsNone(
+                    check_framework("qoder"), f"{value!r} should enable")
+
+    def test_falsy_values_keep_gate_closed(self):
+        for value in ("", "false", "0", "no"):
+            with self._enable(value):
+                self.assertIsNotNone(
+                    check_framework("qoder"), f"{value!r} must not enable")
+
+    def test_unknown_framework_is_reported_as_unknown(self):
+        for ctx in (self._clear(), self._enable()):
+            with ctx:
+                err = check_framework("bogus")
+                self.assertIn("unknown", err)
+                self.assertNotIn("TRY_EXP_FRAMEWORKS", err)
+
+    def test_available_frameworks_reflects_the_gate(self):
+        with self._clear():
+            self.assertEqual(available_frameworks(), "ms-agent, qwenpaw")
+        with self._enable():
+            listed = available_frameworks()
+            for fw in ("qoder", "hermes", "ms-agent", "qwenpaw"):
+                self.assertIn(fw, listed)
+
+    def test_commands_exit_nonzero_for_gated_framework(self):
+        with self._clear():
+            with mock.patch("sys.stderr", new=io.StringIO()) as err:
+                self.assertEqual(cmd_status("qoder"), 1)
+            self.assertIn("TRY_EXP_FRAMEWORKS", err.getvalue())
 
 
 class TestRepoName(unittest.TestCase):
